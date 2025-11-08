@@ -1,7 +1,12 @@
 import type { VersionUpdate } from "./types";
-import { run } from "./utils";
+import { run, runIfNotDry } from "./utils";
 
-export async function hasCleanWorkingDirectory(
+/**
+ * Check if the working directory is clean (no uncommitted changes)
+ * @param {string} workspaceRoot - The root directory of the workspace
+ * @returns {Promise<boolean>} A Promise resolving to true if clean, false otherwise
+ */
+export async function isWorkingDirectoryClean(
   workspaceRoot: string,
 ): Promise<boolean> {
   try {
@@ -18,30 +23,18 @@ export async function hasCleanWorkingDirectory(
 
     return true;
   } catch (err: any) {
-    throw new Error(`Failed to check git status: ${err.message}`);
+    console.error("Error checking git status:", err);
+    return false;
   }
-}
-
-export interface CreatePROptions {
-  repo: string;
-  branch: string;
-  base: string;
-  title: string;
-  body: string;
-  draft?: boolean;
-  githubToken?: string;
-}
-
-export interface PRResult {
-  url?: string;
-  created: boolean;
-  number?: number;
 }
 
 /**
  * Check if a git branch exists locally
+ * @param {string} branch - The branch name to check
+ * @param {string} workspaceRoot - The root directory of the workspace
+ * @returns {Promise<boolean>} Promise resolving to true if branch exists, false otherwise
  */
-export async function branchExists(
+export async function doesBranchExist(
   branch: string,
   workspaceRoot: string,
 ): Promise<boolean> {
@@ -52,12 +45,19 @@ export async function branchExists(
         stdio: "pipe",
       },
     });
+
     return true;
   } catch {
     return false;
   }
 }
 
+/**
+ * Pull latest changes from remote branch
+ * @param branch - The branch name to pull from
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Promise resolving to true if pull succeeded, false otherwise
+ */
 export async function pullLatestChanges(
   branch: string,
   workspaceRoot: string,
@@ -76,40 +76,29 @@ export async function pullLatestChanges(
 }
 
 /**
- * Check if a git branch exists on remote
- */
-export async function remoteBranchExists(
-  branch: string,
-  workspaceRoot: string,
-): Promise<boolean> {
-  try {
-    await run("git", ["ls-remote", "--heads", "origin", branch], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Create a new git branch
+ * @param branch - The new branch name
+ * @param base - The base branch to create from
+ * @param workspaceRoot - The root directory of the workspace
  */
 export async function createBranch(
   branch: string,
   base: string,
   workspaceRoot: string,
 ): Promise<void> {
-  await run("git", ["checkout", "-b", branch, base], {
+  await runIfNotDry("git", ["checkout", "-b", branch, base], {
     nodeOptions: {
       cwd: workspaceRoot,
     },
   });
 }
 
+/**
+ * Checkout a git branch
+ * @param branch - The branch name to checkout
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Promise resolving to true if checkout succeeded, false otherwise
+ */
 export async function checkoutBranch(
   branch: string,
   workspaceRoot: string,
@@ -128,6 +117,8 @@ export async function checkoutBranch(
 
 /**
  * Get the current branch name
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Promise resolving to the current branch name
  */
 export async function getCurrentBranch(
   workspaceRoot: string,
@@ -144,6 +135,8 @@ export async function getCurrentBranch(
 
 /**
  * Rebase current branch onto another branch
+ * @param ontoBranch - The target branch to rebase onto
+ * @param workspaceRoot - The root directory of the workspace
  */
 export async function rebaseBranch(
   ontoBranch: string,
@@ -158,6 +151,8 @@ export async function rebaseBranch(
 
 /**
  * Check if there are any changes to commit (staged or unstaged)
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Promise resolving to true if there are changes, false otherwise
  */
 export async function hasChangesToCommit(
   workspaceRoot: string,
@@ -174,7 +169,9 @@ export async function hasChangesToCommit(
 
 /**
  * Commit changes with a message
- * Returns true if commit was made, false if there were no changes
+ * @param message - The commit message
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Promise resolving to true if commit was made, false if there were no changes
  */
 export async function commitChanges(
   message: string,
@@ -205,6 +202,11 @@ export async function commitChanges(
 
 /**
  * Push branch to remote
+ * @param branch - The branch name to push
+ * @param workspaceRoot - The root directory of the workspace
+ * @param options - Push options
+ * @param options.force - Force push (overwrite remote)
+ * @param options.forceWithLease - Force push with safety check (won't overwrite unexpected changes)
  */
 export async function pushBranch(
   branch: string,
@@ -228,6 +230,8 @@ export async function pushBranch(
 
 /**
  * Generate PR body from version updates
+ * @param updates - Array of version updates to include in the PR body
+ * @returns Formatted PR body as a string
  */
 export function generatePRBody(updates: VersionUpdate[]): string {
   const lines: string[] = [];
@@ -266,98 +270,4 @@ export function generatePRBody(updates: VersionUpdate[]): string {
   lines.push("This release PR was automatically generated.");
 
   return lines.join("\n");
-}
-
-/**
- * Create a GitHub PR using gh CLI
- */
-export async function createPR(
-  options: CreatePROptions,
-  workspaceRoot: string,
-): Promise<PRResult> {
-  const args = [
-    "pr",
-    "create",
-    "--title",
-    options.title,
-    "--body",
-    options.body,
-    "--base",
-    options.base,
-    "--head",
-    options.branch,
-  ];
-
-  if (options.draft) {
-    args.push("--draft");
-  }
-
-  try {
-    const result = await run("gh", args, {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-
-    // gh CLI returns the PR URL in stdout
-    const url = result.stdout.trim();
-
-    return {
-      url,
-      created: true,
-    };
-  } catch (error) {
-    throw new Error(`Failed to create PR: ${error}`);
-  }
-}
-
-/**
- * Update an existing GitHub PR
- */
-export async function updatePR(
-  prNumber: number,
-  body: string,
-  workspaceRoot: string,
-): Promise<void> {
-  await run("gh", ["pr", "edit", String(prNumber), "--body", body], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-    },
-  });
-}
-
-/**
- * Find existing release PR
- */
-export async function findReleasePR(
-  branch: string,
-  workspaceRoot: string,
-): Promise<number | undefined> {
-  try {
-    const result = await run(
-      "gh",
-      [
-        "pr",
-        "list",
-        "--head",
-        branch,
-        "--json",
-        "number",
-        "--jq",
-        ".[0].number",
-      ],
-      {
-        nodeOptions: {
-          cwd: workspaceRoot,
-          stdio: "pipe",
-        },
-      },
-    );
-
-    const number = result.stdout.trim();
-    return number ? Number.parseInt(number, 10) : undefined;
-  } catch {
-    return undefined;
-  }
 }

@@ -12,7 +12,7 @@ import { createVersionUpdate } from "./version";
  * @returns All updates including dependent packages
  */
 export function createDependentUpdates(
-  updateOrder: Array<{ package: WorkspacePackage, level: number }>,
+  updateOrder: Array<{ package: WorkspacePackage; level: number }>,
   directUpdates: VersionUpdate[],
 ): VersionUpdate[] {
   const allUpdates = [...directUpdates];

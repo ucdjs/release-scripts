@@ -1,11 +1,17 @@
-import { createDebugger } from "./logger";
-
-const debug = createDebugger("ucdjs:release-scripts:github");
+import farver from "farver";
 
 interface SharedGitHubOptions {
   owner: string;
   repo: string;
   githubToken: string;
+}
+
+interface GitHubPullRequest {
+  number: number;
+  title: string;
+  body: string;
+  draft: boolean;
+  html_url?: string;
 }
 
 export async function getExistingPullRequest({
@@ -15,7 +21,7 @@ export async function getExistingPullRequest({
   githubToken,
 }: SharedGitHubOptions & {
   branch: string;
-}) {
+}): Promise<GitHubPullRequest | null> {
   try {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&base=${branch}`, {
       headers: {
@@ -31,22 +37,42 @@ export async function getExistingPullRequest({
     const pulls = await res.json();
 
     if (pulls == null || !Array.isArray(pulls) || pulls.length === 0) {
-      debug?.("No existing pull requests found");
       return null;
     }
 
-    const firstPullRequest = pulls[0];
-    if (firstPullRequest == null) {
-      debug?.("No existing pull requests found");
-      return null;
+    const firstPullRequest: unknown = pulls[0];
+
+    if (
+      typeof firstPullRequest !== "object"
+      || firstPullRequest === null
+      || !("number" in firstPullRequest)
+      || typeof firstPullRequest.number !== "number"
+      || !("title" in firstPullRequest)
+      || typeof firstPullRequest.title !== "string"
+      || !("body" in firstPullRequest)
+      || typeof firstPullRequest.body !== "string"
+      || !("draft" in firstPullRequest)
+      || typeof firstPullRequest.draft !== "boolean"
+      || !("html_url" in firstPullRequest)
+      || typeof firstPullRequest.html_url !== "string"
+    ) {
+      throw new TypeError("Pull request data validation failed");
     }
 
-    // TODO: verify that the PR matches expected criteria (e.g., title, labels)
+    const pullRequest: GitHubPullRequest = {
+      number: firstPullRequest.number,
+      title: firstPullRequest.title,
+      body: firstPullRequest.body,
+      draft: firstPullRequest.draft,
+      html_url: firstPullRequest.html_url,
+    };
 
-    debug?.(`Found existing pull request: #${firstPullRequest.number}`);
-    return firstPullRequest;
+    console.info(`Found existing pull request: ${farver.yellow(`#${pullRequest.number}`)}`);
+
+    return pullRequest;
   } catch (err) {
     console.error("Error fetching pull request:", err);
+    return null;
   }
 }
 
@@ -65,7 +91,7 @@ export async function upsertPullRequest({
   head?: string;
   base?: string;
   pullNumber?: number;
-}) {
+}): Promise<GitHubPullRequest | null> {
   try {
     const isUpdate = pullNumber != null;
     const url = isUpdate
@@ -92,9 +118,34 @@ export async function upsertPullRequest({
     }
 
     const pr = await res.json();
+
+    if (
+      typeof pr !== "object"
+      || pr === null
+      || !("number" in pr)
+      || typeof pr.number !== "number"
+      || !("title" in pr)
+      || typeof pr.title !== "string"
+      || !("body" in pr)
+      || typeof pr.body !== "string"
+      || !("draft" in pr)
+      || typeof pr.draft !== "boolean"
+      || !("html_url" in pr)
+      || typeof pr.html_url !== "string"
+    ) {
+      throw new TypeError("Pull request data validation failed");
+    }
+
     const action = isUpdate ? "Updated" : "Created";
-    debug?.(`${action} pull request: #${pr.number}`);
-    return pr;
+    console.info(`${action} pull request: ${farver.yellow(`#${pr.number}`)}`);
+
+    return {
+      number: pr.number,
+      title: pr.title,
+      body: pr.body,
+      draft: pr.draft,
+      html_url: pr.html_url,
+    };
   } catch (err) {
     console.error(`Error upserting pull request:`, err);
     throw err;
