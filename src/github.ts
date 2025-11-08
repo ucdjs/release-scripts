@@ -1,3 +1,4 @@
+import type { VersionUpdate } from "./types";
 import farver from "farver";
 
 interface SharedGitHubOptions {
@@ -150,4 +151,45 @@ export async function upsertPullRequest({
     console.error(`Error upserting pull request:`, err);
     throw err;
   }
+}
+
+export function generatePullRequestBody(updates: VersionUpdate[], _body?: string): string {
+  const lines: string[] = [];
+
+  // TODO: Add support for custom body templates
+
+  lines.push("## Packages");
+  lines.push("");
+
+  // Group by direct changes vs dependency updates
+  const directChanges = updates.filter((u) => u.hasDirectChanges);
+  const dependencyUpdates = updates.filter((u) => !u.hasDirectChanges);
+
+  if (directChanges.length > 0) {
+    lines.push("### Direct Changes");
+    lines.push("");
+    for (const update of directChanges) {
+      lines.push(
+        `- **${update.package.name}**: ${update.currentVersion} → ${update.newVersion} (${update.bumpType})`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (dependencyUpdates.length > 0) {
+    lines.push("### Dependency Updates");
+    lines.push("");
+    for (const update of dependencyUpdates) {
+      lines.push(
+        `- **${update.package.name}**: ${update.currentVersion} → ${update.newVersion} (dependencies changed)`,
+      );
+    }
+    lines.push("");
+  }
+
+  lines.push("---");
+  lines.push("");
+  lines.push("This release PR was automatically generated.");
+
+  return lines.join("\n");
 }

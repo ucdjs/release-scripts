@@ -157,10 +157,11 @@ export interface ReleaseOptions {
    */
   githubToken: string;
 
-  /**
-   * Optional custom title for the pull request
-   */
-  prTitle?: string;
+  pullRequest?: {
+    title: string;
+
+    body: string;
+  };
 }
 
 export interface ReleaseResult {

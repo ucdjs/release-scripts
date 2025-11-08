@@ -13,7 +13,6 @@ import {
   commitChanges,
   createBranch,
   doesBranchExist,
-  generatePRBody,
   getCurrentBranch,
   isBranchAheadOfRemote,
   isWorkingDirectoryClean,
@@ -21,7 +20,7 @@ import {
   pushBranch,
   rebaseBranch,
 } from "./git";
-import { getExistingPullRequest, upsertPullRequest } from "./github";
+import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } from "./github";
 import { promptPackageSelection, promptVersionOverrides } from "./prompts";
 import { globalOptions } from "./utils";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
@@ -201,8 +200,8 @@ export async function release(
   await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
 
   // Create or update PR
-  const prTitle = existingPullRequest?.title || (options.prTitle || "chore: update package versions");
-  const prBody = generatePRBody(allUpdates);
+  const prTitle = existingPullRequest?.title || (options.pullRequest?.title || "chore: update package versions");
+  const prBody = generatePullRequestBody(allUpdates, options.pullRequest?.body);
 
   const pullRequest = await upsertPullRequest({
     owner,
