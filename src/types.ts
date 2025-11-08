@@ -147,6 +147,12 @@ export interface ReleaseOptions {
   dryRun?: boolean;
 
   /**
+   * Whether to enable safety safeguards (e.g., checking for clean working directory)
+   * @default true
+   */
+  safeguards?: boolean;
+
+  /**
    * GitHub token for authentication
    */
   githubToken: string;
