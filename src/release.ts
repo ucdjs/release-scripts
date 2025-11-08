@@ -9,13 +9,13 @@ import process from "node:process";
 import { analyzePackageCommits } from "./commits";
 import { createDependentUpdates } from "./dependencies";
 import {
-  branchExists,
   checkoutBranch,
   commitChanges,
   createBranch,
+  doesBranchExist,
   generatePRBody,
   getCurrentBranch,
-  hasCleanWorkingDirectory,
+  isWorkingDirectoryClean,
   pullLatestChanges,
   pushBranch,
   rebaseBranch,
@@ -23,6 +23,7 @@ import {
 import { getExistingPullRequest, upsertPullRequest } from "./github";
 import { createDebugger } from "./logger";
 import { promptPackageSelection, promptVersionOverrides } from "./prompts";
+import { globalOptions } from "./utils";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
 import { buildDependencyGraph, findWorkspacePackages, getPackageUpdateOrder } from "./workspace";
 
@@ -35,10 +36,13 @@ export async function release(
 ): Promise<ReleaseResult | null> {
   const {
     dryRun = false,
+    safeguards = true,
     workspaceRoot = process.cwd(),
     releaseBranch = "release/next",
     githubToken,
   } = options;
+
+  globalOptions.dryRun = dryRun;
 
   if (githubToken.trim() === "" || githubToken == null) {
     throw new Error("GitHub token is required");
@@ -50,7 +54,7 @@ export async function release(
     throw new Error(`Invalid repo format: ${options.repo}. Expected "owner/repo".`);
   }
 
-  if (!hasCleanWorkingDirectory(workspaceRoot)) {
+  if (safeguards && !isWorkingDirectoryClean(workspaceRoot)) {
     console.error("Working directory is not clean. Please commit or stash your changes before proceeding.");
     return null;
   }
@@ -210,10 +214,9 @@ export async function release(
   debug?.("No existing pull request found for release branch");
   debug?.("A new pull request will be created upon release");
 
-  // Does branch already exist?
-  const doesBranchExist = await branchExists(releaseBranch, workspaceRoot);
+  const doWeHaveBranch = await doesBranchExist(releaseBranch, workspaceRoot);
 
-  if (!doesBranchExist) {
+  if (!doWeHaveBranch) {
     // Create the release branch if it doesn't exist
     await createBranch(releaseBranch, currentBranch, workspaceRoot);
   }
@@ -241,7 +244,7 @@ export async function release(
   }
 
   // Push the release branch to remote
-  await pushBranch(releaseBranch, workspaceRoot, { force: doesBranchExist });
+  await pushBranch(releaseBranch, workspaceRoot, { force: doWeHaveBranch });
 
   // Create the PR
   const prTitle = "Release: Update package versions";
