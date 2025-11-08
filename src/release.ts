@@ -127,6 +127,8 @@ export async function release(
 
   // Save current branch to return to it later
   const currentBranch = await getCurrentBranch(workspaceRoot);
+
+  // Check if PR already exists
   const existingPullRequest = await getExistingPullRequest({
     owner,
     repo,
@@ -134,83 +136,36 @@ export async function release(
     githubToken,
   });
 
-  if (existingPullRequest) {
-    console.log("Existing pull request found for release branch:", existingPullRequest.html_url);
-
-    // Checkout release branch
-    const hasCheckedOut = await checkoutBranch(releaseBranch, workspaceRoot);
-    if (!hasCheckedOut) {
-      throw new Error(`Failed to checkout branch: ${releaseBranch}`);
-    }
-
-    // Pull latest changes from remote release branch
-    const hasLatestRemoteChanges = await pullLatestChanges(releaseBranch, workspaceRoot);
-    if (!hasLatestRemoteChanges) {
-      throw new Error(`Failed to pull latest changes for branch: ${releaseBranch}`);
-    }
-
-    // Rebase release branch onto current branch (usually main) to get latest commits
-    console.log("Rebasing release branch onto", currentBranch);
-    await rebaseBranch(currentBranch, workspaceRoot);
-
-    // Now update package.json files (on release branch)
-    await updatePackageJsonFiles(allUpdates);
-
-    // Commit the changes (if there are any)
-    const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
-
-    if (hasCommitted) {
-      console.log("Changes committed, pushing to remote");
-
-      // Push with --force-with-lease to preserve any manual commits
-      await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
-
-      // Update PR body
-      const prBody = generatePRBody(allUpdates);
-      if (existingPullRequest.number) {
-        console.log("Updated existing pull request:", existingPullRequest.html_url);
-        await upsertPullRequest({
-          owner,
-          repo,
-          pullNumber: existingPullRequest.number,
-          title: existingPullRequest.title,
-          body: prBody,
-          head: releaseBranch,
-          base: currentBranch,
-          githubToken,
-        });
-      }
-    } else {
-      console.log("No changes to commit, skipping push and PR update");
-    }
-
-    // Checkout back to original branch
-    await checkoutBranch(currentBranch, workspaceRoot);
-
-    return {
-      updates: allUpdates,
-      prUrl: existingPullRequest?.html_url,
-      created: false,
-    };
+  const prExists = !!existingPullRequest;
+  if (prExists) {
+    console.log("Existing pull request found:", existingPullRequest.html_url);
+  } else {
+    console.log("No existing pull request found, will create new one");
   }
 
-  console.log("No existing pull request found for release branch");
-  console.log("A new pull request will be created upon release");
-
-  const doWeHaveBranch = await doesBranchExist(releaseBranch, workspaceRoot);
-
-  if (!doWeHaveBranch) {
-    // Create the release branch if it doesn't exist
+  // Ensure release branch exists
+  const branchExists = await doesBranchExist(releaseBranch, workspaceRoot);
+  if (!branchExists) {
+    console.log("Creating release branch:", releaseBranch);
     await createBranch(releaseBranch, currentBranch, workspaceRoot);
   }
 
-  // Checkout the release branch
+  // Checkout release branch
   const hasCheckedOut = await checkoutBranch(releaseBranch, workspaceRoot);
   if (!hasCheckedOut) {
     throw new Error(`Failed to checkout branch: ${releaseBranch}`);
   }
 
-  // Rebase release branch onto current branch (usually main) to get latest commits
+  // Pull latest changes if branch exists remotely
+  if (branchExists) {
+    console.log("Pulling latest changes from remote");
+    const hasPulled = await pullLatestChanges(releaseBranch, workspaceRoot);
+    if (!hasPulled) {
+      console.log("Warning: Failed to pull latest changes, continuing anyway");
+    }
+  }
+
+  // Rebase onto current branch to get latest commits from main
   console.log("Rebasing release branch onto", currentBranch);
   await rebaseBranch(currentBranch, workspaceRoot);
 
@@ -223,20 +178,31 @@ export async function release(
   if (!hasCommitted) {
     console.log("No changes to commit");
     await checkoutBranch(currentBranch, workspaceRoot);
-    throw new Error("No changes to commit for new release");
+
+    if (prExists) {
+      console.log("No updates needed, PR is already up to date");
+      return {
+        updates: allUpdates,
+        prUrl: existingPullRequest.html_url,
+        created: false,
+      };
+    } else {
+      throw new Error("No changes to commit for new release");
+    }
   }
 
-  // Push the release branch to remote
-  await pushBranch(releaseBranch, workspaceRoot, { force: doWeHaveBranch });
+  // Push with --force-with-lease for safety
+  console.log("Pushing changes to remote");
+  await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
 
-  // Create the PR
-  const prTitle = "Release: Update package versions";
+  // Create or update PR
+  const prTitle = existingPullRequest?.title || "Release: Update package versions";
   const prBody = generatePRBody(allUpdates);
 
-  // Create PR via GitHub API
-  const newPullRequest = await upsertPullRequest({
+  const pullRequest = await upsertPullRequest({
     owner,
     repo,
+    pullNumber: existingPullRequest?.number,
     title: prTitle,
     body: prBody,
     head: releaseBranch,
@@ -244,13 +210,15 @@ export async function release(
     githubToken,
   });
 
+  console.log(prExists ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);
+
   // Checkout back to original branch
   await checkoutBranch(currentBranch, workspaceRoot);
 
   return {
     updates: allUpdates,
-    prUrl: newPullRequest?.html_url,
-    created: true,
+    prUrl: pullRequest?.html_url,
+    created: !prExists,
   };
 }
 
