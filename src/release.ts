@@ -21,13 +21,10 @@ import {
   rebaseBranch,
 } from "./git";
 import { getExistingPullRequest, upsertPullRequest } from "./github";
-import { createDebugger } from "./logger";
 import { promptPackageSelection, promptVersionOverrides } from "./prompts";
 import { globalOptions } from "./utils";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
 import { buildDependencyGraph, findWorkspacePackages, getPackageUpdateOrder } from "./workspace";
-
-const debug = createDebugger("ucdjs:release-scripts:release");
 
 const isCI = process.env.CI === "true";
 
@@ -86,14 +83,10 @@ export async function release(
     throw new Error("No packages have changes requiring a release");
   }
 
-  debug?.("Changed packages:", Array.from(changedPackages.entries()));
-
   let versionUpdates = calculateVersions(
     workspacePackages,
     changedPackages,
   );
-
-  debug?.("Version updates:", versionUpdates);
 
   // Prompt for version overrides if enabled
   const isVersionPromptEnabled = options.prompts?.versions !== false;
@@ -119,31 +112,21 @@ export async function release(
       }
       return update;
     });
-
-    debug?.("Version updates after overrides:", versionUpdates);
   }
 
   const graph = buildDependencyGraph(workspacePackages);
   const packagesNeedingUpdate = new Set(versionUpdates.map((u) => u.package.name));
 
-  debug?.("Packages needing update (including dependents):", packagesNeedingUpdate);
-
   // Get all packages in update order (includes dependents)
   const updateOrder = getPackageUpdateOrder(graph, packagesNeedingUpdate);
-
-  debug?.("Update order:", updateOrder.map((u) => u.package.name));
 
   const allUpdates = createDependentUpdates(
     updateOrder,
     versionUpdates,
   );
 
-  debug?.("All version updates (including dependents):", allUpdates);
-
   // Save current branch to return to it later
   const currentBranch = await getCurrentBranch(workspaceRoot);
-  debug?.("Current branch:", currentBranch);
-
   const existingPullRequest = await getExistingPullRequest({
     owner,
     repo,
@@ -152,7 +135,7 @@ export async function release(
   });
 
   if (existingPullRequest) {
-    debug?.("Existing pull request found for release branch:", existingPullRequest.html_url);
+    console.log("Existing pull request found for release branch:", existingPullRequest.html_url);
 
     // Checkout release branch
     const hasCheckedOut = await checkoutBranch(releaseBranch, workspaceRoot);
@@ -167,7 +150,7 @@ export async function release(
     }
 
     // Rebase release branch onto current branch (usually main) to get latest commits
-    debug?.("Rebasing release branch onto", currentBranch);
+    console.log("Rebasing release branch onto", currentBranch);
     await rebaseBranch(currentBranch, workspaceRoot);
 
     // Now update package.json files (on release branch)
@@ -177,7 +160,7 @@ export async function release(
     const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
 
     if (hasCommitted) {
-      debug?.("Changes committed, pushing to remote");
+      console.log("Changes committed, pushing to remote");
 
       // Push with --force-with-lease to preserve any manual commits
       await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
@@ -185,7 +168,7 @@ export async function release(
       // Update PR body
       const prBody = generatePRBody(allUpdates);
       if (existingPullRequest.number) {
-        debug?.("Updated existing pull request:", existingPullRequest.html_url);
+        console.log("Updated existing pull request:", existingPullRequest.html_url);
         await upsertPullRequest({
           owner,
           repo,
@@ -198,7 +181,7 @@ export async function release(
         });
       }
     } else {
-      debug?.("No changes to commit, skipping push and PR update");
+      console.log("No changes to commit, skipping push and PR update");
     }
 
     // Checkout back to original branch
@@ -206,13 +189,13 @@ export async function release(
 
     return {
       updates: allUpdates,
-      prUrl: existingPullRequest?.url,
+      prUrl: existingPullRequest?.html_url,
       created: false,
     };
   }
 
-  debug?.("No existing pull request found for release branch");
-  debug?.("A new pull request will be created upon release");
+  console.log("No existing pull request found for release branch");
+  console.log("A new pull request will be created upon release");
 
   const doWeHaveBranch = await doesBranchExist(releaseBranch, workspaceRoot);
 
@@ -228,7 +211,7 @@ export async function release(
   }
 
   // Rebase release branch onto current branch (usually main) to get latest commits
-  debug?.("Rebasing release branch onto", currentBranch);
+  console.log("Rebasing release branch onto", currentBranch);
   await rebaseBranch(currentBranch, workspaceRoot);
 
   // Update package.json files
@@ -238,7 +221,7 @@ export async function release(
   const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
 
   if (!hasCommitted) {
-    debug?.("No changes to commit");
+    console.log("No changes to commit");
     await checkoutBranch(currentBranch, workspaceRoot);
     throw new Error("No changes to commit for new release");
   }
@@ -266,7 +249,7 @@ export async function release(
 
   return {
     updates: allUpdates,
-    prUrl: newPullRequest.url,
+    prUrl: newPullRequest?.html_url,
     created: true,
   };
 }
