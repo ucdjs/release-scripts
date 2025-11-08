@@ -76,29 +76,6 @@ export async function pullLatestChanges(
 }
 
 /**
- * Check if a git branch exists on remote
- * @param branch - The branch name to check
- * @param workspaceRoot - The root directory of the workspace
- * @returns Promise resolving to true if remote branch exists, false otherwise
- */
-export async function remoteBranchExists(
-  branch: string,
-  workspaceRoot: string,
-): Promise<boolean> {
-  try {
-    await run("git", ["ls-remote", "--heads", "origin", branch], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Create a new git branch
  * @param branch - The new branch name
  * @param base - The base branch to create from
@@ -227,7 +204,9 @@ export async function commitChanges(
  * Push branch to remote
  * @param branch - The branch name to push
  * @param workspaceRoot - The root directory of the workspace
- * @param options - Push options (force or forceWithLease)
+ * @param options - Push options
+ * @param options.force - Force push (overwrite remote)
+ * @param options.forceWithLease - Force push with safety check (won't overwrite unexpected changes)
  */
 export async function pushBranch(
   branch: string,
