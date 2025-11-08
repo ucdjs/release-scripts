@@ -150,6 +150,32 @@ export async function rebaseBranch(
 }
 
 /**
+ * Check if local branch is ahead of remote (has commits to push)
+ * @param branch - The branch name to check
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Promise resolving to true if local is ahead, false otherwise
+ */
+export async function isBranchAheadOfRemote(
+  branch: string,
+  workspaceRoot: string,
+): Promise<boolean> {
+  try {
+    const result = await run("git", ["rev-list", `origin/${branch}..${branch}`, "--count"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    const commitCount = Number.parseInt(result.stdout.trim(), 10);
+    return commitCount > 0;
+  } catch {
+    // If remote branch doesn't exist, consider it as ahead
+    return true;
+  }
+}
+
+/**
  * Check if there are any changes to commit (staged or unstaged)
  * @param workspaceRoot - The root directory of the workspace
  * @returns Promise resolving to true if there are changes, false otherwise

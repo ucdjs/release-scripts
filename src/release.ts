@@ -15,6 +15,7 @@ import {
   doesBranchExist,
   generatePRBody,
   getCurrentBranch,
+  isBranchAheadOfRemote,
   isWorkingDirectoryClean,
   pullLatestChanges,
   pushBranch,
@@ -175,8 +176,11 @@ export async function release(
   // Commit the changes (if there are any)
   const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
 
-  if (!hasCommitted) {
-    console.log("No changes to commit");
+  // Check if branch is ahead of remote (has commits to push)
+  const isBranchAhead = await isBranchAheadOfRemote(releaseBranch, workspaceRoot);
+
+  if (!hasCommitted && !isBranchAhead) {
+    console.log("No changes to commit and branch is in sync with remote");
     await checkoutBranch(currentBranch, workspaceRoot);
 
     if (prExists) {
@@ -187,10 +191,6 @@ export async function release(
         created: false,
       };
     } else {
-      // If we reach here, it means that we couldn't commit any changes.
-      // This is either due to a PR already existing, and the updated versions
-      // are already included in the PR, or there are no changes to commit.
-
       console.error("No changes to commit, and no existing PR. Nothing to do.");
       return null;
     }
