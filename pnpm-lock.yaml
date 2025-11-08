@@ -14,6 +14,9 @@ importers:
       debug:
         specifier: 4.4.3
         version: 4.4.3
+      farver:
+        specifier: 1.0.0-beta.1
+        version: 1.0.0-beta.1
       prompts:
         specifier: 2.4.2
         version: 2.4.2
@@ -1230,6 +1233,10 @@ packages:
   exsolve@1.0.7:
     resolution: {integrity: sha512-VO5fQUzZtI6C+vx4w/4BWJpg3s/5l+6pRQEHzFRM8WFi4XffSP1Z+4qi7GbjWbvRQEbdIco5mIMq+zX4rPuLrw==}
 
+  farver@1.0.0-beta.1:
+    resolution: {integrity: sha512-rHj+XLOnEJ44miIXJ2W68GKnys5TYQgGhpClfbSzdpKAcYpwdjJjDJMjzj9uLVP243fszLaKDgDFwC89YB37cg==}
+    engines: {node: '>=20'}
+
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -1834,6 +1841,10 @@ packages:
   tapable@2.3.0:
     resolution: {integrity: sha512-g9ljZiwki/LfxmQADO3dEY1CbpmXT5Hm2fJ+QaGKwSXUylMybePR7/67YW7jOrrvjEgL1Fmz5kzyAjWVWLlucg==}
     engines: {node: '>=6'}
+
+  termenv@1.0.2:
+    resolution: {integrity: sha512-Qhgg8HwPAwvvzvl8xUXH13R0dLcXqgOCHMfFejf3vGYYxmZfMUwN5jTdB+lDEtlJCxgwH8o349L5O7hU2QxPOA==}
+    engines: {node: '>=20'}
 
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
@@ -3264,6 +3275,10 @@ snapshots:
 
   exsolve@1.0.7: {}
 
+  farver@1.0.0-beta.1:
+    dependencies:
+      termenv: 1.0.2
+
   fast-deep-equal@3.1.3: {}
 
   fast-glob@3.3.3:
@@ -4013,6 +4028,8 @@ snapshots:
       '@pkgr/core': 0.2.9
 
   tapable@2.3.0: {}
+
+  termenv@1.0.2: {}
 
   tinybench@2.9.0: {}
 
