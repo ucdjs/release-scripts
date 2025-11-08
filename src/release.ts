@@ -187,7 +187,12 @@ export async function release(
         created: false,
       };
     } else {
-      throw new Error("No changes to commit for new release");
+      // If we reach here, it means that we couldn't commit any changes.
+      // This is either due to a PR already existing, and the updated versions
+      // are already included in the PR, or there are no changes to commit.
+
+      console.error("No changes to commit, and no existing PR. Nothing to do.");
+      return null;
     }
   }
 

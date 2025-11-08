@@ -23,7 +23,7 @@ export async function getExistingPullRequest({
   branch: string;
 }): Promise<GitHubPullRequest | null> {
   try {
-    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&base=${branch}`, {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&head=${branch}`, {
       headers: {
         Accept: "application/vnd.github.v3+json",
         Authorization: `token ${githubToken}`,
