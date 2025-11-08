@@ -156,6 +156,11 @@ export interface ReleaseOptions {
    * GitHub token for authentication
    */
   githubToken: string;
+
+  /**
+   * Optional custom title for the pull request
+   */
+  prTitle?: string;
 }
 
 export interface ReleaseResult {

@@ -201,7 +201,7 @@ export async function release(
   await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
 
   // Create or update PR
-  const prTitle = existingPullRequest?.title || "Release: Update package versions";
+  const prTitle = existingPullRequest?.title || (options.prTitle || "chore: update package versions");
   const prBody = generatePRBody(allUpdates);
 
   const pullRequest = await upsertPullRequest({
