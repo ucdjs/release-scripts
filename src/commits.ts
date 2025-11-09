@@ -81,14 +81,6 @@ export async function getPackageCommits(
   return packageCommits;
 }
 
-export async function analyzePackageCommits(
-  pkg: WorkspacePackage,
-  workspaceRoot: string,
-): Promise<BumpKind> {
-  const commits = await getPackageCommits(pkg, workspaceRoot);
-  return determineHighestBump(commits);
-}
-
 /**
  * Analyze commits for multiple packages to determine version bumps
  *
@@ -103,11 +95,16 @@ export async function analyzeCommits(
   const changedPackages = new Map<string, BumpKind>();
 
   for (const pkg of packages) {
-    const bump = await analyzePackageCommits(pkg, workspaceRoot);
+    const commits = await getPackageCommits(pkg, workspaceRoot);
 
-    if (bump !== "none") {
-      changedPackages.set(pkg.name, bump);
+    const bump = determineHighestBump(commits);
+
+    if (bump === "none") {
+      logger.info(`No version bump needed for package ${pkg.name}`);
+      continue;
     }
+
+    changedPackages.set(pkg.name, bump);
   }
 
   return changedPackages;
