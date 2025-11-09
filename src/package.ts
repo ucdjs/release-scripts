@@ -52,25 +52,64 @@ export function buildPackageDependencyGraph(
 }
 
 /**
- * Calculate the order in which packages should be updated based on dependencies
+ * Get all packages affected by changes (including transitive dependents)
  *
- * Performs topological sorting to ensure dependencies are updated before dependents.
- * Assigns a "level" to each package based on its depth in the dependency tree.
+ * Uses graph traversal to find all packages that need updates:
+ * - Packages with direct changes
+ * - All packages that depend on changed packages (transitively)
  *
  * @param graph - Dependency graph
  * @param changedPackages - Set of package names with direct changes
- * @returns Array of packages in update order with their dependency level
+ * @returns Set of all package names that need updates
  */
-export function getPackageUpdateOrder(
+export function getAllAffectedPackages(
   graph: PackageDependencyGraph,
   changedPackages: Set<string>,
+): Set<string> {
+  const affected = new Set<string>();
+
+  function visitDependents(pkgName: string) {
+    if (affected.has(pkgName)) return;
+    affected.add(pkgName);
+
+    const dependents = graph.dependents.get(pkgName);
+    if (dependents) {
+      for (const dependent of dependents) {
+        visitDependents(dependent);
+      }
+    }
+  }
+
+  // Start traversal from each changed package
+  for (const pkg of changedPackages) {
+    visitDependents(pkg);
+  }
+
+  return affected;
+}
+
+/**
+ * Calculate the order in which packages should be published
+ *
+ * Performs topological sorting to ensure dependencies are published before dependents.
+ * Assigns a "level" to each package based on its depth in the dependency tree.
+ *
+ * This is used by the publish command to publish packages in the correct order.
+ *
+ * @param graph - Dependency graph
+ * @param packagesToPublish - Set of package names to publish
+ * @returns Array of packages in publish order with their dependency level
+ */
+export function getPackagePublishOrder(
+  graph: PackageDependencyGraph,
+  packagesToPublish: Set<string>,
 ): PackageUpdateOrder[] {
   const result: PackageUpdateOrder[] = [];
   const visited = new Set<string>();
-  const toUpdate = new Set(changedPackages);
+  const toUpdate = new Set(packagesToPublish);
 
-  const packagesToProcess = new Set(changedPackages);
-  for (const pkg of changedPackages) {
+  const packagesToProcess = new Set(packagesToPublish);
+  for (const pkg of packagesToPublish) {
     const deps = graph.dependents.get(pkg);
     if (deps) {
       for (const dep of deps) {
@@ -121,50 +160,37 @@ export function getPackageUpdateOrder(
  * When a package is updated, all packages that depend on it should also be updated.
  * This function calculates which additional packages need patch bumps due to dependency changes.
  *
- * @param updateOrder - Packages in topological order with their dependency levels
+ * @param graph - Dependency graph
+ * @param workspacePackages - All workspace packages
  * @param directUpdates - Packages with direct code changes
  * @returns All updates including dependent packages that need patch bumps
  */
 export function createDependentUpdates(
-  updateOrder: Array<{ package: WorkspacePackage; level: number }>,
+  graph: PackageDependencyGraph,
+  workspacePackages: WorkspacePackage[],
   directUpdates: VersionUpdate[],
 ): VersionUpdate[] {
   const allUpdates = [...directUpdates];
-  const updatedPackages = new Set(directUpdates.map((u) => u.package.name));
+  const directUpdateMap = new Map(directUpdates.map((u) => [u.package.name, u]));
+  const changedPackages = new Set(directUpdates.map((u) => u.package.name));
 
-  // Process packages in dependency order
-  for (const { package: pkg } of updateOrder) {
-    // Skip if already updated
-    if (updatedPackages.has(pkg.name)) {
+  // Get all packages affected by changes (including transitive dependents)
+  const affectedPackages = getAllAffectedPackages(graph, changedPackages);
+
+  // Create updates for packages that don't have direct updates
+  for (const pkgName of affectedPackages) {
+    // Skip if already has a direct update
+    if (directUpdateMap.has(pkgName)) {
       continue;
     }
 
-    // Check if any workspace dependencies are being updated
-    if (hasUpdatedDependencies(pkg, updatedPackages)) {
-      // This package needs a patch bump because its dependencies changed
-      allUpdates.push(createVersionUpdate(pkg, "patch", false));
-      updatedPackages.add(pkg.name);
-    }
+    const pkg = workspacePackages.find((p) => p.name === pkgName);
+    if (!pkg) continue;
+
+    // This package needs a patch bump because its dependencies changed
+    allUpdates.push(createVersionUpdate(pkg, "patch", false));
   }
 
   return allUpdates;
 }
 
-/**
- * Check if a package has any workspace dependencies that are being updated
- *
- * @param pkg - Package to check
- * @param updatedPackages - Set of package names being updated
- * @returns True if any of the package's workspace dependencies are being updated
- */
-export function hasUpdatedDependencies(
-  pkg: WorkspacePackage,
-  updatedPackages: Set<string>,
-): boolean {
-  const allDeps = [
-    ...pkg.workspaceDependencies,
-    ...pkg.workspaceDevDependencies,
-  ];
-
-  return allDeps.some((dep) => updatedPackages.has(dep));
-}

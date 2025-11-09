@@ -27,7 +27,6 @@ import {
 import {
   buildPackageDependencyGraph,
   createDependentUpdates,
-  getPackageUpdateOrder,
 } from "./package";
 import { promptVersionOverrides } from "./prompts";
 import { globalOptions, isCI } from "./utils";
@@ -116,13 +115,11 @@ export async function release(
   }
 
   const graph = buildPackageDependencyGraph(workspacePackages);
-  const packagesNeedingUpdate = new Set(versionUpdates.map((u) => u.package.name));
 
-  // Get all packages in update order (includes dependents)
-  const updateOrder = getPackageUpdateOrder(graph, packagesNeedingUpdate);
-
+  // Get all packages needing updates (includes transitive dependents)
   const allUpdates = createDependentUpdates(
-    updateOrder,
+    graph,
+    workspacePackages,
     versionUpdates,
   );
 
