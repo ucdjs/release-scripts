@@ -1,6 +1,5 @@
 import type {
-  ReleaseOptions,
-  ReleaseResult,
+  FindWorkspacePackagesOptions,
   VersionUpdate,
 } from "./types";
 import process from "node:process";
@@ -31,6 +30,106 @@ import { promptVersionOverrides } from "./prompts";
 import { globalOptions, isCI, logger } from "./utils";
 import { createVersionUpdate } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
+
+export interface ReleaseOptions {
+  /**
+   * Repository identifier (e.g., "owner/repo")
+   */
+  repo: string;
+
+  /**
+   * Root directory of the workspace (defaults to process.cwd())
+   */
+  workspaceRoot?: string;
+
+  /**
+   * Specific packages to prepare for release.
+   * - true: discover all packages
+   * - FindWorkspacePackagesOptions: discover with filters
+   * - string[]: specific package names
+   */
+  packages?: true | FindWorkspacePackagesOptions | string[];
+
+  /**
+   * Branch name for the release PR (defaults to "release/next")
+   */
+  releaseBranch?: string;
+
+  /**
+   * Interactive prompt configuration
+   */
+  prompts?: {
+    /**
+     * Enable package selection prompt (defaults to true when not in CI)
+     */
+    packages?: boolean;
+
+    /**
+     * Enable version override prompt (defaults to true when not in CI)
+     */
+    versions?: boolean;
+  };
+
+  /**
+   * Whether to perform a dry run (no changes pushed or PR created)
+   * @default false
+   */
+  dryRun?: boolean;
+
+  /**
+   * Whether to enable safety safeguards (e.g., checking for clean working directory)
+   * @default true
+   */
+  safeguards?: boolean;
+
+  /**
+   * Whether to enable verbose logging
+   * @default false
+   */
+  verbose?: boolean;
+
+  /**
+   * GitHub token for authentication
+   */
+  githubToken: string;
+
+  /**
+   * Pull request configuration
+   */
+  pullRequest?: {
+    /**
+     * Title for the release pull request
+     */
+    title?: string;
+
+    /**
+     * Body for the release pull request
+     *
+     * If not provided, a default body will be generated.
+     *
+     * NOTE:
+     * You can use custom template expressions, see [h3js/rendu](https://github.com/h3js/rendu)
+     */
+    body?: string;
+  };
+}
+
+export interface ReleaseResult {
+  /**
+   * Packages that will be updated
+   */
+  updates: VersionUpdate[];
+
+  /**
+   * URL of the created or updated PR
+   */
+  prUrl?: string;
+
+  /**
+   * Whether a new PR was created (vs updating existing)
+   */
+  created: boolean;
+}
 
 export async function release(
   options: ReleaseOptions,

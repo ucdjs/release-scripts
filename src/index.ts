@@ -1,2 +1,2 @@
 export { publish, type PublishOptions } from "./publish";
-export { release } from "./release";
+export { release, type ReleaseOptions, type ReleaseResult } from "./release";
