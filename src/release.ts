@@ -61,7 +61,7 @@ export async function release(
     throw new Error(`Invalid repo format: ${options.repo}. Expected "owner/repo".`);
   }
 
-  if (safeguards && !isWorkingDirectoryClean(workspaceRoot)) {
+  if (safeguards && !(await isWorkingDirectoryClean(workspaceRoot))) {
     console.error("Working directory is not clean. Please commit or stash your changes before proceeding.");
     return null;
   }
@@ -72,6 +72,7 @@ export async function release(
   );
 
   if (packagesToAnalyze.length === 0) {
+    console.log("No packages found to analyze for release.");
     return null;
   }
 

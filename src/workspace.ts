@@ -5,7 +5,8 @@ import type {
 } from "./types";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { promptPackageSelection } from "./prompts";
+import farver from "farver";
+import { selectPackagePrompt } from "./prompts";
 import { isCI, run } from "./utils";
 
 interface RawProject {
@@ -72,7 +73,7 @@ export async function discoverWorkspacePackages(
   // 3. No explicit packages were specified (user didn't pre-select specific packages)
   const isPackagePromptEnabled = options.prompts?.packages !== false;
   if (!isCI && isPackagePromptEnabled && !explicitPackages) {
-    const selectedNames = await promptPackageSelection(workspacePackages);
+    const selectedNames = await selectPackagePrompt(workspacePackages);
     packagesToAnalyze = workspacePackages.filter((pkg) =>
       selectedNames.includes(pkg.name),
     );
@@ -99,6 +100,7 @@ async function findWorkspacePackages(
     const rawProjects: RawProject[] = JSON.parse(result.stdout);
 
     const allPackageNames = new Set<string>(rawProjects.map((p) => p.name));
+    const excludedPackages = new Set<string>();
 
     const promises = rawProjects.map(async (rawProject) => {
       const packageJsonPath = join(rawProject.path, "package.json");
@@ -106,7 +108,7 @@ async function findWorkspacePackages(
       const packageJson: PackageJson = JSON.parse(content);
 
       if (!shouldIncludePackage(packageJson, options)) {
-        console.log(`Excluding package ${rawProject.name}`);
+        excludedPackages.add(rawProject.name);
         return null;
       }
 
@@ -126,7 +128,20 @@ async function findWorkspacePackages(
       };
     });
 
-    return (await Promise.all(promises)).filter((pkg): pkg is WorkspacePackage => pkg != null);
+    const packages = await Promise.all(promises);
+
+    if (excludedPackages.size > 0) {
+      console.info(
+        `${farver.cyan("[info]:")} Excluded packages: ${farver.green(
+          Array.from(excludedPackages).join(", "),
+        )}`,
+      );
+    }
+
+    // Filter out excluded packages (nulls)
+    return packages.filter(
+      (pkg): pkg is WorkspacePackage => pkg !== null,
+    );
   } catch (err) {
     console.error("Error discovering workspace packages:", err);
     throw err;
