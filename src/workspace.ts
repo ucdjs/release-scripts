@@ -20,34 +20,6 @@ interface RawProject {
   devDependencies?: Record<string, string>;
 }
 
-function shouldIncludePackage(
-  pkg: PackageJson,
-  options?: FindWorkspacePackagesOptions,
-): boolean {
-  if (!options) {
-    return true;
-  }
-
-  // Check if private packages should be excluded
-  if (options.excludePrivate && pkg.private) {
-    return false;
-  }
-
-  // Check include list (if specified, only these packages are included)
-  if (options.included && options.included.length > 0) {
-    if (!options.included.includes(pkg.name)) {
-      return false;
-    }
-  }
-
-  // Check exclude list
-  if (options.excluded?.includes(pkg.name)) {
-    return false;
-  }
-
-  return true;
-}
-
 export async function findWorkspacePackages(
   workspaceRoot: string,
   options?: FindWorkspacePackagesOptions,
@@ -94,17 +66,6 @@ export async function findWorkspacePackages(
   }
 
   return packages;
-}
-
-function extractWorkspaceDependencies(
-  dependencies: Record<string, string> | undefined,
-  workspacePackages: Set<string>,
-): string[] {
-  if (!dependencies) return [];
-
-  return Object.keys(dependencies).filter((dep) => {
-    return workspacePackages.has(dep);
-  });
 }
 
 export function buildDependencyGraph(
@@ -216,16 +177,6 @@ export function getAllDependents(
   return result;
 }
 
-/**
- * Pure function: Determine which packages need updates due to dependency changes
- *
- * When a package is updated, all packages that depend on it should also be updated.
- * This function calculates which additional packages need patch bumps.
- *
- * @param updateOrder - Packages in topological order with their dependency levels
- * @param directUpdates - Packages with direct code changes
- * @returns All updates including dependent packages
- */
 export function createDependentUpdates(
   updateOrder: Array<{ package: WorkspacePackage; level: number }>,
   directUpdates: VersionUpdate[],
@@ -264,4 +215,43 @@ export function hasUpdatedDependencies(
   ];
 
   return allDeps.some((dep) => updatedPackages.has(dep));
+}
+
+function shouldIncludePackage(
+  pkg: PackageJson,
+  options?: FindWorkspacePackagesOptions,
+): boolean {
+  if (!options) {
+    return true;
+  }
+
+  // Check if private packages should be excluded
+  if (options.excludePrivate && pkg.private) {
+    return false;
+  }
+
+  // Check include list (if specified, only these packages are included)
+  if (options.included && options.included.length > 0) {
+    if (!options.included.includes(pkg.name)) {
+      return false;
+    }
+  }
+
+  // Check exclude list
+  if (options.excluded?.includes(pkg.name)) {
+    return false;
+  }
+
+  return true;
+}
+
+function extractWorkspaceDependencies(
+  dependencies: Record<string, string> | undefined,
+  workspacePackages: Set<string>,
+): string[] {
+  if (!dependencies) return [];
+
+  return Object.keys(dependencies).filter((dep) => {
+    return workspacePackages.has(dep);
+  });
 }
