@@ -1,4 +1,5 @@
-import { logger, run, runIfNotDry } from "./utils";
+import farver from "farver";
+import { exitWithError, logger, run, runIfNotDry } from "./utils";
 
 /**
  * Check if the working directory is clean (no uncommitted changes)
@@ -85,11 +86,20 @@ export async function createBranch(
   base: string,
   workspaceRoot: string,
 ): Promise<void> {
-  await runIfNotDry("git", ["checkout", "-b", branch, base], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-    },
-  });
+  try {
+    logger.info(`Creating branch: ${farver.green(branch)} from ${farver.cyan(base)}`);
+    await runIfNotDry("git", ["checkout", "-b", branch, base], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+  } catch {
+    exitWithError(
+      `Failed to create branch: ${branch}`,
+      `Make sure the branch doesn't already exist and you have a clean working directory`,
+    );
+  }
 }
 
 /**
@@ -103,9 +113,11 @@ export async function checkoutBranch(
   workspaceRoot: string,
 ): Promise<boolean> {
   try {
+    logger.info(`Switching to branch: ${farver.green(branch)}`);
     await run("git", ["checkout", branch], {
       nodeOptions: {
         cwd: workspaceRoot,
+        stdio: "pipe",
       },
     });
     return true;
@@ -141,11 +153,20 @@ export async function rebaseBranch(
   ontoBranch: string,
   workspaceRoot: string,
 ): Promise<void> {
-  await run("git", ["rebase", ontoBranch], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-    },
-  });
+  try {
+    logger.info(`Rebasing onto: ${farver.cyan(ontoBranch)}`);
+    await run("git", ["rebase", ontoBranch], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+  } catch {
+    exitWithError(
+      `Failed to rebase onto: ${ontoBranch}`,
+      `You may have merge conflicts. Run 'git rebase --abort' to undo the rebase`,
+    );
+  }
 }
 
 /**
@@ -202,27 +223,37 @@ export async function commitChanges(
   message: string,
   workspaceRoot: string,
 ): Promise<boolean> {
-  // Stage all changes
-  await run("git", ["add", "."], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-    },
-  });
+  try {
+    // Stage all changes
+    await run("git", ["add", "."], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
 
-  // Check if there are changes to commit
-  const hasChanges = await hasChangesToCommit(workspaceRoot);
-  if (!hasChanges) {
-    return false;
+    // Check if there are changes to commit
+    const hasChanges = await hasChangesToCommit(workspaceRoot);
+    if (!hasChanges) {
+      return false;
+    }
+
+    // Commit
+    logger.info(`Committing changes: ${farver.dim(message)}`);
+    await run("git", ["commit", "-m", message], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    return true;
+  } catch {
+    exitWithError(
+      `Failed to commit changes`,
+      `Make sure you have git configured properly with user.name and user.email`,
+    );
   }
-
-  // Commit
-  await run("git", ["commit", "-m", message], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-    },
-  });
-
-  return true;
 }
 
 /**
@@ -238,17 +269,29 @@ export async function pushBranch(
   workspaceRoot: string,
   options?: { force?: boolean; forceWithLease?: boolean },
 ): Promise<void> {
-  const args = ["push", "origin", branch];
+  try {
+    const args = ["push", "origin", branch];
 
-  if (options?.forceWithLease) {
-    args.push("--force-with-lease");
-  } else if (options?.force) {
-    args.push("--force");
+    if (options?.forceWithLease) {
+      args.push("--force-with-lease");
+      logger.info(`Pushing branch: ${farver.green(branch)} ${farver.dim("(with lease)")}`);
+    } else if (options?.force) {
+      args.push("--force");
+      logger.info(`Force pushing branch: ${farver.green(branch)}`);
+    } else {
+      logger.info(`Pushing branch: ${farver.green(branch)}`);
+    }
+
+    await run("git", args, {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+  } catch {
+    exitWithError(
+      `Failed to push branch: ${branch}`,
+      `Make sure you have permission to push to the remote repository`,
+    );
   }
-
-  await run("git", args, {
-    nodeOptions: {
-      cwd: workspaceRoot,
-    },
-  });
 }
