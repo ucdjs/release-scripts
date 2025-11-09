@@ -136,7 +136,6 @@ export async function release(
     versionUpdates,
   );
 
-  // Save current branch to return to it later
   const currentBranch = await getCurrentBranch(workspaceRoot);
 
   // Check if PR already exists
@@ -227,7 +226,6 @@ export async function release(
 
   logger.log(prExists ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);
 
-  // Checkout back to original branch
   await checkoutBranch(currentBranch, workspaceRoot);
 
   if (pullRequest?.html_url) {
