@@ -10,6 +10,7 @@ import {
   createBranch,
   doesBranchExist,
   getCurrentBranch,
+  getDefaultBranch,
   isBranchAheadOfRemote,
   isWorkingDirectoryClean,
   pullLatestChanges,
@@ -31,10 +32,17 @@ import { inferVersionUpdates } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
 export interface ReleaseOptions extends SharedOptions {
-  /**
-   * Branch name for the release PR (defaults to "release/next")
-   */
-  releaseBranch?: string;
+  branch?: {
+    /**
+     * Branch name for the release PR (defaults to "release/next")
+     */
+    release?: string;
+
+    /**
+     * Default branch name (e.g., "main")
+     */
+    default?: string;
+  };
 
   /**
    * Whether to perform a dry run (no changes pushed or PR created)
@@ -92,7 +100,9 @@ export async function release(
   const normalizedOptions = normalizeSharedOptions(options);
 
   normalizedOptions.dryRun ??= false;
-  normalizedOptions.releaseBranch ??= "release/next";
+  normalizedOptions.branch ??= {};
+  normalizedOptions.branch.release ??= "release/next";
+  normalizedOptions.branch.default = await getDefaultBranch();
   normalizedOptions.safeguards ??= true;
 
   globalOptions.dryRun = normalizedOptions.dryRun;
@@ -138,11 +148,18 @@ export async function release(
 
   const currentBranch = await getCurrentBranch(workspaceRoot);
 
+  if (currentBranch !== normalizedOptions.branch.default) {
+    exitWithError(
+      `Current branch is '${currentBranch}'. Please switch to the default branch '${normalizedOptions.branch.default}' before proceeding.`,
+      `git checkout ${normalizedOptions.branch.default}`,
+    );
+  }
+
   // Check if PR already exists
   const existingPullRequest = await getExistingPullRequest({
     owner: normalizedOptions.owner,
     repo: normalizedOptions.repo,
-    branch: normalizedOptions.releaseBranch,
+    branch: normalizedOptions.branch.release,
     githubToken: normalizedOptions.githubToken,
   });
 
@@ -154,30 +171,30 @@ export async function release(
   }
 
   // Ensure release branch exists
-  const branchExists = await doesBranchExist(normalizedOptions.releaseBranch, workspaceRoot);
+  const branchExists = await doesBranchExist(normalizedOptions.branch.release, workspaceRoot);
   if (!branchExists) {
-    logger.log("Creating release branch:", normalizedOptions.releaseBranch);
-    await createBranch(normalizedOptions.releaseBranch, currentBranch, workspaceRoot);
+    logger.log("Creating release branch:", normalizedOptions.branch.release);
+    await createBranch(normalizedOptions.branch.release, normalizedOptions.branch.default, workspaceRoot);
   }
 
   // Checkout release branch
-  const hasCheckedOut = await checkoutBranch(normalizedOptions.releaseBranch, workspaceRoot);
+  const hasCheckedOut = await checkoutBranch(normalizedOptions.branch.release, workspaceRoot);
   if (!hasCheckedOut) {
-    throw new Error(`Failed to checkout branch: ${normalizedOptions.releaseBranch}`);
+    throw new Error(`Failed to checkout branch: ${normalizedOptions.branch.release}`);
   }
 
   // Pull latest changes if branch exists remotely
   if (branchExists) {
     logger.log("Pulling latest changes from remote");
-    const hasPulled = await pullLatestChanges(normalizedOptions.releaseBranch, workspaceRoot);
+    const hasPulled = await pullLatestChanges(normalizedOptions.branch.release, workspaceRoot);
     if (!hasPulled) {
       logger.log("Warning: Failed to pull latest changes, continuing anyway");
     }
   }
 
   // Rebase onto current branch to get latest commits from main
-  logger.log("Rebasing release branch onto", currentBranch);
-  await rebaseBranch(currentBranch, workspaceRoot);
+  logger.log("Rebasing release branch onto", normalizedOptions.branch.default);
+  await rebaseBranch(normalizedOptions.branch.default, workspaceRoot);
 
   // Update package.json files
   await updateAllPackageJsonFiles(allUpdates);
@@ -186,11 +203,11 @@ export async function release(
   const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
 
   // Check if branch is ahead of remote (has commits to push)
-  const isBranchAhead = await isBranchAheadOfRemote(normalizedOptions.releaseBranch, workspaceRoot);
+  const isBranchAhead = await isBranchAheadOfRemote(normalizedOptions.branch.release, workspaceRoot);
 
   if (!hasCommitted && !isBranchAhead) {
     logger.log("No changes to commit and branch is in sync with remote");
-    await checkoutBranch(currentBranch, workspaceRoot);
+    await checkoutBranch(normalizedOptions.branch.default, workspaceRoot);
 
     if (prExists) {
       logger.log("No updates needed, PR is already up to date");
@@ -207,7 +224,7 @@ export async function release(
 
   // Push with --force-with-lease for safety
   logger.log("Pushing changes to remote");
-  await pushBranch(normalizedOptions.releaseBranch, workspaceRoot, { forceWithLease: true });
+  await pushBranch(normalizedOptions.branch.release, workspaceRoot, { forceWithLease: true });
 
   // Create or update PR
   const prTitle = existingPullRequest?.title || (options.pullRequest?.title || "chore: update package versions");
@@ -219,14 +236,14 @@ export async function release(
     pullNumber: existingPullRequest?.number,
     title: prTitle,
     body: prBody,
-    head: normalizedOptions.releaseBranch,
-    base: currentBranch,
+    head: normalizedOptions.branch.release,
+    base: normalizedOptions.branch.default,
     githubToken: normalizedOptions.githubToken,
   });
 
   logger.log(prExists ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);
 
-  await checkoutBranch(currentBranch, workspaceRoot);
+  await checkoutBranch(normalizedOptions.branch.default, workspaceRoot);
 
   if (pullRequest?.html_url) {
     logger.info();

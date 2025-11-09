@@ -295,3 +295,23 @@ export async function pushBranch(
     );
   }
 }
+
+export async function getDefaultBranch(): Promise<string> {
+  try {
+    const result = await run("git", ["symbolic-ref", "refs/remotes/origin/HEAD"], {
+      nodeOptions: {
+        stdio: "pipe",
+      },
+    });
+
+    const ref = result.stdout.trim();
+    const match = ref.match(/^refs\/remotes\/origin\/(.+)$/);
+    if (match && match[1]) {
+      return match[1];
+    }
+
+    return "main"; // Fallback
+  } catch {
+    return "main"; // Fallback
+  }
+}
