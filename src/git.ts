@@ -1,4 +1,3 @@
-import type { VersionUpdate } from "./types";
 import { run, runIfNotDry } from "./utils";
 
 /**

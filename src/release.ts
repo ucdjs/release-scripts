@@ -7,7 +7,6 @@ import type {
 } from "./types";
 import process from "node:process";
 import { analyzePackageCommits } from "./commits";
-import { createDependentUpdates } from "./dependencies";
 import {
   checkoutBranch,
   commitChanges,
@@ -24,7 +23,7 @@ import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } fr
 import { promptPackageSelection, promptVersionOverrides } from "./prompts";
 import { globalOptions } from "./utils";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
-import { buildDependencyGraph, findWorkspacePackages, getPackageUpdateOrder } from "./workspace";
+import { buildDependencyGraph, createDependentUpdates, findWorkspacePackages, getPackageUpdateOrder } from "./workspace";
 
 const isCI = process.env.CI === "true";
 

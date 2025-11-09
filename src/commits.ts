@@ -1,10 +1,7 @@
 import type { GitCommit } from "commit-parser";
 import type { BumpKind, WorkspacePackage } from "./types";
 import { getCommits } from "commit-parser";
-import { createDebugger } from "./logger";
 import { run } from "./utils";
-
-const debug = createDebugger("ucdjs:release-scripts:commits");
 
 export async function getLastPackageTag(
   packageName: string,
@@ -63,7 +60,7 @@ async function getPackageCommits(
     to: "HEAD",
   });
 
-  debug?.(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
+  console.log(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
 
   // Filter to commits that touch this package's files
   const touchedCommitHashes = await getCommitsTouchingPackage(
@@ -78,7 +75,7 @@ async function getPackageCommits(
     touchedSet.has(commit.shortHash),
   );
 
-  debug?.(`${packageCommits.length} commits affect ${pkg.name}`);
+  console.log(`${packageCommits.length} commits affect ${pkg.name}`);
 
   return packageCommits;
 }
@@ -153,7 +150,7 @@ export async function getCommitsTouchingPackage(
       .map((line) => line.trim())
       .filter(Boolean);
   } catch (error) {
-    debug?.(`Error getting commits touching package: ${error}`);
+    console.error(`Error getting commits touching package: ${error}`);
     return [];
   }
 }
