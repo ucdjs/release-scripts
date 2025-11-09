@@ -142,6 +142,43 @@ export async function selectPackagePrompt(
   return response.selectedPackages;
 }
 
+export async function selectVersionPrompt(
+  pkg: WorkspacePackage,
+  suggestedVersion: string,
+) {
+  const answers = await prompts([
+    {
+      type: "autocomplete",
+      name: "version",
+      message: `${pkg.name}: ${farver.green(pkg.version)}`,
+      choices: [
+        { value: "major", title: `major ${farver.bold(calculateNewVersion(pkg.version, "major"))}` },
+        { value: "minor", title: `minor ${farver.bold(calculateNewVersion(pkg.version, "minor"))}` },
+        { value: "patch", title: `patch ${farver.bold(calculateNewVersion(pkg.version, "patch"))}` },
+
+        { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}` },
+
+        { value: "custom", title: "custom" },
+      ],
+      initial: "suggested",
+    },
+    {
+      type: (prev) => prev === "custom" ? "text" : null,
+      name: "custom",
+      message: "Enter the new version number:",
+      initial: suggestedVersion,
+      validate: (custom: string) => {
+        const semverRegex = /^\d+\.\d+\.\d+(?:[-+].+)?$/;
+        return semverRegex.test(custom) ? true : "That's not a valid version number";
+      },
+    },
+  ]);
+
+  logger.log(answers);
+
+  throw new Error("Not implemented yet");
+}
+
 export interface VersionOverride {
   packageName: string;
   newVersion: string;
