@@ -19,14 +19,24 @@ import {
   pushBranch,
   rebaseBranch,
 } from "./git";
-import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } from "./github";
-import { buildDependencyGraph, createDependentUpdates, getPackageUpdateOrder } from "./package";
-import { promptPackageSelection, promptVersionOverrides } from "./prompts";
-import { globalOptions } from "./utils";
-import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
-import { discoverPackages } from "./workspace";
-
-const isCI = process.env.CI === "true";
+import {
+  generatePullRequestBody,
+  getExistingPullRequest,
+  upsertPullRequest,
+} from "./github";
+import {
+  buildDependencyGraph,
+  createDependentUpdates,
+  getPackageUpdateOrder,
+} from "./package";
+import { promptVersionOverrides } from "./prompts";
+import { globalOptions, isCI } from "./utils";
+import {
+  createVersionUpdate,
+  getDependencyUpdates,
+  updatePackageJson,
+} from "./version";
+import { discoverWorkspacePackages } from "./workspace";
 
 export async function release(
   options: ReleaseOptions,
@@ -51,29 +61,19 @@ export async function release(
     throw new Error(`Invalid repo format: ${options.repo}. Expected "owner/repo".`);
   }
 
-  if (safeguards && !isWorkingDirectoryClean(workspaceRoot)) {
+  if (safeguards && !(await isWorkingDirectoryClean(workspaceRoot))) {
     console.error("Working directory is not clean. Please commit or stash your changes before proceeding.");
     return null;
   }
 
-  const { workspacePackages, packagesToAnalyze: initialPackages } = await discoverPackages(
+  const { workspacePackages, packagesToAnalyze } = await discoverWorkspacePackages(
     workspaceRoot,
     options,
   );
 
-  if (initialPackages.length === 0) {
+  if (packagesToAnalyze.length === 0) {
+    console.log("No packages found to analyze for release.");
     return null;
-  }
-
-  // Determine if we should show package selection prompt
-  const isPackagePromptEnabled = options.prompts?.packages !== false;
-  const isPackagesPreConfigured = Array.isArray(options.packages) || (typeof options.packages === "object" && options.packages.included != null);
-
-  let packagesToAnalyze = initialPackages;
-
-  if (!isCI && isPackagePromptEnabled && !isPackagesPreConfigured) {
-    const selectedNames = await promptPackageSelection(initialPackages);
-    packagesToAnalyze = initialPackages.filter((pkg) => selectedNames.includes(pkg.name));
   }
 
   // Analyze commits for packages, to determine version bumps

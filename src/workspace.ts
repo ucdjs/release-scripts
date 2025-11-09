@@ -5,7 +5,9 @@ import type {
 } from "./types";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { run } from "./utils";
+import farver from "farver";
+import { selectPackagePrompt } from "./prompts";
+import { isCI, run } from "./utils";
 
 interface RawProject {
   name: string;
@@ -25,109 +27,124 @@ export interface WorkspacePackage {
   workspaceDevDependencies: string[];
 }
 
-export async function discoverPackages(
+export async function discoverWorkspacePackages(
   workspaceRoot: string,
   options: ReleaseOptions,
 ): Promise<{
   workspacePackages: WorkspacePackage[];
   packagesToAnalyze: WorkspacePackage[];
 }> {
-  const { workspaceOptions, explicitPackages } = normalizePackageOptions(options.packages);
+  let workspaceOptions: FindWorkspacePackagesOptions;
+  let explicitPackages: string[] | undefined;
 
-  const workspacePackages = await findWorkspacePackages(workspaceRoot, workspaceOptions);
+  // Normalize package options and determine if packages were explicitly specified
+  if (options.packages == null || options.packages === true) {
+    workspaceOptions = { excludePrivate: false };
+  } else if (Array.isArray(options.packages)) {
+    workspaceOptions = { excludePrivate: false, included: options.packages };
+    explicitPackages = options.packages;
+  } else {
+    workspaceOptions = options.packages;
+    if (options.packages.included) {
+      explicitPackages = options.packages.included;
+    }
+  }
+
+  const workspacePackages = await findWorkspacePackages(
+    workspaceRoot,
+    workspaceOptions,
+  );
 
   // If specific packages were requested, validate they were all found
   if (explicitPackages) {
-    validatePackages(workspacePackages, explicitPackages);
+    const foundNames = new Set(workspacePackages.map((p) => p.name));
+    const missing = explicitPackages.filter((p) => !foundNames.has(p));
+
+    if (missing.length > 0) {
+      throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
+    }
   }
 
-  // All found packages should be analyzed
+  let packagesToAnalyze = workspacePackages;
+
+  // Show interactive prompt only if:
+  // 1. Not in CI
+  // 2. Prompt is enabled
+  // 3. No explicit packages were specified (user didn't pre-select specific packages)
+  const isPackagePromptEnabled = options.prompts?.packages !== false;
+  if (!isCI && isPackagePromptEnabled && !explicitPackages) {
+    const selectedNames = await selectPackagePrompt(workspacePackages);
+    packagesToAnalyze = workspacePackages.filter((pkg) =>
+      selectedNames.includes(pkg.name),
+    );
+  }
+
   return {
     workspacePackages,
-    packagesToAnalyze: workspacePackages,
+    packagesToAnalyze,
   };
 }
 
-export async function findWorkspacePackages(
+async function findWorkspacePackages(
   workspaceRoot: string,
   options?: FindWorkspacePackagesOptions,
 ): Promise<WorkspacePackage[]> {
-  const result = await run("pnpm", ["-r", "ls", "--json"], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-      stdio: "pipe",
-    },
-  });
+  try {
+    const result = await run("pnpm", ["-r", "ls", "--json"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
 
-  const rawProjects: RawProject[] = JSON.parse(result.stdout);
+    const rawProjects: RawProject[] = JSON.parse(result.stdout);
 
-  const packages: WorkspacePackage[] = [];
-  const allPackageNames = new Set<string>(rawProjects.map((p) => p.name));
+    const allPackageNames = new Set<string>(rawProjects.map((p) => p.name));
+    const excludedPackages = new Set<string>();
 
-  for (const rawProject of rawProjects) {
-    const packageJsonPath = join(rawProject.path, "package.json");
-    const content = await readFile(packageJsonPath, "utf-8");
-    const packageJson: PackageJson = JSON.parse(content);
+    const promises = rawProjects.map(async (rawProject) => {
+      const packageJsonPath = join(rawProject.path, "package.json");
+      const content = await readFile(packageJsonPath, "utf-8");
+      const packageJson: PackageJson = JSON.parse(content);
 
-    if (!shouldIncludePackage(packageJson, options)) {
-      console.log(`Excluding package ${rawProject.name}`);
-      continue;
+      if (!shouldIncludePackage(packageJson, options)) {
+        excludedPackages.add(rawProject.name);
+        return null;
+      }
+
+      return {
+        name: rawProject.name,
+        version: rawProject.version,
+        path: rawProject.path,
+        packageJson,
+        workspaceDependencies: extractWorkspaceDependencies(
+          rawProject.dependencies,
+          allPackageNames,
+        ),
+        workspaceDevDependencies: extractWorkspaceDependencies(
+          rawProject.devDependencies,
+          allPackageNames,
+        ),
+      };
+    });
+
+    const packages = await Promise.all(promises);
+
+    if (excludedPackages.size > 0) {
+      console.info(
+        `${farver.cyan("[info]:")} Excluded packages: ${farver.green(
+          Array.from(excludedPackages).join(", "),
+        )}`,
+      );
     }
 
-    const workspaceDeps = extractWorkspaceDependencies(
-      rawProject.dependencies,
-      allPackageNames,
+    // Filter out excluded packages (nulls)
+    return packages.filter(
+      (pkg): pkg is WorkspacePackage => pkg !== null,
     );
-    const workspaceDevDeps = extractWorkspaceDependencies(
-      rawProject.devDependencies,
-      allPackageNames,
-    );
-
-    packages.push({
-      name: rawProject.name,
-      version: rawProject.version,
-      path: rawProject.path,
-      packageJson,
-      workspaceDependencies: workspaceDeps,
-      workspaceDevDependencies: workspaceDevDeps,
-    });
-  }
-
-  return packages;
-}
-
-function normalizePackageOptions(
-  packages: ReleaseOptions["packages"],
-): { workspaceOptions: FindWorkspacePackagesOptions; explicitPackages?: string[] } {
-  // Default: find all packages
-  if (packages == null || packages === true) {
-    return { workspaceOptions: { excludePrivate: false } };
-  }
-
-  // Array of package names: find all packages but filter to specific ones
-  if (Array.isArray(packages)) {
-    return {
-      workspaceOptions: { excludePrivate: false, included: packages },
-      explicitPackages: packages,
-    };
-  }
-
-  // Already in the correct format
-  return { workspaceOptions: packages };
-}
-
-/**
- * Validate that all explicitly requested packages were found
- */
-function validatePackages(
-  found: WorkspacePackage[],
-  requested: string[],
-): void {
-  const foundNames = new Set(found.map((p) => p.name));
-  const missing = requested.filter((p) => !foundNames.has(p));
-
-  if (missing.length > 0) {
-    throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
+  } catch (err) {
+    console.error("Error discovering workspace packages:", err);
+    throw err;
   }
 }
 

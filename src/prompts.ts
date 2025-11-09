@@ -1,6 +1,7 @@
 import type { GitCommit } from "commit-parser";
 import type { BumpKind } from "./types";
 import type { WorkspacePackage } from "./workspace";
+import farver from "farver";
 import prompts from "prompts";
 import { getPackageCommits } from "./commits";
 import { calculateNewVersion } from "./version";
@@ -116,7 +117,7 @@ function formatCommitGroups(grouped: GroupedCommits): string {
   return lines.join("\n");
 }
 
-export async function promptPackageSelection(
+export async function selectPackagePrompt(
   packages: WorkspacePackage[],
 ): Promise<string[]> {
   const response = await prompts({
@@ -124,16 +125,17 @@ export async function promptPackageSelection(
     name: "selectedPackages",
     message: "Select packages to release",
     choices: packages.map((pkg) => ({
-      title: `${pkg.name} (${pkg.version})`,
+      title: `${pkg.name} (${farver.bold(pkg.version)})`,
       value: pkg.name,
       selected: true,
     })),
     min: 1,
     hint: "Space to select/deselect. Return to submit.",
+    instructions: false,
   });
 
   if (!response.selectedPackages || response.selectedPackages.length === 0) {
-    throw new Error("No packages selected");
+    return [];
   }
 
   return response.selectedPackages;
