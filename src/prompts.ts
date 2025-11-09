@@ -3,7 +3,7 @@ import type { WorkspacePackage } from "./workspace";
 import farver from "farver";
 import prompts from "prompts";
 import { logger } from "./utils";
-import { calculateNewVersion } from "./version";
+import { getNextVersion } from "./version";
 
 export async function selectPackagePrompt(
   packages: WorkspacePackage[],
@@ -39,9 +39,9 @@ export async function selectVersionPrompt(
       name: "version",
       message: `${pkg.name}: ${farver.green(pkg.version)}`,
       choices: [
-        { value: "major", title: `major ${farver.bold(calculateNewVersion(pkg.version, "major"))}` },
-        { value: "minor", title: `minor ${farver.bold(calculateNewVersion(pkg.version, "minor"))}` },
-        { value: "patch", title: `patch ${farver.bold(calculateNewVersion(pkg.version, "patch"))}` },
+        { value: "major", title: `major ${farver.bold(getNextVersion(pkg.version, "major"))}` },
+        { value: "minor", title: `minor ${farver.bold(getNextVersion(pkg.version, "minor"))}` },
+        { value: "patch", title: `patch ${farver.bold(getNextVersion(pkg.version, "patch"))}` },
 
         { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}` },
 
@@ -89,7 +89,7 @@ export async function promptVersionOverride(
   const bumpTypes: BumpKind[] = ["patch", "minor", "major"];
   for (const bumpType of bumpTypes) {
     if (bumpType !== suggestedBumpType) {
-      const version = calculateNewVersion(currentVersion, bumpType);
+      const version = getNextVersion(currentVersion, bumpType);
       choices.push({
         title: `${bumpType}: ${version}`,
         value: bumpType,
@@ -128,7 +128,7 @@ export async function promptVersionOverride(
     return response.customVersion;
   } else {
     // It's a bump type
-    return calculateNewVersion(currentVersion, response.choice as BumpKind);
+    return getNextVersion(currentVersion, response.choice as BumpKind);
   }
 }
 

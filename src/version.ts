@@ -1,7 +1,11 @@
+import type { GitCommit } from "commit-parser";
 import type { BumpKind, PackageJson, VersionUpdate } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { determineHighestBump } from "./commits";
+import { promptVersionOverride } from "./prompts";
+import { isCI, logger } from "./utils";
 
 export function isValidSemver(version: string): boolean {
   // Basic semver validation: X.Y.Z with optional pre-release/build metadata
@@ -57,19 +61,13 @@ export function validateNotNull<T>(
   }
 }
 
-/**
- * Calculate the new version based on current version and bump type
- * Pure function - no side effects, easily testable
- */
-export function calculateNewVersion(currentVersion: string, bump: BumpKind): string {
+export function getNextVersion(currentVersion: string, bump: BumpKind): string {
   if (bump === "none") {
     return currentVersion;
   }
 
-  // Validate input
   validateSemver(currentVersion);
 
-  // Parse semantic version
   // eslint-disable-next-line regexp/no-super-linear-backtracking
   const match = currentVersion.match(/^(\d+)\.(\d+)\.(\d+)(.*)$/);
   if (!match) {
@@ -110,7 +108,7 @@ export function createVersionUpdate(
   bump: BumpKind,
   hasDirectChanges: boolean,
 ): VersionUpdate {
-  const newVersion = calculateNewVersion(pkg.version, bump);
+  const newVersion = getNextVersion(pkg.version, bump);
 
   return {
     package: pkg,
@@ -122,8 +120,58 @@ export function createVersionUpdate(
 }
 
 /**
- * Update a package.json file with new version and dependency versions
+ * Infer version updates from package commits with optional interactive overrides
+ *
+ * @param workspacePackages - All workspace packages
+ * @param packageCommits - Map of package names to their commits
+ * @param workspaceRoot - Root directory for prompts
+ * @param showPrompt - Whether to show prompts for version overrides
+ * @returns Version updates for packages with changes
  */
+export async function inferVersionUpdates(
+  workspacePackages: WorkspacePackage[],
+  packageCommits: Map<string, GitCommit[]>,
+  workspaceRoot: string,
+  showPrompt?: boolean,
+): Promise<VersionUpdate[]> {
+  const versionUpdates: VersionUpdate[] = [];
+
+  for (const [pkgName, commits] of packageCommits) {
+    if (commits.length === 0) continue;
+
+    const pkg = workspacePackages.find((p) => p.name === pkgName);
+    if (!pkg) continue;
+
+    const bump = determineHighestBump(commits);
+    if (bump === "none") {
+      logger.info(`No version bump needed for package ${pkg.name}`);
+      continue;
+    }
+
+    let newVersion = getNextVersion(pkg.version, bump);
+
+    if (!isCI && showPrompt) {
+      newVersion = await promptVersionOverride(
+        pkg,
+        workspaceRoot,
+        pkg.version,
+        newVersion,
+        bump,
+      );
+    }
+
+    versionUpdates.push({
+      package: pkg,
+      currentVersion: pkg.version,
+      newVersion,
+      bumpType: bump,
+      hasDirectChanges: true,
+    });
+  }
+
+  return versionUpdates;
+}
+
 export async function updatePackageJson(
   pkg: WorkspacePackage,
   newVersion: string,

@@ -2,7 +2,7 @@ import type {
   SharedOptions,
   VersionUpdate,
 } from "./types";
-import { analyzeCommits } from "./commits";
+import { getWorkspacePackageCommits } from "./commits";
 import {
   checkoutBranch,
   commitChanges,
@@ -27,7 +27,7 @@ import {
 } from "./package";
 import { promptVersionOverrides } from "./prompts";
 import { exitWithError, globalOptions, isCI, logger, normalizeSharedOptions } from "./utils";
-import { createVersionUpdate } from "./version";
+import { createVersionUpdate, inferVersionUpdates } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
 export interface ReleaseOptions extends SharedOptions {
@@ -113,48 +113,21 @@ export async function release(
     return null;
   }
 
-  // Analyze commits for packages, to determine version bumps
-  const changedPackages = await analyzeCommits(workspacePackages, workspaceRoot);
+  // Get commits for all packages
+  const packageCommits = await getWorkspacePackageCommits(workspaceRoot, workspacePackages);
 
-  if (changedPackages.size === 0) {
-    // TODO: Allow releases to still be created even if no packages changed (e.g., for documentation updates),
-    throw new Error("No packages have changes requiring a release");
-  }
+  const versionUpdates = await inferVersionUpdates(
+    workspacePackages,
+    packageCommits,
+    workspaceRoot,
+    options.prompts?.versions !== false,
+  );
 
-  // Create version updates for packages with changes
-  let versionUpdates: VersionUpdate[] = [];
-  for (const [pkgName, bump] of changedPackages) {
-    const pkg = workspacePackages.find((p) => p.name === pkgName);
-    if (pkg) {
-      versionUpdates.push(createVersionUpdate(pkg, bump, true));
-    }
-  }
-
-  // Prompt for version overrides if enabled
-  const isVersionPromptEnabled = options.prompts?.versions !== false;
-
-  if (!isCI && isVersionPromptEnabled) {
-    const versionOverrides = await promptVersionOverrides(
-      versionUpdates.map((u) => ({
-        package: u.package,
-        currentVersion: u.currentVersion,
-        suggestedVersion: u.newVersion,
-        bumpType: u.bumpType,
-      })),
-      workspaceRoot,
+  if (versionUpdates.length === 0) {
+    exitWithError(
+      "No packages have changes requiring a release",
+      "Make sure you have commits since the last release",
     );
-
-    // Apply overrides
-    versionUpdates = versionUpdates.map((update) => {
-      const overriddenVersion = versionOverrides.get(update.package.name);
-      if (overriddenVersion && overriddenVersion !== update.newVersion) {
-        return {
-          ...update,
-          newVersion: overriddenVersion,
-        };
-      }
-      return update;
-    });
   }
 
   const graph = buildPackageDependencyGraph(workspacePackages);
