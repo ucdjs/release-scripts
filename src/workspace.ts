@@ -1,7 +1,7 @@
 import type {
   FindWorkspacePackagesOptions,
   PackageJson,
-  ReleaseOptions,
+  SharedOptions,
 } from "./types";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -29,7 +29,7 @@ export interface WorkspacePackage {
 
 export async function discoverWorkspacePackages(
   workspaceRoot: string,
-  options: ReleaseOptions,
+  options: SharedOptions,
 ): Promise<WorkspacePackage[]> {
   let workspaceOptions: FindWorkspacePackagesOptions;
   let explicitPackages: string[] | undefined;
@@ -38,12 +38,12 @@ export async function discoverWorkspacePackages(
   if (options.packages == null || options.packages === true) {
     workspaceOptions = { excludePrivate: false };
   } else if (Array.isArray(options.packages)) {
-    workspaceOptions = { excludePrivate: false, included: options.packages };
+    workspaceOptions = { excludePrivate: false, include: options.packages };
     explicitPackages = options.packages;
   } else {
     workspaceOptions = options.packages;
-    if (options.packages.included) {
-      explicitPackages = options.packages.included;
+    if (options.packages.include) {
+      explicitPackages = options.packages.include;
     }
   }
 
@@ -109,14 +109,12 @@ async function findWorkspacePackages(
         version: rawProject.version,
         path: rawProject.path,
         packageJson,
-        workspaceDependencies: extractWorkspaceDependencies(
-          rawProject.dependencies,
-          allPackageNames,
-        ),
-        workspaceDevDependencies: extractWorkspaceDependencies(
-          rawProject.devDependencies,
-          allPackageNames,
-        ),
+        workspaceDependencies: Object.keys(rawProject.dependencies || []).filter((dep) => {
+          return allPackageNames.has(dep);
+        }),
+        workspaceDevDependencies: Object.keys(rawProject.devDependencies || []).filter((dep) => {
+          return allPackageNames.has(dep);
+        }),
       };
     });
 
@@ -152,27 +150,16 @@ function shouldIncludePackage(
   }
 
   // Check include list (if specified, only these packages are included)
-  if (options.included && options.included.length > 0) {
-    if (!options.included.includes(pkg.name)) {
+  if (options.include && options.include.length > 0) {
+    if (!options.include.includes(pkg.name)) {
       return false;
     }
   }
 
   // Check exclude list
-  if (options.excluded?.includes(pkg.name)) {
+  if (options.exclude?.includes(pkg.name)) {
     return false;
   }
 
   return true;
-}
-
-function extractWorkspaceDependencies(
-  dependencies: Record<string, string> | undefined,
-  workspacePackages: Set<string>,
-): string[] {
-  if (!dependencies) return [];
-
-  return Object.keys(dependencies).filter((dep) => {
-    return workspacePackages.has(dep);
-  });
 }

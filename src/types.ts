@@ -31,6 +31,21 @@ export interface SharedOptions {
    * GitHub token for authentication
    */
   githubToken: string;
+
+  /**
+   * Interactive prompt configuration
+   */
+  prompts?: {
+    /**
+     * Enable package selection prompt (defaults to true when not in CI)
+     */
+    packages?: boolean;
+
+    /**
+     * Enable version override prompt (defaults to true when not in CI)
+     */
+    versions?: boolean;
+  };
 }
 
 export interface PackageJson {
@@ -54,12 +69,12 @@ export interface FindWorkspacePackagesOptions {
   /**
    * Package names to exclude
    */
-  excluded?: string[];
+  exclude?: string[];
 
   /**
    * Only include these packages (if specified, all others are excluded)
    */
-  included?: string[];
+  include?: string[];
 
   /**
    * Whether to exclude private packages (default: false)

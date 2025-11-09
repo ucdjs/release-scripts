@@ -39,21 +39,6 @@ export interface ReleaseOptions extends SharedOptions {
   releaseBranch?: string;
 
   /**
-   * Interactive prompt configuration
-   */
-  prompts?: {
-    /**
-     * Enable package selection prompt (defaults to true when not in CI)
-     */
-    packages?: boolean;
-
-    /**
-     * Enable version override prompt (defaults to true when not in CI)
-     */
-    versions?: boolean;
-  };
-
-  /**
    * Whether to perform a dry run (no changes pushed or PR created)
    * @default false
    */
