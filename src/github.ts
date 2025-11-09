@@ -27,6 +27,7 @@ export async function getExistingPullRequest({
   branch: string;
 }): Promise<GitHubPullRequest | null> {
   try {
+    logger.debug(`Requesting pull request for branch: ${branch} (url: https://api.github.com/repos/${owner}/${repo}/pulls?state=open&head=${branch})`);
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&head=${branch}`, {
       headers: {
         Accept: "application/vnd.github.v3+json",
@@ -108,6 +109,7 @@ export async function upsertPullRequest({
       ? { title, body }
       : { title, body, head, base };
 
+    logger.debug(`${isUpdate ? "Updating" : "Creating"} pull request (url: ${url})`);
     const res = await fetch(url, {
       method,
       headers: {
