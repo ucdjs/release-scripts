@@ -33,10 +33,10 @@ export async function discoverWorkspacePackages(
   workspacePackages: WorkspacePackage[];
   packagesToAnalyze: WorkspacePackage[];
 }> {
-  // Normalize package options
   let workspaceOptions: FindWorkspacePackagesOptions;
   let explicitPackages: string[] | undefined;
 
+  // Normalize package options and determine if packages were explicitly specified
   if (options.packages == null || options.packages === true) {
     workspaceOptions = { excludePrivate: false };
   } else if (Array.isArray(options.packages)) {
@@ -44,6 +44,9 @@ export async function discoverWorkspacePackages(
     explicitPackages = options.packages;
   } else {
     workspaceOptions = options.packages;
+    if (options.packages.included) {
+      explicitPackages = options.packages.included;
+    }
   }
 
   const workspacePackages = await findWorkspacePackages(
@@ -61,21 +64,14 @@ export async function discoverWorkspacePackages(
     }
   }
 
-  // Determine if we should show package selection prompt
-  const isPackagePromptEnabled = options.prompts?.packages !== false;
-  const isPackagesPreConfigured = Array.isArray(options.packages)
-    || (typeof options.packages === "object"
-      && options.packages !== null
-      && "included" in options.packages
-      && options.packages.included != null);
-
   let packagesToAnalyze = workspacePackages;
 
-  // Show interactive prompt if:
+  // Show interactive prompt only if:
   // 1. Not in CI
   // 2. Prompt is enabled
-  // 3. Packages weren't pre-configured with specific names
-  if (!isCI && isPackagePromptEnabled && !isPackagesPreConfigured) {
+  // 3. No explicit packages were specified (user didn't pre-select specific packages)
+  const isPackagePromptEnabled = options.prompts?.packages !== false;
+  if (!isCI && isPackagePromptEnabled && !explicitPackages) {
     const selectedNames = await promptPackageSelection(workspacePackages);
     packagesToAnalyze = workspacePackages.filter((pkg) =>
       selectedNames.includes(pkg.name),
