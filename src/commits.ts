@@ -2,7 +2,7 @@ import type { GitCommit } from "commit-parser";
 import type { BumpKind } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import { getCommits } from "commit-parser";
-import { run } from "./utils";
+import { logger, run } from "./utils";
 
 export async function getLastPackageTag(
   packageName: string,
@@ -61,7 +61,7 @@ export async function getPackageCommits(
     to: "HEAD",
   });
 
-  console.log(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
+  logger.log(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
 
   // Filter to commits that touch this package's files
   const touchedCommitHashes = await getCommitsTouchingPackage(
@@ -76,7 +76,7 @@ export async function getPackageCommits(
     touchedSet.has(commit.shortHash),
   );
 
-  console.log(`${packageCommits.length} commits affect ${pkg.name}`);
+  logger.log(`${packageCommits.length} commits affect ${pkg.name}`);
 
   return packageCommits;
 }
@@ -175,7 +175,7 @@ export async function getCommitsTouchingPackage(
       .map((line) => line.trim())
       .filter(Boolean);
   } catch (error) {
-    console.error(`Error getting commits touching package: ${error}`);
+    logger.error(`Error getting commits touching package: ${error}`);
     return [];
   }
 }

@@ -2,6 +2,7 @@ import type { VersionUpdate } from "./types";
 import { dedent } from "@luxass/utils";
 import { Eta } from "eta";
 import farver from "farver";
+import { logger } from "./utils";
 
 interface SharedGitHubOptions {
   owner: string;
@@ -70,11 +71,11 @@ export async function getExistingPullRequest({
       html_url: firstPullRequest.html_url,
     };
 
-    console.info(`Found existing pull request: ${farver.yellow(`#${pullRequest.number}`)}`);
+    logger.info(`Found existing pull request: ${farver.yellow(`#${pullRequest.number}`)}`);
 
     return pullRequest;
   } catch (err) {
-    console.error("Error fetching pull request:", err);
+    logger.error("Error fetching pull request:", err);
     return null;
   }
 }
@@ -140,7 +141,7 @@ export async function upsertPullRequest({
     }
 
     const action = isUpdate ? "Updated" : "Created";
-    console.info(`${action} pull request: ${farver.yellow(`#${pr.number}`)}`);
+    logger.info(`${action} pull request: ${farver.yellow(`#${pr.number}`)}`);
 
     return {
       number: pr.number,
@@ -150,7 +151,7 @@ export async function upsertPullRequest({
       html_url: pr.html_url,
     };
   } catch (err) {
-    console.error(`Error upserting pull request:`, err);
+    logger.error(`Error upserting pull request:`, err);
     throw err;
   }
 }

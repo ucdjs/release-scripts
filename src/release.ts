@@ -28,7 +28,7 @@ import {
   updateAllPackageJsonFiles,
 } from "./package";
 import { promptVersionOverrides } from "./prompts";
-import { globalOptions, isCI } from "./utils";
+import { globalOptions, isCI, logger } from "./utils";
 import { createVersionUpdate } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
@@ -41,9 +41,11 @@ export async function release(
     workspaceRoot = process.cwd(),
     releaseBranch = "release/next",
     githubToken,
+    verbose = false,
   } = options;
 
   globalOptions.dryRun = dryRun;
+  globalOptions.verbose = verbose;
 
   if (githubToken.trim() === "" || githubToken == null) {
     throw new Error("GitHub token is required");
@@ -56,7 +58,7 @@ export async function release(
   }
 
   if (safeguards && !(await isWorkingDirectoryClean(workspaceRoot))) {
-    console.error("Working directory is not clean. Please commit or stash your changes before proceeding.");
+    logger.error("Working directory is not clean. Please commit or stash your changes before proceeding.");
     return null;
   }
 
@@ -66,7 +68,7 @@ export async function release(
   );
 
   if (packagesToAnalyze.length === 0) {
-    console.log("No packages found to analyze for release.");
+    logger.log("No packages found to analyze for release.");
     return null;
   }
 
@@ -135,15 +137,15 @@ export async function release(
 
   const prExists = !!existingPullRequest;
   if (prExists) {
-    console.log("Existing pull request found:", existingPullRequest.html_url);
+    logger.log("Existing pull request found:", existingPullRequest.html_url);
   } else {
-    console.log("No existing pull request found, will create new one");
+    logger.log("No existing pull request found, will create new one");
   }
 
   // Ensure release branch exists
   const branchExists = await doesBranchExist(releaseBranch, workspaceRoot);
   if (!branchExists) {
-    console.log("Creating release branch:", releaseBranch);
+    logger.log("Creating release branch:", releaseBranch);
     await createBranch(releaseBranch, currentBranch, workspaceRoot);
   }
 
@@ -155,15 +157,15 @@ export async function release(
 
   // Pull latest changes if branch exists remotely
   if (branchExists) {
-    console.log("Pulling latest changes from remote");
+    logger.log("Pulling latest changes from remote");
     const hasPulled = await pullLatestChanges(releaseBranch, workspaceRoot);
     if (!hasPulled) {
-      console.log("Warning: Failed to pull latest changes, continuing anyway");
+      logger.log("Warning: Failed to pull latest changes, continuing anyway");
     }
   }
 
   // Rebase onto current branch to get latest commits from main
-  console.log("Rebasing release branch onto", currentBranch);
+  logger.log("Rebasing release branch onto", currentBranch);
   await rebaseBranch(currentBranch, workspaceRoot);
 
   // Update package.json files
@@ -176,24 +178,24 @@ export async function release(
   const isBranchAhead = await isBranchAheadOfRemote(releaseBranch, workspaceRoot);
 
   if (!hasCommitted && !isBranchAhead) {
-    console.log("No changes to commit and branch is in sync with remote");
+    logger.log("No changes to commit and branch is in sync with remote");
     await checkoutBranch(currentBranch, workspaceRoot);
 
     if (prExists) {
-      console.log("No updates needed, PR is already up to date");
+      logger.log("No updates needed, PR is already up to date");
       return {
         updates: allUpdates,
         prUrl: existingPullRequest.html_url,
         created: false,
       };
     } else {
-      console.error("No changes to commit, and no existing PR. Nothing to do.");
+      logger.error("No changes to commit, and no existing PR. Nothing to do.");
       return null;
     }
   }
 
   // Push with --force-with-lease for safety
-  console.log("Pushing changes to remote");
+  logger.log("Pushing changes to remote");
   await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
 
   // Create or update PR
@@ -211,7 +213,7 @@ export async function release(
     githubToken,
   });
 
-  console.log(prExists ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);
+  logger.log(prExists ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);
 
   // Checkout back to original branch
   await checkoutBranch(currentBranch, workspaceRoot);

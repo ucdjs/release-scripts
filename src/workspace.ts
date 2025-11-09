@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import farver from "farver";
 import { selectPackagePrompt } from "./prompts";
-import { isCI, run } from "./utils";
+import { isCI, logger, run } from "./utils";
 
 interface RawProject {
   name: string;
@@ -131,11 +131,9 @@ async function findWorkspacePackages(
     const packages = await Promise.all(promises);
 
     if (excludedPackages.size > 0) {
-      console.info(
-        `${farver.cyan("[info]:")} Excluded packages: ${farver.green(
-          Array.from(excludedPackages).join(", "),
-        )}`,
-      );
+      logger.info(`Excluded packages: ${farver.green(
+        Array.from(excludedPackages).join(", "),
+      )}`);
     }
 
     // Filter out excluded packages (nulls)
@@ -143,7 +141,7 @@ async function findWorkspacePackages(
       (pkg): pkg is WorkspacePackage => pkg !== null,
     );
   } catch (err) {
-    console.error("Error discovering workspace packages:", err);
+    logger.error("Error discovering workspace packages:", err);
     throw err;
   }
 }

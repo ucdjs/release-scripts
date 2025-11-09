@@ -19,35 +19,6 @@ export interface PackageUpdateOrder {
   level: number;
 }
 
-export interface ReleaseContext {
-  /**
-   * Root directory of the workspace
-   */
-  workspaceRoot: string;
-
-  /**
-   * Package names to exclude from release operations
-   */
-  excludePackages?: string[];
-
-  /**
-   * Only include these packages (if specified, all others are excluded)
-   */
-  includePackages?: string[];
-
-  /**
-   * Filter function to determine if a package should be included
-   * @param pkg - The workspace package to check
-   * @returns true if the package should be included, false otherwise
-   */
-  packageFilter?: (pkg: WorkspacePackage) => boolean;
-
-  /**
-   * Whether to exclude private packages (default: true)
-   */
-  excludePrivate?: boolean;
-}
-
 export interface FindWorkspacePackagesOptions {
   /**
    * Package names to exclude
@@ -144,10 +115,19 @@ export interface ReleaseOptions {
   safeguards?: boolean;
 
   /**
+   * Whether to enable verbose logging
+   * @default false
+   */
+  verbose?: boolean;
+
+  /**
    * GitHub token for authentication
    */
   githubToken: string;
 
+  /**
+   * Pull request configuration
+   */
   pullRequest?: {
     /**
      * Title for the release pull request

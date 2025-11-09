@@ -11,9 +11,36 @@ export const globalOptions = {
    * If true, commands will be logged instead of executed
    */
   dryRun: false,
+
+  /**
+   * Verbosity level of logging
+   */
+  verbose: false,
 };
 
 export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
+
+export const logger = {
+  info: (...args: unknown[]) => {
+    console.log(farver.cyan("[info]:"), ...args);
+  },
+  debug: (...args: unknown[]) => {
+    console.log(farver.gray("[debug]:"), ...args);
+  },
+  warn: (...args: unknown[]) => {
+    console.log(farver.yellow("[warn]:"), ...args);
+  },
+  error: (...args: unknown[]) => {
+    console.error(farver.red("[error]:"), ...args);
+  },
+  log: (...args: unknown[]) => {
+    if (!globalOptions.verbose) {
+      return;
+    }
+
+    console.log(...args);
+  },
+};
 
 export async function run(
   bin: string,
@@ -35,7 +62,7 @@ export async function dryRun(
   args: string[],
   opts?: Partial<TinyExecOptions>,
 ): Promise<void> {
-  return console.log(
+  return logger.log(
     farver.blue(`[dryrun] ${bin} ${args.join(" ")}`),
     opts || "",
   );

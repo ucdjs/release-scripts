@@ -1,4 +1,4 @@
-import { run, runIfNotDry } from "./utils";
+import { logger, run, runIfNotDry } from "./utils";
 
 /**
  * Check if the working directory is clean (no uncommitted changes)
@@ -22,7 +22,7 @@ export async function isWorkingDirectoryClean(
 
     return true;
   } catch (err: any) {
-    console.error("Error checking git status:", err);
+    logger.error("Error checking git status:", err);
     return false;
   }
 }

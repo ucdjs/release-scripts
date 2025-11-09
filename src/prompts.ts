@@ -4,6 +4,7 @@ import type { WorkspacePackage } from "./workspace";
 import farver from "farver";
 import prompts from "prompts";
 import { getPackageCommits } from "./commits";
+import { logger } from "./utils";
 import { calculateNewVersion } from "./version";
 
 interface GroupedCommits {
@@ -158,7 +159,7 @@ export async function promptVersionOverride(
   const commitSummary = formatCommitGroups(commits);
 
   if (commitSummary.trim()) {
-    console.log(`\nRecent changes in ${pkg.name}:${commitSummary}\n`);
+    logger.log(`\nRecent changes in ${pkg.name}:${commitSummary}\n`);
   }
   const choices = [
     {
