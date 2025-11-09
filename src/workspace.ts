@@ -2,7 +2,6 @@ import type {
   FindWorkspacePackagesOptions,
   PackageJson,
   ReleaseOptions,
-  WorkspacePackage,
 } from "./types";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -15,6 +14,38 @@ interface RawProject {
   private: boolean;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+}
+
+export interface WorkspacePackage {
+  name: string;
+  version: string;
+  path: string;
+  packageJson: PackageJson;
+  workspaceDependencies: string[];
+  workspaceDevDependencies: string[];
+}
+
+export async function discoverPackages(
+  workspaceRoot: string,
+  options: ReleaseOptions,
+): Promise<{
+  workspacePackages: WorkspacePackage[];
+  packagesToAnalyze: WorkspacePackage[];
+}> {
+  const { workspaceOptions, explicitPackages } = normalizePackageOptions(options.packages);
+
+  const workspacePackages = await findWorkspacePackages(workspaceRoot, workspaceOptions);
+
+  // If specific packages were requested, validate they were all found
+  if (explicitPackages) {
+    validatePackages(workspacePackages, explicitPackages);
+  }
+
+  // All found packages should be analyzed
+  return {
+    workspacePackages,
+    packagesToAnalyze: workspacePackages,
+  };
 }
 
 export async function findWorkspacePackages(
@@ -65,6 +96,41 @@ export async function findWorkspacePackages(
   return packages;
 }
 
+function normalizePackageOptions(
+  packages: ReleaseOptions["packages"],
+): { workspaceOptions: FindWorkspacePackagesOptions; explicitPackages?: string[] } {
+  // Default: find all packages
+  if (packages == null || packages === true) {
+    return { workspaceOptions: { excludePrivate: false } };
+  }
+
+  // Array of package names: find all packages but filter to specific ones
+  if (Array.isArray(packages)) {
+    return {
+      workspaceOptions: { excludePrivate: false, included: packages },
+      explicitPackages: packages,
+    };
+  }
+
+  // Already in the correct format
+  return { workspaceOptions: packages };
+}
+
+/**
+ * Validate that all explicitly requested packages were found
+ */
+function validatePackages(
+  found: WorkspacePackage[],
+  requested: string[],
+): void {
+  const foundNames = new Set(found.map((p) => p.name));
+  const missing = requested.filter((p) => !foundNames.has(p));
+
+  if (missing.length > 0) {
+    throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
+  }
+}
+
 function shouldIncludePackage(
   pkg: PackageJson,
   options?: FindWorkspacePackagesOptions,
@@ -102,72 +168,4 @@ function extractWorkspaceDependencies(
   return Object.keys(dependencies).filter((dep) => {
     return workspacePackages.has(dep);
   });
-}
-
-/**
- * Normalize package options to FindWorkspacePackagesOptions format
- */
-function normalizePackageOptions(
-  packages: ReleaseOptions["packages"],
-): { workspaceOptions: FindWorkspacePackagesOptions; explicitPackages?: string[] } {
-  // Default: find all packages
-  if (packages == null || packages === true) {
-    return { workspaceOptions: { excludePrivate: false } };
-  }
-
-  // Array of package names: find all packages but filter to specific ones
-  if (Array.isArray(packages)) {
-    return {
-      workspaceOptions: { excludePrivate: false, included: packages },
-      explicitPackages: packages,
-    };
-  }
-
-  // Already in the correct format
-  return { workspaceOptions: packages };
-}
-
-/**
- * Validate that all explicitly requested packages were found
- */
-function validatePackages(
-  found: WorkspacePackage[],
-  requested: string[],
-): void {
-  const foundNames = new Set(found.map((p) => p.name));
-  const missing = requested.filter((p) => !foundNames.has(p));
-
-  if (missing.length > 0) {
-    throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
-  }
-}
-
-/**
- * Discover workspace packages based on release options
- *
- * @param workspaceRoot - Root directory of the workspace
- * @param options - Release options containing package selection criteria
- * @returns Object containing all workspace packages and packages to analyze
- */
-export async function discoverPackages(
-  workspaceRoot: string,
-  options: ReleaseOptions,
-): Promise<{
-  workspacePackages: WorkspacePackage[];
-  packagesToAnalyze: WorkspacePackage[];
-}> {
-  const { workspaceOptions, explicitPackages } = normalizePackageOptions(options.packages);
-
-  const workspacePackages = await findWorkspacePackages(workspaceRoot, workspaceOptions);
-
-  // If specific packages were requested, validate they were all found
-  if (explicitPackages) {
-    validatePackages(workspacePackages, explicitPackages);
-  }
-
-  // All found packages should be analyzed
-  return {
-    workspacePackages,
-    packagesToAnalyze: workspacePackages,
-  };
 }

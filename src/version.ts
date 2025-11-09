@@ -1,10 +1,7 @@
-import type { BumpKind, PackageJson, VersionUpdate, WorkspacePackage } from "./types";
+import type { BumpKind, PackageJson, VersionUpdate } from "./types";
+import type { WorkspacePackage } from "./workspace";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-
-/**
- * Validation utilities
- */
 
 export function isValidSemver(version: string): boolean {
   // Basic semver validation: X.Y.Z with optional pre-release/build metadata

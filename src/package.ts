@@ -2,8 +2,8 @@ import type {
   DependencyGraph,
   PackageUpdateOrder,
   VersionUpdate,
-  WorkspacePackage,
 } from "./types";
+import type { WorkspacePackage } from "./workspace";
 import { createVersionUpdate } from "./version";
 
 /**

@@ -1,3 +1,5 @@
+import type { WorkspacePackage } from "./workspace";
+
 export type BumpKind = "none" | "patch" | "minor" | "major";
 
 export interface PackageJson {
@@ -10,15 +12,6 @@ export interface PackageJson {
   private?: boolean;
 
   [key: string]: unknown;
-}
-
-export interface WorkspacePackage {
-  name: string;
-  version: string;
-  path: string;
-  packageJson: PackageJson;
-  workspaceDependencies: string[];
-  workspaceDevDependencies: string[];
 }
 
 export interface DependencyGraph {

@@ -3,8 +3,8 @@ import type {
   ReleaseOptions,
   ReleaseResult,
   VersionUpdate,
-  WorkspacePackage,
 } from "./types";
+import type { WorkspacePackage } from "./workspace";
 import process from "node:process";
 import { analyzePackageCommits } from "./commits";
 import {

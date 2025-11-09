@@ -1,5 +1,6 @@
 import type { GitCommit } from "commit-parser";
-import type { BumpKind, WorkspacePackage } from "./types";
+import type { BumpKind } from "./types";
+import type { WorkspacePackage } from "./workspace";
 import { getCommits } from "commit-parser";
 import { run } from "./utils";
 
