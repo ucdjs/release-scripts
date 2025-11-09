@@ -1,11 +1,12 @@
 import type { ChangelogOptions } from "./changelog";
 import type {
+  GlobalCommitMode,
   SharedOptions,
   VersionUpdate,
 } from "./types";
 import farver from "farver";
 import { updateChangelogs } from "./changelog";
-import { getWorkspacePackageCommits } from "./commits";
+import { getAllWorkspaceCommits, getWorkspacePackageCommits } from "./commits";
 import {
   checkoutBranch,
   commitChanges,
@@ -82,6 +83,8 @@ export interface ReleaseOptions extends SharedOptions {
    * Changelog configuration
    */
   changelog?: ChangelogOptions;
+
+  globalCommitMode?: GlobalCommitMode;
 }
 
 export interface ReleaseResult {
@@ -111,8 +114,8 @@ export async function release(
   normalizedOptions.branch.release ??= "release/next";
   normalizedOptions.branch.default = await getDefaultBranch();
   normalizedOptions.safeguards ??= true;
-
   normalizedOptions.changelog ??= { enabled: true };
+  normalizedOptions.globalCommitMode ??= "dependencies";
 
   globalOptions.dryRun = normalizedOptions.dryRun;
 
@@ -135,12 +138,14 @@ export async function release(
   // Get commits for all packages
   const packageCommits = await getWorkspacePackageCommits(workspaceRoot, workspacePackages);
 
-  const versionUpdates = await inferVersionUpdates(
+  const versionUpdates = await inferVersionUpdates({
     workspacePackages,
     packageCommits,
     workspaceRoot,
-    options.prompts?.versions !== false,
-  );
+    showPrompt: options.prompts?.versions !== false,
+    allCommits: await getAllWorkspaceCommits(workspaceRoot),
+    globalCommitMode: options.globalCommitMode,
+  });
 
   if (versionUpdates.length === 0) {
     logger.warn("No packages have changes requiring a release");

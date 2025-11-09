@@ -1,9 +1,9 @@
 import type { GitCommit } from "commit-parser";
-import type { BumpKind, PackageJson, VersionUpdate } from "./types";
+import type { BumpKind, GlobalCommitMode, PackageJson, VersionUpdate } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { determineHighestBump } from "./commits";
+import { combineWithGlobalCommits, determineHighestBump } from "./commits";
 import { promptVersionOverride } from "./prompts";
 import { isCI, logger } from "./utils";
 
@@ -119,28 +119,43 @@ export function createVersionUpdate(
   };
 }
 
+interface InferVersionUpdatesOptions {
+  workspacePackages: WorkspacePackage[];
+  packageCommits: Map<string, GitCommit[]>;
+  workspaceRoot: string;
+  allCommits: GitCommit[];
+  showPrompt?: boolean;
+  globalCommitMode?: GlobalCommitMode;
+}
+
 /**
  * Infer version updates from package commits with optional interactive overrides
  *
- * @param workspacePackages - All workspace packages
- * @param packageCommits - Map of package names to their commits
- * @param workspaceRoot - Root directory for prompts
- * @param showPrompt - Whether to show prompts for version overrides
  * @returns Version updates for packages with changes
  */
-export async function inferVersionUpdates(
-  workspacePackages: WorkspacePackage[],
-  packageCommits: Map<string, GitCommit[]>,
-  workspaceRoot: string,
-  showPrompt?: boolean,
-): Promise<VersionUpdate[]> {
+export async function inferVersionUpdates({
+  workspacePackages,
+  packageCommits,
+  allCommits,
+  workspaceRoot,
+  showPrompt,
+  globalCommitMode,
+}: InferVersionUpdatesOptions): Promise<VersionUpdate[]> {
   const versionUpdates: VersionUpdate[] = [];
 
-  for (const [pkgName, commits] of packageCommits) {
-    if (commits.length === 0) continue;
+  for (const [pkgName, pkgCommits] of packageCommits) {
+    if (pkgCommits.length === 0) continue;
 
     const pkg = workspacePackages.find((p) => p.name === pkgName);
     if (!pkg) continue;
+
+    // Combine package commits with global commits based on settings
+    const commits = combineWithGlobalCommits(
+      workspaceRoot,
+      pkgCommits,
+      allCommits,
+      globalCommitMode,
+    );
 
     const bump = determineHighestBump(commits);
     if (bump === "none") {

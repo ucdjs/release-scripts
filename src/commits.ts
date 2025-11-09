@@ -114,6 +114,80 @@ export async function getWorkspacePackageCommits(
   return changedPackages;
 }
 
+/**
+ * Get all commits for the workspace (not filtered by package)
+ */
+export async function getAllWorkspaceCommits(
+  workspaceRoot: string,
+  lastTag?: string,
+): Promise<GitCommit[]> {
+  return getCommits({
+    from: lastTag,
+    to: "HEAD",
+    cwd: workspaceRoot,
+  });
+}
+
+/**
+ * Get files changed in a specific commit
+ */
+export async function getFilesChangedInCommit(
+  commitHash: string,
+  workspaceRoot: string,
+): Promise<string[] | null> {
+  try {
+    const { stdout } = await run("git", ["diff-tree", "--no-commit-id", "--name-only", "-r", commitHash], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    return stdout.split("\n").map((file) => file.trim()).filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Filter and combine package commits with global commits
+ */
+export function combineWithGlobalCommits(
+  workspaceRoot: string,
+  packageCommits: GitCommit[],
+  allCommits: GitCommit[],
+  mode?: false | "dependencies" | "all",
+): GitCommit[] {
+  if (!mode) {
+    return packageCommits;
+  }
+
+  // Find global commits (in allCommits but not in packageCommits)
+  const packageCommitShas = new Set(packageCommits.map((c) => c.shortHash));
+  const globalCommits = allCommits.filter((c) => !packageCommitShas.has(c.shortHash));
+
+  if (mode === "all") {
+    return [...packageCommits, ...globalCommits];
+  }
+
+  if (mode === "dependencies") {
+    const dependencyCommits = globalCommits.filter(async (c) => {
+      const affectedFiles = await getFilesChangedInCommit(c.shortHash, workspaceRoot);
+
+      if (affectedFiles == null) return false;
+
+      return affectedFiles.some((file) => [
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+      ].includes(file));
+    });
+    return [...packageCommits, ...dependencyCommits];
+  }
+
+  return packageCommits;
+}
+
 export function determineBumpType(commit: GitCommit): BumpKind {
   // Breaking change always results in major bump
   if (commit.isBreaking) {

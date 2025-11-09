@@ -1,6 +1,7 @@
 import type { WorkspacePackage } from "./workspace";
 
 export type BumpKind = "none" | "patch" | "minor" | "major";
+export type GlobalCommitMode = false | "dependencies" | "all";
 
 export interface SharedOptions {
   /**
