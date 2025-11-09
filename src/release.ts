@@ -25,9 +25,8 @@ import {
   createDependentUpdates,
   updateAllPackageJsonFiles,
 } from "./package";
-import { promptVersionOverrides } from "./prompts";
-import { exitWithError, globalOptions, isCI, logger, normalizeSharedOptions } from "./utils";
-import { createVersionUpdate, inferVersionUpdates } from "./version";
+import { exitWithError, globalOptions, logger, normalizeSharedOptions } from "./utils";
+import { inferVersionUpdates } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
 export interface ReleaseOptions extends SharedOptions {
