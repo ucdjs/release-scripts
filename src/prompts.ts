@@ -1,122 +1,9 @@
-import type { GitCommit } from "commit-parser";
 import type { BumpKind } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import farver from "farver";
 import prompts from "prompts";
-import { getPackageCommits } from "./commits";
 import { logger } from "./utils";
 import { calculateNewVersion } from "./version";
-
-interface GroupedCommits {
-  feat: GitCommit[];
-  fix: GitCommit[];
-  perf: GitCommit[];
-  chore: GitCommit[];
-  docs: GitCommit[];
-  style: GitCommit[];
-  refactor: GitCommit[];
-  test: GitCommit[];
-  build: GitCommit[];
-  ci: GitCommit[];
-  revert: GitCommit[];
-  other: GitCommit[];
-}
-
-/**
- * Get commits for a package grouped by conventional commit type
- *
- * @param pkg - The workspace package
- * @param workspaceRoot - Root directory of the workspace
- * @param limit - Maximum number of commits to return (default: 10)
- * @returns Commits grouped by type
- */
-export async function getCommitsForPackage(
-  pkg: WorkspacePackage,
-  workspaceRoot: string,
-  limit = 10,
-): Promise<GroupedCommits> {
-  const commits = await getPackageCommits(pkg, workspaceRoot);
-
-  // Limit commits
-  const limitedCommits = commits.slice(0, limit);
-
-  // Group by type
-  const grouped: GroupedCommits = {
-    feat: [],
-    fix: [],
-    perf: [],
-    chore: [],
-    docs: [],
-    style: [],
-    refactor: [],
-    test: [],
-    build: [],
-    ci: [],
-    revert: [],
-    other: [],
-  };
-
-  for (const commit of limitedCommits) {
-    if (commit.type && commit.type in grouped) {
-      grouped[commit.type as keyof GroupedCommits].push(commit);
-    } else {
-      grouped.other.push(commit);
-    }
-  }
-
-  return grouped;
-}
-
-/**
- * Format grouped commits into a readable string
- */
-function formatCommitGroups(grouped: GroupedCommits): string {
-  const lines: string[] = [];
-
-  const typeLabels: Record<keyof GroupedCommits, string> = {
-    feat: "Features",
-    fix: "Bug Fixes",
-    perf: "Performance",
-    chore: "Chores",
-    docs: "Documentation",
-    style: "Styling",
-    refactor: "Refactoring",
-    test: "Tests",
-    build: "Build",
-    ci: "CI",
-    revert: "Reverts",
-    other: "Other",
-  };
-
-  const typeOrder: (keyof GroupedCommits)[] = [
-    "feat",
-    "fix",
-    "perf",
-    "refactor",
-    "test",
-    "docs",
-    "style",
-    "build",
-    "ci",
-    "chore",
-    "revert",
-    "other",
-  ];
-
-  for (const type of typeOrder) {
-    const commits = grouped[type];
-    if (commits.length > 0) {
-      lines.push(`\n${typeLabels[type]}:`);
-      for (const commit of commits) {
-        const scope = commit.scope ? `(${commit.scope})` : "";
-        const breaking = commit.isBreaking ? " ⚠️  BREAKING" : "";
-        lines.push(`  • ${commit.type}${scope}: ${commit.message}${breaking}`);
-      }
-    }
-  }
-
-  return lines.join("\n");
-}
 
 export async function selectPackagePrompt(
   packages: WorkspacePackage[],
@@ -191,13 +78,6 @@ export async function promptVersionOverride(
   suggestedVersion: string,
   suggestedBumpType: BumpKind,
 ): Promise<string> {
-  // Get and display commits for this package
-  const commits = await getCommitsForPackage(pkg, workspaceRoot);
-  const commitSummary = formatCommitGroups(commits);
-
-  if (commitSummary.trim()) {
-    logger.log(`\nRecent changes in ${pkg.name}:${commitSummary}\n`);
-  }
   const choices = [
     {
       title: `Use suggested: ${suggestedVersion} (${suggestedBumpType})`,
