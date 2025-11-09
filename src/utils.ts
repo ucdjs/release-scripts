@@ -22,13 +22,15 @@ export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" 
 
 export const logger = {
   info: (...args: unknown[]) => {
-    console.log(farver.cyan("[info]:"), ...args);
+    // eslint-disable-next-line no-console
+    console.info(farver.cyan("[info]:"), ...args);
   },
   debug: (...args: unknown[]) => {
-    console.log(farver.gray("[debug]:"), ...args);
+    // eslint-disable-next-line no-console
+    console.debug(farver.gray("[debug]:"), ...args);
   },
   warn: (...args: unknown[]) => {
-    console.log(farver.yellow("[warn]:"), ...args);
+    console.warn(farver.yellow("[warn]:"), ...args);
   },
   error: (...args: unknown[]) => {
     console.error(farver.red("[error]:"), ...args);
@@ -38,6 +40,7 @@ export const logger = {
       return;
     }
 
+    // eslint-disable-next-line no-console
     console.log(...args);
   },
 };
