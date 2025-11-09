@@ -13,7 +13,7 @@ export const globalOptions = {
   dryRun: false,
 };
 
-export const isCI = typeof process.env.CI === "string" && process.env.CI.toLowerCase() !== "false";
+export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
 
 export async function run(
   bin: string,

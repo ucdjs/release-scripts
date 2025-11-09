@@ -1,12 +1,10 @@
 import type {
-  BumpKind,
   ReleaseOptions,
   ReleaseResult,
   VersionUpdate,
 } from "./types";
-import type { WorkspacePackage } from "./workspace";
 import process from "node:process";
-import { analyzePackageCommits } from "./commits";
+import { analyzeCommits } from "./commits";
 import {
   checkoutBranch,
   commitChanges,
@@ -25,17 +23,13 @@ import {
   upsertPullRequest,
 } from "./github";
 import {
-  buildDependencyGraph,
+  buildPackageDependencyGraph,
   createDependentUpdates,
-  getPackageUpdateOrder,
+  updateAllPackageJsonFiles,
 } from "./package";
 import { promptVersionOverrides } from "./prompts";
 import { globalOptions, isCI } from "./utils";
-import {
-  createVersionUpdate,
-  getDependencyUpdates,
-  updatePackageJson,
-} from "./version";
+import { createVersionUpdate } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
 export async function release(
@@ -83,10 +77,14 @@ export async function release(
     throw new Error("No packages have changes requiring a release");
   }
 
-  let versionUpdates = calculateVersions(
-    workspacePackages,
-    changedPackages,
-  );
+  // Create version updates for packages with changes
+  let versionUpdates: VersionUpdate[] = [];
+  for (const [pkgName, bump] of changedPackages) {
+    const pkg = workspacePackages.find((p) => p.name === pkgName);
+    if (pkg) {
+      versionUpdates.push(createVersionUpdate(pkg, bump, true));
+    }
+  }
 
   // Prompt for version overrides if enabled
   const isVersionPromptEnabled = options.prompts?.versions !== false;
@@ -115,14 +113,12 @@ export async function release(
     });
   }
 
-  const graph = buildDependencyGraph(workspacePackages);
-  const packagesNeedingUpdate = new Set(versionUpdates.map((u) => u.package.name));
+  const graph = buildPackageDependencyGraph(workspacePackages);
 
-  // Get all packages in update order (includes dependents)
-  const updateOrder = getPackageUpdateOrder(graph, packagesNeedingUpdate);
-
+  // Get all packages needing updates (includes transitive dependents)
   const allUpdates = createDependentUpdates(
-    updateOrder,
+    graph,
+    workspacePackages,
     versionUpdates,
   );
 
@@ -171,7 +167,7 @@ export async function release(
   await rebaseBranch(currentBranch, workspaceRoot);
 
   // Update package.json files
-  await updatePackageJsonFiles(allUpdates);
+  await updateAllPackageJsonFiles(allUpdates);
 
   // Commit the changes (if there are any)
   const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
@@ -225,53 +221,4 @@ export async function release(
     prUrl: pullRequest?.html_url,
     created: !prExists,
   };
-}
-
-async function analyzeCommits(
-  packages: WorkspacePackage[],
-  workspaceRoot: string,
-): Promise<Map<string, BumpKind>> {
-  const changedPackages = new Map<string, BumpKind>();
-
-  for (const pkg of packages) {
-    const bump = await analyzePackageCommits(pkg, workspaceRoot);
-
-    if (bump !== "none") {
-      changedPackages.set(pkg.name, bump);
-    }
-  }
-
-  return changedPackages;
-}
-
-function calculateVersions(
-  allPackages: WorkspacePackage[],
-  changedPackages: Map<string, BumpKind>,
-): VersionUpdate[] {
-  const updates: VersionUpdate[] = [];
-
-  for (const [pkgName, bump] of changedPackages) {
-    const pkg = allPackages.find((p) => p.name === pkgName);
-    if (!pkg) continue;
-
-    updates.push(createVersionUpdate(pkg, bump, true));
-  }
-
-  return updates;
-}
-
-async function updatePackageJsonFiles(
-  updates: VersionUpdate[],
-): Promise<void> {
-  // Update package.json files in parallel
-  await Promise.all(
-    updates.map(async (update) => {
-      const depUpdates = getDependencyUpdates(update.package, updates);
-      await updatePackageJson(
-        update.package,
-        update.newVersion,
-        depUpdates,
-      );
-    }),
-  );
 }
