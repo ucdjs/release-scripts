@@ -8,20 +8,27 @@ export async function getLastPackageTag(
   packageName: string,
   workspaceRoot: string,
 ): Promise<string | undefined> {
-  // Tags for each package is always
-  const { stdout } = await run("git", ["tag", "--list"], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-      stdio: "pipe",
-    },
-  });
+  try {
+    // Tags for each package is always
+    const { stdout } = await run("git", ["tag", "--list"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
 
-  const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
+    const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
 
-  // Find the last tag for the specified package
-  const lastTag = tags.reverse().find((tag) => tag.startsWith(`${packageName}@`));
+    // Find the last tag for the specified package
+    const lastTag = tags.reverse().find((tag) => tag.startsWith(`${packageName}@`));
 
-  return lastTag;
+    return lastTag;
+  } catch (err) {
+    logger.warn(
+      `Failed to get tags for package ${packageName}: ${(err as Error).message}`,
+    );
+    return undefined;
+  }
 }
 
 export function determineHighestBump(commits: GitCommit[]): BumpKind {
@@ -52,13 +59,13 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
 /**
  * Retrieves commits that affect a specific workspace package since its last tag.
  *
- * @param {WorkspacePackage} pkg - The workspace package to analyze.
  * @param {string} workspaceRoot - The root directory of the workspace.
+ * @param {WorkspacePackage} pkg - The workspace package to analyze.
  * @returns {Promise<GitCommit[]>} A promise that resolves to an array of GitCommit objects affecting the package.
  */
 export async function getCommitsForWorkspacePackage(
-  pkg: WorkspacePackage,
   workspaceRoot: string,
+  pkg: WorkspacePackage,
 ): Promise<GitCommit[]> {
   const lastTag = await getLastPackageTag(pkg.name, workspaceRoot);
 
@@ -66,21 +73,21 @@ export async function getCommitsForWorkspacePackage(
   const allCommits = getCommits({
     from: lastTag,
     to: "HEAD",
+    cwd: workspaceRoot,
   });
 
   logger.log(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
 
-  // Filter to commits that touch this package's files
-  const touchedCommitHashes = await getCommitsTouchingPackage(
-    lastTag || "HEAD",
-    "HEAD",
-    pkg.path,
-    workspaceRoot,
-  );
+  const touchedCommitHashes = getCommits({
+    from: lastTag,
+    to: "HEAD",
+    cwd: workspaceRoot,
+    folder: pkg.path,
+  });
 
   const touchedSet = new Set(touchedCommitHashes);
   const packageCommits = allCommits.filter((commit) =>
-    touchedSet.has(commit.shortHash),
+    touchedSet.has(commit),
   );
 
   logger.log(`${packageCommits.length} commits affect ${pkg.name}`);
@@ -88,30 +95,20 @@ export async function getCommitsForWorkspacePackage(
   return packageCommits;
 }
 
-/**
- * Analyze commits for multiple packages to determine version bumps
- *
- * @param packages - Packages to analyze
- * @param workspaceRoot - Root directory of the workspace
- * @returns Map of package names to their bump types
- */
-export async function analyzeCommits(
-  packages: WorkspacePackage[],
+export async function getWorkspacePackageCommits(
   workspaceRoot: string,
-): Promise<Map<string, BumpKind>> {
-  const changedPackages = new Map<string, BumpKind>();
+  packages: WorkspacePackage[],
+): Promise<Map<string, GitCommit[]>> {
+  const changedPackages = new Map<string, GitCommit[]>();
 
-  for (const pkg of packages) {
-    const commits = await getCommitsForWorkspacePackage(pkg, workspaceRoot);
+  const promises = packages.map(async (pkg) => {
+    return { pkgName: pkg.name, commits: await getCommitsForWorkspacePackage(workspaceRoot, pkg) };
+  });
 
-    const bump = determineHighestBump(commits);
+  const results = await Promise.all(promises);
 
-    if (bump === "none") {
-      logger.info(`No version bump needed for package ${pkg.name}`);
-      continue;
-    }
-
-    changedPackages.set(pkg.name, bump);
+  for (const { pkgName, commits } of results) {
+    changedPackages.set(pkgName, commits);
   }
 
   return changedPackages;
@@ -151,35 +148,5 @@ export function determineBumpType(commit: GitCommit): BumpKind {
     default:
       // Unknown types don't trigger bumps
       return "none";
-  }
-}
-
-export async function getCommitsTouchingPackage(
-  from: string,
-  to: string,
-  packagePath: string,
-  workspaceRoot: string,
-): Promise<string[]> {
-  try {
-    const range = from === "HEAD" ? "HEAD" : `${from}...${to}`;
-
-    const { stdout } = await run(
-      "git",
-      ["log", "--pretty=format:%h", range, "--", packagePath],
-      {
-        nodeOptions: {
-          cwd: workspaceRoot,
-          stdio: "pipe",
-        },
-      },
-    );
-
-    return stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-  } catch (error) {
-    logger.error(`Error getting commits touching package: ${error}`);
-    return [];
   }
 }
