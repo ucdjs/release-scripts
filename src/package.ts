@@ -3,7 +3,7 @@ import type {
   VersionUpdate,
 } from "./types";
 import type { WorkspacePackage } from "./workspace";
-import { createVersionUpdate } from "./version";
+import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
 
 export interface PackageDependencyGraph {
   packages: Map<string, WorkspacePackage>;
@@ -194,3 +194,25 @@ export function createDependentUpdates(
   return allUpdates;
 }
 
+/**
+ * Update all package.json files with new versions and dependency updates
+ *
+ * Updates are performed in parallel for better performance.
+ *
+ * @param updates - Version updates to apply
+ */
+export async function updateAllPackageJsonFiles(
+  updates: VersionUpdate[],
+): Promise<void> {
+  // Update package.json files in parallel
+  await Promise.all(
+    updates.map(async (update) => {
+      const depUpdates = getDependencyUpdates(update.package, updates);
+      await updatePackageJson(
+        update.package,
+        update.newVersion,
+        depUpdates,
+      );
+    }),
+  );
+}

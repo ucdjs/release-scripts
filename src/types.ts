@@ -149,9 +149,20 @@ export interface ReleaseOptions {
   githubToken: string;
 
   pullRequest?: {
-    title: string;
+    /**
+     * Title for the release pull request
+     */
+    title?: string;
 
-    body: string;
+    /**
+     * Body for the release pull request
+     *
+     * If not provided, a default body will be generated.
+     *
+     * NOTE:
+     * You can use custom template expressions, see [h3js/rendu](https://github.com/h3js/rendu)
+     */
+    body?: string;
   };
 }
 

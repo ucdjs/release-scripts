@@ -89,6 +89,30 @@ export async function analyzePackageCommits(
   return determineHighestBump(commits);
 }
 
+/**
+ * Analyze commits for multiple packages to determine version bumps
+ *
+ * @param packages - Packages to analyze
+ * @param workspaceRoot - Root directory of the workspace
+ * @returns Map of package names to their bump types
+ */
+export async function analyzeCommits(
+  packages: WorkspacePackage[],
+  workspaceRoot: string,
+): Promise<Map<string, BumpKind>> {
+  const changedPackages = new Map<string, BumpKind>();
+
+  for (const pkg of packages) {
+    const bump = await analyzePackageCommits(pkg, workspaceRoot);
+
+    if (bump !== "none") {
+      changedPackages.set(pkg.name, bump);
+    }
+  }
+
+  return changedPackages;
+}
+
 export function determineBumpType(commit: GitCommit): BumpKind {
   // Breaking change always results in major bump
   if (commit.isBreaking) {
