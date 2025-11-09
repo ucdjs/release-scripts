@@ -88,7 +88,7 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
     workspaceRoot = process.cwd(),
     githubToken = "",
     verbose = false,
-    repo,
+    repo: fullRepo,
     packages = true,
     prompts = {
       packages: true,
@@ -106,17 +106,17 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
     );
   }
 
-  if (!repo || !repo.trim() || !repo.includes("/")) {
+  if (!fullRepo || !fullRepo.trim() || !fullRepo.includes("/")) {
     exitWithError(
       "Repository (repo) is required",
       "Specify the repository in 'owner/repo' format (e.g., 'octocat/hello-world')",
     );
   }
 
-  const [owner, name] = options.repo.split("/");
-  if (!owner || !name) {
+  const [owner, repo] = fullRepo.split("/");
+  if (!owner || !repo) {
     exitWithError(
-      `Invalid repo format: "${options.repo}"`,
+      `Invalid repo format: "${fullRepo}"`,
       "Expected format: \"owner/repo\" (e.g., \"octocat/hello-world\")",
     );
   }
