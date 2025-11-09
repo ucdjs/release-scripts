@@ -48,7 +48,7 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
   return highestBump;
 }
 
-async function getPackageCommits(
+export async function getPackageCommits(
   pkg: WorkspacePackage,
   workspaceRoot: string,
 ): Promise<GitCommit[]> {

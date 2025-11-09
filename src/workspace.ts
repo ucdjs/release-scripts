@@ -1,15 +1,12 @@
 import type {
-  DependencyGraph,
   FindWorkspacePackagesOptions,
   PackageJson,
-  PackageUpdateOrder,
-  VersionUpdate,
+  ReleaseOptions,
   WorkspacePackage,
 } from "./types";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { run } from "./utils";
-import { createVersionUpdate } from "./version";
 
 interface RawProject {
   name: string;
@@ -68,155 +65,6 @@ export async function findWorkspacePackages(
   return packages;
 }
 
-export function buildDependencyGraph(
-  packages: WorkspacePackage[],
-): DependencyGraph {
-  const packagesMap = new Map<string, WorkspacePackage>();
-  const dependents = new Map<string, Set<string>>();
-
-  for (const pkg of packages) {
-    packagesMap.set(pkg.name, pkg);
-    dependents.set(pkg.name, new Set());
-  }
-
-  for (const pkg of packages) {
-    const allDeps = [
-      ...pkg.workspaceDependencies,
-      ...pkg.workspaceDevDependencies,
-    ];
-
-    for (const dep of allDeps) {
-      const depSet = dependents.get(dep);
-      if (depSet) {
-        depSet.add(pkg.name);
-      }
-    }
-  }
-
-  return {
-    packages: packagesMap,
-    dependents,
-  };
-}
-
-export function getPackageUpdateOrder(
-  graph: DependencyGraph,
-  changedPackages: Set<string>,
-): PackageUpdateOrder[] {
-  const result: PackageUpdateOrder[] = [];
-  const visited = new Set<string>();
-  const toUpdate = new Set(changedPackages);
-
-  const packagesToProcess = new Set(changedPackages);
-  for (const pkg of changedPackages) {
-    const deps = graph.dependents.get(pkg);
-    if (deps) {
-      for (const dep of deps) {
-        packagesToProcess.add(dep);
-        toUpdate.add(dep);
-      }
-    }
-  }
-
-  function visit(pkgName: string, level: number) {
-    if (visited.has(pkgName)) return;
-    visited.add(pkgName);
-
-    const pkg = graph.packages.get(pkgName);
-    if (!pkg) return;
-
-    const allDeps = [
-      ...pkg.workspaceDependencies,
-      ...pkg.workspaceDevDependencies,
-    ];
-
-    let maxDepLevel = level;
-    for (const dep of allDeps) {
-      if (toUpdate.has(dep)) {
-        visit(dep, level);
-        const depResult = result.find((r) => r.package.name === dep);
-        if (depResult && depResult.level >= maxDepLevel) {
-          maxDepLevel = depResult.level + 1;
-        }
-      }
-    }
-
-    result.push({ package: pkg, level: maxDepLevel });
-  }
-
-  for (const pkg of toUpdate) {
-    visit(pkg, 0);
-  }
-
-  result.sort((a, b) => a.level - b.level);
-
-  return result;
-}
-
-export function getAllDependents(
-  graph: DependencyGraph,
-  packageName: string,
-): Set<string> {
-  const result = new Set<string>();
-  const visited = new Set<string>();
-
-  function visit(pkg: string) {
-    if (visited.has(pkg)) return;
-    visited.add(pkg);
-
-    const deps = graph.dependents.get(pkg);
-    if (deps) {
-      for (const dep of deps) {
-        result.add(dep);
-        visit(dep);
-      }
-    }
-  }
-
-  visit(packageName);
-  return result;
-}
-
-export function createDependentUpdates(
-  updateOrder: Array<{ package: WorkspacePackage; level: number }>,
-  directUpdates: VersionUpdate[],
-): VersionUpdate[] {
-  const allUpdates = [...directUpdates];
-  const updatedPackages = new Set(directUpdates.map((u) => u.package.name));
-
-  // Process packages in dependency order
-  for (const { package: pkg } of updateOrder) {
-    // Skip if already updated
-    if (updatedPackages.has(pkg.name)) {
-      continue;
-    }
-
-    // Check if any workspace dependencies are being updated
-    if (hasUpdatedDependencies(pkg, updatedPackages)) {
-      // This package needs a patch bump because its dependencies changed
-      allUpdates.push(createVersionUpdate(pkg, "patch", false));
-      updatedPackages.add(pkg.name);
-    }
-  }
-
-  return allUpdates;
-}
-
-/**
- * Pure function: Check if a package has any updated dependencies
- */
-export function hasUpdatedDependencies(
-  pkg: WorkspacePackage,
-  updatedPackages: Set<string>,
-): boolean {
-  const allDeps = [
-    ...pkg.workspaceDependencies,
-    ...pkg.workspaceDevDependencies,
-  ];
-
-  return allDeps.some((dep) => updatedPackages.has(dep));
-}
-
 function shouldIncludePackage(
   pkg: PackageJson,
   options?: FindWorkspacePackagesOptions,
@@ -254,4 +102,72 @@ function extractWorkspaceDependencies(
   return Object.keys(dependencies).filter((dep) => {
     return workspacePackages.has(dep);
   });
+}
+
+/**
+ * Normalize package options to FindWorkspacePackagesOptions format
+ */
+function normalizePackageOptions(
+  packages: ReleaseOptions["packages"],
+): { workspaceOptions: FindWorkspacePackagesOptions; explicitPackages?: string[] } {
+  // Default: find all packages
+  if (packages == null || packages === true) {
+    return { workspaceOptions: { excludePrivate: false } };
+  }
+
+  // Array of package names: find all packages but filter to specific ones
+  if (Array.isArray(packages)) {
+    return {
+      workspaceOptions: { excludePrivate: false, included: packages },
+      explicitPackages: packages,
+    };
+  }
+
+  // Already in the correct format
+  return { workspaceOptions: packages };
+}
+
+/**
+ * Validate that all explicitly requested packages were found
+ */
+function validatePackages(
+  found: WorkspacePackage[],
+  requested: string[],
+): void {
+  const foundNames = new Set(found.map((p) => p.name));
+  const missing = requested.filter((p) => !foundNames.has(p));
+
+  if (missing.length > 0) {
+    throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
+  }
+}
+
+/**
+ * Discover workspace packages based on release options
+ *
+ * @param workspaceRoot - Root directory of the workspace
+ * @param options - Release options containing package selection criteria
+ * @returns Object containing all workspace packages and packages to analyze
+ */
+export async function discoverPackages(
+  workspaceRoot: string,
+  options: ReleaseOptions,
+): Promise<{
+  workspacePackages: WorkspacePackage[];
+  packagesToAnalyze: WorkspacePackage[];
+}> {
+  const { workspaceOptions, explicitPackages } = normalizePackageOptions(options.packages);
+
+  const workspacePackages = await findWorkspacePackages(workspaceRoot, workspaceOptions);
+
+  // If specific packages were requested, validate they were all found
+  if (explicitPackages) {
+    validatePackages(workspacePackages, explicitPackages);
+  }
+
+  // All found packages should be analyzed
+  return {
+    workspacePackages,
+    packagesToAnalyze: workspacePackages,
+  };
 }

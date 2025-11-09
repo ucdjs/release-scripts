@@ -79,8 +79,7 @@ export function calculateNewVersion(currentVersion: string, bump: BumpKind): str
     throw new Error(`Invalid semver version: ${currentVersion}`);
   }
 
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  const [, major, minor, patch, suffix] = match;
+  const [, major, minor, patch] = match;
   let newMajor = Number.parseInt(major!, 10);
   let newMinor = Number.parseInt(minor!, 10);
   let newPatch = Number.parseInt(patch!, 10);

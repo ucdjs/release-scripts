@@ -20,10 +20,11 @@ import {
   rebaseBranch,
 } from "./git";
 import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } from "./github";
+import { buildDependencyGraph, createDependentUpdates, getPackageUpdateOrder } from "./package";
 import { promptPackageSelection, promptVersionOverrides } from "./prompts";
 import { globalOptions } from "./utils";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
-import { buildDependencyGraph, createDependentUpdates, findWorkspacePackages, getPackageUpdateOrder } from "./workspace";
+import { discoverPackages } from "./workspace";
 
 const isCI = process.env.CI === "true";
 
@@ -93,11 +94,12 @@ export async function release(
   if (!isCI && isVersionPromptEnabled) {
     const versionOverrides = await promptVersionOverrides(
       versionUpdates.map((u) => ({
-        name: u.package.name,
+        package: u.package,
         currentVersion: u.currentVersion,
         suggestedVersion: u.newVersion,
         bumpType: u.bumpType,
       })),
+      workspaceRoot,
     );
 
     // Apply overrides
@@ -223,63 +225,6 @@ export async function release(
     prUrl: pullRequest?.html_url,
     created: !prExists,
   };
-}
-
-async function discoverPackages(
-  workspaceRoot: string,
-  options: ReleaseOptions,
-): Promise<{
-  workspacePackages: WorkspacePackage[];
-  packagesToAnalyze: WorkspacePackage[];
-}> {
-  let workspacePackages: WorkspacePackage[];
-  let packagesToAnalyze: WorkspacePackage[];
-
-  // If packages is true, discover all packages
-  if (typeof options.packages === "boolean" && options.packages === true) {
-    workspacePackages = await findWorkspacePackages(
-      workspaceRoot,
-      {
-        excludePrivate: false,
-      },
-    );
-
-    packagesToAnalyze = workspacePackages;
-
-    return { workspacePackages, packagesToAnalyze };
-  }
-
-  // If packages is an array of strings, filter to those packages
-  if (Array.isArray(options.packages)) {
-    const packageNames = options.packages as string[];
-    workspacePackages = await findWorkspacePackages(
-      workspaceRoot,
-      {
-        excludePrivate: false,
-        included: packageNames,
-      },
-    );
-    packagesToAnalyze = workspacePackages.filter((pkg) =>
-      packageNames.includes(pkg.name),
-    );
-
-    if (packagesToAnalyze.length !== packageNames.length) {
-      const found = new Set(packagesToAnalyze.map((p) => p.name));
-      const missing = packageNames.filter((p) => !found.has(p));
-      throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
-    }
-
-    return { workspacePackages, packagesToAnalyze };
-  }
-
-  // Otherwise, discover packages based on packageOptions
-  workspacePackages = await findWorkspacePackages(
-    workspaceRoot,
-    options.packages,
-  );
-  packagesToAnalyze = workspacePackages;
-
-  return { workspacePackages, packagesToAnalyze };
 }
 
 async function analyzeCommits(
