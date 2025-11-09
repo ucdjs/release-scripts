@@ -32,7 +32,7 @@ export function isValidPackageName(name: string): boolean {
   // NPM package name rules (simplified)
   // - Can contain lowercase letters, numbers, hyphens, underscores
   // - Can be scoped (@scope/name)
-  const packageNameRegex = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
+  const packageNameRegex = /^(?:@[a-z0-9_-][a-z0-9_.-]*\/)?[a-z0-9_-][a-z0-9_.-]*$/;
   return packageNameRegex.test(name);
 }
 
