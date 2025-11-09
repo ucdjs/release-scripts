@@ -108,7 +108,7 @@ export async function release(
   );
 
   if (workspacePackages.length === 0) {
-    logger.log("No packages found to analyze for release.");
+    logger.log("No packages found to release.");
     return null;
   }
 
@@ -123,10 +123,7 @@ export async function release(
   );
 
   if (versionUpdates.length === 0) {
-    exitWithError(
-      "No packages have changes requiring a release",
-      "Make sure you have commits since the last release",
-    );
+    logger.warn("No packages have changes requiring a release");
   }
 
   const graph = buildPackageDependencyGraph(workspacePackages);
