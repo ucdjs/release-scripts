@@ -14,11 +14,6 @@ export interface PackageJson {
   [key: string]: unknown;
 }
 
-export interface DependencyGraph {
-  packages: Map<string, WorkspacePackage>;
-  dependents: Map<string, Set<string>>;
-}
-
 export interface PackageUpdateOrder {
   package: WorkspacePackage;
   level: number;

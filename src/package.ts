@@ -1,10 +1,14 @@
 import type {
-  DependencyGraph,
   PackageUpdateOrder,
   VersionUpdate,
 } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import { createVersionUpdate } from "./version";
+
+export interface PackageDependencyGraph {
+  packages: Map<string, WorkspacePackage>;
+  dependents: Map<string, Set<string>>;
+}
 
 /**
  * Build a dependency graph from workspace packages
@@ -16,9 +20,9 @@ import { createVersionUpdate } from "./version";
  * @param packages - All workspace packages
  * @returns Dependency graph with packages and dependents maps
  */
-export function buildDependencyGraph(
+export function buildPackageDependencyGraph(
   packages: WorkspacePackage[],
-): DependencyGraph {
+): PackageDependencyGraph {
   const packagesMap = new Map<string, WorkspacePackage>();
   const dependents = new Map<string, Set<string>>();
 
@@ -58,7 +62,7 @@ export function buildDependencyGraph(
  * @returns Array of packages in update order with their dependency level
  */
 export function getPackageUpdateOrder(
-  graph: DependencyGraph,
+  graph: PackageDependencyGraph,
   changedPackages: Set<string>,
 ): PackageUpdateOrder[] {
   const result: PackageUpdateOrder[] = [];

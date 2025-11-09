@@ -25,7 +25,7 @@ import {
   upsertPullRequest,
 } from "./github";
 import {
-  buildDependencyGraph,
+  buildPackageDependencyGraph,
   createDependentUpdates,
   getPackageUpdateOrder,
 } from "./package";
@@ -115,7 +115,7 @@ export async function release(
     });
   }
 
-  const graph = buildDependencyGraph(workspacePackages);
+  const graph = buildPackageDependencyGraph(workspacePackages);
   const packagesNeedingUpdate = new Set(versionUpdates.map((u) => u.package.name));
 
   // Get all packages in update order (includes dependents)
