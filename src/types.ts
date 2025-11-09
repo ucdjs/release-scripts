@@ -2,6 +2,37 @@ import type { WorkspacePackage } from "./workspace";
 
 export type BumpKind = "none" | "patch" | "minor" | "major";
 
+export interface SharedOptions {
+  /**
+   * Repository identifier (e.g., "owner/repo")
+   */
+  repo: string;
+
+  /**
+   * Root directory of the workspace (defaults to process.cwd())
+   */
+  workspaceRoot?: string;
+
+  /**
+   * Specific packages to prepare for release.
+   * - true: discover all packages
+   * - FindWorkspacePackagesOptions: discover with filters
+   * - string[]: specific package names
+   */
+  packages?: true | FindWorkspacePackagesOptions | string[];
+
+  /**
+   * Whether to enable verbose logging
+   * @default false
+   */
+  verbose?: boolean;
+
+  /**
+   * GitHub token for authentication
+   */
+  githubToken: string;
+}
+
 export interface PackageJson {
   name: string;
   version: string;

@@ -1,5 +1,6 @@
 import type {
   FindWorkspacePackagesOptions,
+  SharedOptions,
   VersionUpdate,
 } from "./types";
 import process from "node:process";
@@ -31,25 +32,7 @@ import { globalOptions, isCI, logger } from "./utils";
 import { createVersionUpdate } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
-export interface ReleaseOptions {
-  /**
-   * Repository identifier (e.g., "owner/repo")
-   */
-  repo: string;
-
-  /**
-   * Root directory of the workspace (defaults to process.cwd())
-   */
-  workspaceRoot?: string;
-
-  /**
-   * Specific packages to prepare for release.
-   * - true: discover all packages
-   * - FindWorkspacePackagesOptions: discover with filters
-   * - string[]: specific package names
-   */
-  packages?: true | FindWorkspacePackagesOptions | string[];
-
+export interface ReleaseOptions extends SharedOptions {
   /**
    * Branch name for the release PR (defaults to "release/next")
    */
@@ -81,17 +64,6 @@ export interface ReleaseOptions {
    * @default true
    */
   safeguards?: boolean;
-
-  /**
-   * Whether to enable verbose logging
-   * @default false
-   */
-  verbose?: boolean;
-
-  /**
-   * GitHub token for authentication
-   */
-  githubToken: string;
 
   /**
    * Pull request configuration
