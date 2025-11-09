@@ -222,4 +222,3 @@ export async function release(
     created: !prExists,
   };
 }
-
