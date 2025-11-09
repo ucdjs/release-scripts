@@ -1,8 +1,10 @@
+import type { ChangelogOptions } from "./changelog";
 import type {
   SharedOptions,
   VersionUpdate,
 } from "./types";
 import farver from "farver";
+import { updateChangelogs } from "./changelog";
 import { getWorkspacePackageCommits } from "./commits";
 import {
   checkoutBranch,
@@ -75,6 +77,11 @@ export interface ReleaseOptions extends SharedOptions {
      */
     body?: string;
   };
+
+  /**
+   * Changelog configuration
+   */
+  changelog?: ChangelogOptions;
 }
 
 export interface ReleaseResult {
@@ -104,6 +111,8 @@ export async function release(
   normalizedOptions.branch.release ??= "release/next";
   normalizedOptions.branch.default = await getDefaultBranch();
   normalizedOptions.safeguards ??= true;
+
+  normalizedOptions.changelog ??= { enabled: true };
 
   globalOptions.dryRun = normalizedOptions.dryRun;
 
@@ -198,6 +207,15 @@ export async function release(
 
   // Update package.json files
   await updateAllPackageJsonFiles(allUpdates);
+
+  // Generate changelogs if enabled
+  await updateChangelogs(versionUpdates, packageCommits, {
+    ...options.changelog,
+    repository: options.changelog?.repository || {
+      owner: normalizedOptions.owner,
+      repo: normalizedOptions.repo,
+    },
+  });
 
   // Commit the changes (if there are any)
   const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
