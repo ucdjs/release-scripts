@@ -19,11 +19,23 @@ import {
   pushBranch,
   rebaseBranch,
 } from "./git";
-import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } from "./github";
-import { buildDependencyGraph, createDependentUpdates, getPackageUpdateOrder } from "./package";
+import {
+  generatePullRequestBody,
+  getExistingPullRequest,
+  upsertPullRequest,
+} from "./github";
+import {
+  buildDependencyGraph,
+  createDependentUpdates,
+  getPackageUpdateOrder,
+} from "./package";
 import { promptVersionOverrides } from "./prompts";
 import { globalOptions, isCI } from "./utils";
-import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
+import {
+  createVersionUpdate,
+  getDependencyUpdates,
+  updatePackageJson,
+} from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
 export async function release(
