@@ -5,7 +5,8 @@ import type {
 } from "./types";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { run } from "./utils";
+import { promptPackageSelection } from "./prompts";
+import { isCI, run } from "./utils";
 
 interface RawProject {
   name: string;
@@ -25,109 +26,114 @@ export interface WorkspacePackage {
   workspaceDevDependencies: string[];
 }
 
-export async function discoverPackages(
+export async function discoverWorkspacePackages(
   workspaceRoot: string,
   options: ReleaseOptions,
 ): Promise<{
   workspacePackages: WorkspacePackage[];
   packagesToAnalyze: WorkspacePackage[];
 }> {
-  const { workspaceOptions, explicitPackages } = normalizePackageOptions(options.packages);
+  // Normalize package options
+  let workspaceOptions: FindWorkspacePackagesOptions;
+  let explicitPackages: string[] | undefined;
 
-  const workspacePackages = await findWorkspacePackages(workspaceRoot, workspaceOptions);
+  if (options.packages == null || options.packages === true) {
+    workspaceOptions = { excludePrivate: false };
+  } else if (Array.isArray(options.packages)) {
+    workspaceOptions = { excludePrivate: false, included: options.packages };
+    explicitPackages = options.packages;
+  } else {
+    workspaceOptions = options.packages;
+  }
+
+  const workspacePackages = await findWorkspacePackages(
+    workspaceRoot,
+    workspaceOptions,
+  );
 
   // If specific packages were requested, validate they were all found
   if (explicitPackages) {
-    validatePackages(workspacePackages, explicitPackages);
+    const foundNames = new Set(workspacePackages.map((p) => p.name));
+    const missing = explicitPackages.filter((p) => !foundNames.has(p));
+
+    if (missing.length > 0) {
+      throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
+    }
   }
 
-  // All found packages should be analyzed
+  // Determine if we should show package selection prompt
+  const isPackagePromptEnabled = options.prompts?.packages !== false;
+  const isPackagesPreConfigured = Array.isArray(options.packages)
+    || (typeof options.packages === "object"
+      && options.packages !== null
+      && "included" in options.packages
+      && options.packages.included != null);
+
+  let packagesToAnalyze = workspacePackages;
+
+  // Show interactive prompt if:
+  // 1. Not in CI
+  // 2. Prompt is enabled
+  // 3. Packages weren't pre-configured with specific names
+  if (!isCI && isPackagePromptEnabled && !isPackagesPreConfigured) {
+    const selectedNames = await promptPackageSelection(workspacePackages);
+    packagesToAnalyze = workspacePackages.filter((pkg) =>
+      selectedNames.includes(pkg.name),
+    );
+  }
+
   return {
     workspacePackages,
-    packagesToAnalyze: workspacePackages,
+    packagesToAnalyze,
   };
 }
 
-export async function findWorkspacePackages(
+async function findWorkspacePackages(
   workspaceRoot: string,
   options?: FindWorkspacePackagesOptions,
 ): Promise<WorkspacePackage[]> {
-  const result = await run("pnpm", ["-r", "ls", "--json"], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-      stdio: "pipe",
-    },
-  });
-
-  const rawProjects: RawProject[] = JSON.parse(result.stdout);
-
-  const packages: WorkspacePackage[] = [];
-  const allPackageNames = new Set<string>(rawProjects.map((p) => p.name));
-
-  for (const rawProject of rawProjects) {
-    const packageJsonPath = join(rawProject.path, "package.json");
-    const content = await readFile(packageJsonPath, "utf-8");
-    const packageJson: PackageJson = JSON.parse(content);
-
-    if (!shouldIncludePackage(packageJson, options)) {
-      console.log(`Excluding package ${rawProject.name}`);
-      continue;
-    }
-
-    const workspaceDeps = extractWorkspaceDependencies(
-      rawProject.dependencies,
-      allPackageNames,
-    );
-    const workspaceDevDeps = extractWorkspaceDependencies(
-      rawProject.devDependencies,
-      allPackageNames,
-    );
-
-    packages.push({
-      name: rawProject.name,
-      version: rawProject.version,
-      path: rawProject.path,
-      packageJson,
-      workspaceDependencies: workspaceDeps,
-      workspaceDevDependencies: workspaceDevDeps,
+  try {
+    const result = await run("pnpm", ["-r", "ls", "--json"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
     });
-  }
 
-  return packages;
-}
+    const rawProjects: RawProject[] = JSON.parse(result.stdout);
 
-function normalizePackageOptions(
-  packages: ReleaseOptions["packages"],
-): { workspaceOptions: FindWorkspacePackagesOptions; explicitPackages?: string[] } {
-  // Default: find all packages
-  if (packages == null || packages === true) {
-    return { workspaceOptions: { excludePrivate: false } };
-  }
+    const allPackageNames = new Set<string>(rawProjects.map((p) => p.name));
 
-  // Array of package names: find all packages but filter to specific ones
-  if (Array.isArray(packages)) {
-    return {
-      workspaceOptions: { excludePrivate: false, included: packages },
-      explicitPackages: packages,
-    };
-  }
+    const promises = rawProjects.map(async (rawProject) => {
+      const packageJsonPath = join(rawProject.path, "package.json");
+      const content = await readFile(packageJsonPath, "utf-8");
+      const packageJson: PackageJson = JSON.parse(content);
 
-  // Already in the correct format
-  return { workspaceOptions: packages };
-}
+      if (!shouldIncludePackage(packageJson, options)) {
+        console.log(`Excluding package ${rawProject.name}`);
+        return null;
+      }
 
-/**
- * Validate that all explicitly requested packages were found
- */
-function validatePackages(
-  found: WorkspacePackage[],
-  requested: string[],
-): void {
-  const foundNames = new Set(found.map((p) => p.name));
-  const missing = requested.filter((p) => !foundNames.has(p));
+      return {
+        name: rawProject.name,
+        version: rawProject.version,
+        path: rawProject.path,
+        packageJson,
+        workspaceDependencies: extractWorkspaceDependencies(
+          rawProject.dependencies,
+          allPackageNames,
+        ),
+        workspaceDevDependencies: extractWorkspaceDependencies(
+          rawProject.devDependencies,
+          allPackageNames,
+        ),
+      };
+    });
 
-  if (missing.length > 0) {
-    throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
+    return (await Promise.all(promises)).filter((pkg): pkg is WorkspacePackage => pkg != null);
+  } catch (err) {
+    console.error("Error discovering workspace packages:", err);
+    throw err;
   }
 }
 

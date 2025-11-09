@@ -21,12 +21,10 @@ import {
 } from "./git";
 import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } from "./github";
 import { buildDependencyGraph, createDependentUpdates, getPackageUpdateOrder } from "./package";
-import { promptPackageSelection, promptVersionOverrides } from "./prompts";
-import { globalOptions } from "./utils";
+import { promptVersionOverrides } from "./prompts";
+import { globalOptions, isCI } from "./utils";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
-import { discoverPackages } from "./workspace";
-
-const isCI = process.env.CI === "true";
+import { discoverWorkspacePackages } from "./workspace";
 
 export async function release(
   options: ReleaseOptions,
@@ -56,24 +54,13 @@ export async function release(
     return null;
   }
 
-  const { workspacePackages, packagesToAnalyze: initialPackages } = await discoverPackages(
+  const { workspacePackages, packagesToAnalyze } = await discoverWorkspacePackages(
     workspaceRoot,
     options,
   );
 
-  if (initialPackages.length === 0) {
+  if (packagesToAnalyze.length === 0) {
     return null;
-  }
-
-  // Determine if we should show package selection prompt
-  const isPackagePromptEnabled = options.prompts?.packages !== false;
-  const isPackagesPreConfigured = Array.isArray(options.packages) || (typeof options.packages === "object" && options.packages.included != null);
-
-  let packagesToAnalyze = initialPackages;
-
-  if (!isCI && isPackagePromptEnabled && !isPackagesPreConfigured) {
-    const selectedNames = await promptPackageSelection(initialPackages);
-    packagesToAnalyze = initialPackages.filter((pkg) => selectedNames.includes(pkg.name));
   }
 
   // Analyze commits for packages, to determine version bumps

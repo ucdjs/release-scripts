@@ -2,6 +2,7 @@ import type {
   Options as TinyExecOptions,
   Result as TinyExecResult,
 } from "tinyexec";
+import process from "node:process";
 import farver from "farver";
 import { exec } from "tinyexec";
 
@@ -11,6 +12,8 @@ export const globalOptions = {
    */
   dryRun: false,
 };
+
+export const isCI = process.env.CI === "true";
 
 export async function run(
   bin: string,
