@@ -8,12 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@luxass/utils':
+        specifier: 2.7.2
+        version: 2.7.2
       commit-parser:
         specifier: 0.4.5
         version: 0.4.5
-      debug:
-        specifier: 4.4.3
-        version: 4.4.3
+      eta:
+        specifier: 4.0.1
+        version: 4.0.1
       farver:
         specifier: 1.0.0-beta.1
         version: 1.0.0-beta.1
@@ -27,9 +30,6 @@ importers:
       '@luxass/eslint-config':
         specifier: 6.0.1
         version: 6.0.1(@vue/compiler-sfc@3.5.22)(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.4(@types/debug@4.1.12)(@types/node@22.18.12)(jiti@2.6.1)(yaml@2.8.1))
-      '@types/debug':
-        specifier: 4.1.12
-        version: 4.1.12
       '@types/node':
         specifier: 22.18.12
         version: 22.18.12
@@ -385,6 +385,10 @@ packages:
         optional: true
       prettier-plugin-astro:
         optional: true
+
+  '@luxass/utils@2.7.2':
+    resolution: {integrity: sha512-l2tPbXLeXR/c5ADU3YwLqULwm5UGFSRwBtyqyClY3zu3uKG3KbHq3FntyqQhJXdVW4VNZ3p/8fsALmQ7+YN/cw==}
+    engines: {node: '>=20'}
 
   '@napi-rs/wasm-runtime@1.0.7':
     resolution: {integrity: sha512-SeDnOO0Tk7Okiq6DbXmmBODgOAb9dp9gjlphokTUxmt8U3liIP1ZsozBahH69j/RJv+Rfs6IwUKHTgQYJ/HBAw==}
@@ -1226,6 +1230,10 @@ packages:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
     engines: {node: '>=0.10.0'}
 
+  eta@4.0.1:
+    resolution: {integrity: sha512-0h0oBEsF6qAJU7eu9ztvJoTo8D2PAq/4FvXVIQA1fek3WOTe6KPsVJycekG1+g1N6mfpblkheoGwaUhMtnlH4A==}
+    engines: {node: '>=20'}
+
   expect-type@1.2.2:
     resolution: {integrity: sha512-JhFGDVJ7tmDJItKhYgJCGLOWjuK9vPxiXoUFLwLDc99NlmklilbiQJwoctZtt13+xMw91MCk/REan6MWHqDjyA==}
     engines: {node: '>=12.0.0'}
@@ -1373,6 +1381,10 @@ packages:
   is-glob@4.0.3:
     resolution: {integrity: sha512-xelSayHH36ZgE7ZWhli7pW34hNbNl8Ojv5KVmkJD4hBdD3th8Tfk9vYasLM+mXWOZhFkgZfxhLSnrwRr4elSSg==}
     engines: {node: '>=0.10.0'}
+
+  is-network-error@1.3.0:
+    resolution: {integrity: sha512-6oIwpsgRfnDiyEDLMay/GqCl3HoAtH5+RUKW29gYkL0QA+ipzpDLA16yQs7/RHCSu+BwgbJaOUqa4A99qNVQVw==}
+    engines: {node: '>=16'}
 
   is-number@7.0.0:
     resolution: {integrity: sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==}
@@ -1634,6 +1646,10 @@ packages:
   p-locate@5.0.0:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
+
+  p-retry@7.1.0:
+    resolution: {integrity: sha512-xL4PiFRQa/f9L9ZvR4/gUCRNus4N8YX80ku8kv9Jqz+ZokkiZLM0bcvX0gm1F3PDi9SPRsww1BDsTWgE6Y1GLQ==}
+    engines: {node: '>=20'}
 
   package-manager-detector@1.5.0:
     resolution: {integrity: sha512-uBj69dVlYe/+wxj8JOpr97XfsxH/eumMt6HqjNTmJDf/6NO9s+0uxeOneIz3AsPt2m6y9PqzDzd3ATcU17MNfw==}
@@ -2379,6 +2395,10 @@ snapshots:
       - supports-color
       - typescript
       - vitest
+
+  '@luxass/utils@2.7.2':
+    dependencies:
+      p-retry: 7.1.0
 
   '@napi-rs/wasm-runtime@1.0.7':
     dependencies:
@@ -3271,6 +3291,8 @@ snapshots:
 
   esutils@2.0.3: {}
 
+  eta@4.0.1: {}
+
   expect-type@1.2.2: {}
 
   exsolve@1.0.7: {}
@@ -3386,6 +3408,8 @@ snapshots:
   is-glob@4.0.3:
     dependencies:
       is-extglob: 2.1.1
+
+  is-network-error@1.3.0: {}
 
   is-number@7.0.0: {}
 
@@ -3818,6 +3842,10 @@ snapshots:
   p-locate@5.0.0:
     dependencies:
       p-limit: 3.1.0
+
+  p-retry@7.1.0:
+    dependencies:
+      is-network-error: 1.3.0
 
   package-manager-detector@1.5.0: {}
 
