@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import farver from "farver";
 import { selectPackagePrompt } from "./prompts";
-import { isCI, logger, run } from "./utils";
+import { exitWithError, isCI, logger, run } from "./utils";
 
 interface RawProject {
   name: string;
@@ -58,7 +58,10 @@ export async function discoverWorkspacePackages(
     const missing = explicitPackages.filter((p) => !foundNames.has(p));
 
     if (missing.length > 0) {
-      throw new Error(`Packages not found in workspace: ${missing.join(", ")}`);
+      exitWithError(
+        `Package${missing.length > 1 ? "s" : ""} not found in workspace: ${missing.join(", ")}`,
+        "Check your package names or run 'pnpm ls' to see available packages",
+      );
     }
   }
 

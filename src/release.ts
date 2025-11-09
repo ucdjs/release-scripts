@@ -1,9 +1,7 @@
 import type {
-  FindWorkspacePackagesOptions,
   SharedOptions,
   VersionUpdate,
 } from "./types";
-import process from "node:process";
 import { analyzeCommits } from "./commits";
 import {
   checkoutBranch,
@@ -28,7 +26,7 @@ import {
   updateAllPackageJsonFiles,
 } from "./package";
 import { promptVersionOverrides } from "./prompts";
-import { globalOptions, isCI, logger } from "./utils";
+import { exitWithError, globalOptions, isCI, logger, normalizeSharedOptions } from "./utils";
 import { createVersionUpdate } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
@@ -91,31 +89,18 @@ export interface ReleaseResult {
 export async function release(
   options: ReleaseOptions,
 ): Promise<ReleaseResult | null> {
-  const {
-    dryRun = false,
-    safeguards = true,
-    workspaceRoot = process.cwd(),
-    releaseBranch = "release/next",
-    githubToken,
-    verbose = false,
-  } = options;
+  const normalizedOptions = normalizeSharedOptions(options);
 
-  globalOptions.dryRun = dryRun;
-  globalOptions.verbose = verbose;
+  normalizedOptions.dryRun ??= false;
+  normalizedOptions.releaseBranch ??= "release/next";
+  normalizedOptions.safeguards ??= true;
 
-  if (githubToken.trim() === "" || githubToken == null) {
-    throw new Error("GitHub token is required");
-  }
+  globalOptions.dryRun = normalizedOptions.dryRun;
 
-  const [owner, repo] = options.repo.split("/");
+  const workspaceRoot = normalizedOptions.workspaceRoot;
 
-  if (!owner || !repo) {
-    throw new Error(`Invalid repo format: ${options.repo}. Expected "owner/repo".`);
-  }
-
-  if (safeguards && !(await isWorkingDirectoryClean(workspaceRoot))) {
-    logger.error("Working directory is not clean. Please commit or stash your changes before proceeding.");
-    return null;
+  if (normalizedOptions.safeguards && !(await isWorkingDirectoryClean(workspaceRoot))) {
+    exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
   }
 
   const workspacePackages = await discoverWorkspacePackages(
@@ -132,6 +117,7 @@ export async function release(
   const changedPackages = await analyzeCommits(workspacePackages, workspaceRoot);
 
   if (changedPackages.size === 0) {
+    // TODO: Allow releases to still be created even if no packages changed (e.g., for documentation updates),
     throw new Error("No packages have changes requiring a release");
   }
 
@@ -185,10 +171,10 @@ export async function release(
 
   // Check if PR already exists
   const existingPullRequest = await getExistingPullRequest({
-    owner,
-    repo,
-    branch: releaseBranch,
-    githubToken,
+    owner: normalizedOptions.owner,
+    repo: normalizedOptions.repo,
+    branch: normalizedOptions.releaseBranch,
+    githubToken: normalizedOptions.githubToken,
   });
 
   const prExists = !!existingPullRequest;
@@ -199,22 +185,22 @@ export async function release(
   }
 
   // Ensure release branch exists
-  const branchExists = await doesBranchExist(releaseBranch, workspaceRoot);
+  const branchExists = await doesBranchExist(normalizedOptions.releaseBranch, workspaceRoot);
   if (!branchExists) {
-    logger.log("Creating release branch:", releaseBranch);
-    await createBranch(releaseBranch, currentBranch, workspaceRoot);
+    logger.log("Creating release branch:", normalizedOptions.releaseBranch);
+    await createBranch(normalizedOptions.releaseBranch, currentBranch, workspaceRoot);
   }
 
   // Checkout release branch
-  const hasCheckedOut = await checkoutBranch(releaseBranch, workspaceRoot);
+  const hasCheckedOut = await checkoutBranch(normalizedOptions.releaseBranch, workspaceRoot);
   if (!hasCheckedOut) {
-    throw new Error(`Failed to checkout branch: ${releaseBranch}`);
+    throw new Error(`Failed to checkout branch: ${normalizedOptions.releaseBranch}`);
   }
 
   // Pull latest changes if branch exists remotely
   if (branchExists) {
     logger.log("Pulling latest changes from remote");
-    const hasPulled = await pullLatestChanges(releaseBranch, workspaceRoot);
+    const hasPulled = await pullLatestChanges(normalizedOptions.releaseBranch, workspaceRoot);
     if (!hasPulled) {
       logger.log("Warning: Failed to pull latest changes, continuing anyway");
     }
@@ -231,7 +217,7 @@ export async function release(
   const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
 
   // Check if branch is ahead of remote (has commits to push)
-  const isBranchAhead = await isBranchAheadOfRemote(releaseBranch, workspaceRoot);
+  const isBranchAhead = await isBranchAheadOfRemote(normalizedOptions.releaseBranch, workspaceRoot);
 
   if (!hasCommitted && !isBranchAhead) {
     logger.log("No changes to commit and branch is in sync with remote");
@@ -252,21 +238,21 @@ export async function release(
 
   // Push with --force-with-lease for safety
   logger.log("Pushing changes to remote");
-  await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
+  await pushBranch(normalizedOptions.releaseBranch, workspaceRoot, { forceWithLease: true });
 
   // Create or update PR
   const prTitle = existingPullRequest?.title || (options.pullRequest?.title || "chore: update package versions");
   const prBody = generatePullRequestBody(allUpdates, options.pullRequest?.body);
 
   const pullRequest = await upsertPullRequest({
-    owner,
-    repo,
+    owner: normalizedOptions.owner,
+    repo: normalizedOptions.repo,
     pullNumber: existingPullRequest?.number,
     title: prTitle,
     body: prBody,
-    head: releaseBranch,
+    head: normalizedOptions.releaseBranch,
     base: currentBranch,
-    githubToken,
+    githubToken: normalizedOptions.githubToken,
   });
 
   logger.log(prExists ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);

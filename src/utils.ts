@@ -79,23 +79,42 @@ export function exitWithError(message: string, hint?: string): never {
   if (hint) {
     console.error(farver.gray(`  ${hint}`));
   }
+
   process.exit(1);
 }
 
 export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
-  const workspaceRoot = options.workspaceRoot || process.cwd();
-  const githubToken = options.githubToken?.trim() || "";
-  const verbose = options.verbose ?? false;
+  const {
+    workspaceRoot = process.cwd(),
+    githubToken = "",
+    verbose = false,
+    repo,
+    packages = true,
+    prompts = {
+      packages: true,
+      versions: true,
+    },
+    ...rest
+  } = options;
 
-  if (!githubToken) {
+  globalOptions.verbose = verbose;
+
+  if (!githubToken.trim()) {
     exitWithError(
       "GitHub token is required",
       "Set GITHUB_TOKEN environment variable or pass it in options",
     );
   }
 
-  const [owner, repo] = options.repo.split("/");
-  if (!owner || !repo) {
+  if (!repo || !repo.trim() || !repo.includes("/")) {
+    exitWithError(
+      "Repository (repo) is required",
+      "Specify the repository in 'owner/repo' format (e.g., 'octocat/hello-world')",
+    );
+  }
+
+  const [owner, name] = options.repo.split("/");
+  if (!owner || !name) {
     exitWithError(
       `Invalid repo format: "${options.repo}"`,
       "Expected format: \"owner/repo\" (e.g., \"octocat/hello-world\")",
@@ -103,6 +122,9 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
   }
 
   return {
+    ...rest,
+    packages,
+    prompts,
     workspaceRoot,
     githubToken,
     owner,
