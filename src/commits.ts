@@ -49,7 +49,14 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
   return highestBump;
 }
 
-export async function getPackageCommits(
+/**
+ * Retrieves commits that affect a specific workspace package since its last tag.
+ *
+ * @param {WorkspacePackage} pkg - The workspace package to analyze.
+ * @param {string} workspaceRoot - The root directory of the workspace.
+ * @returns {Promise<GitCommit[]>} A promise that resolves to an array of GitCommit objects affecting the package.
+ */
+export async function getCommitsForWorkspacePackage(
   pkg: WorkspacePackage,
   workspaceRoot: string,
 ): Promise<GitCommit[]> {
@@ -95,7 +102,7 @@ export async function analyzeCommits(
   const changedPackages = new Map<string, BumpKind>();
 
   for (const pkg of packages) {
-    const commits = await getPackageCommits(pkg, workspaceRoot);
+    const commits = await getCommitsForWorkspacePackage(pkg, workspaceRoot);
 
     const bump = determineHighestBump(commits);
 
