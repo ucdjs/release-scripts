@@ -30,10 +30,7 @@ export interface WorkspacePackage {
 export async function discoverWorkspacePackages(
   workspaceRoot: string,
   options: ReleaseOptions,
-): Promise<{
-  workspacePackages: WorkspacePackage[];
-  packagesToAnalyze: WorkspacePackage[];
-}> {
+): Promise<WorkspacePackage[]> {
   let workspaceOptions: FindWorkspacePackagesOptions;
   let explicitPackages: string[] | undefined;
 
@@ -50,7 +47,7 @@ export async function discoverWorkspacePackages(
     }
   }
 
-  const workspacePackages = await findWorkspacePackages(
+  let workspacePackages = await findWorkspacePackages(
     workspaceRoot,
     workspaceOptions,
   );
@@ -65,8 +62,6 @@ export async function discoverWorkspacePackages(
     }
   }
 
-  let packagesToAnalyze = workspacePackages;
-
   // Show interactive prompt only if:
   // 1. Not in CI
   // 2. Prompt is enabled
@@ -74,15 +69,12 @@ export async function discoverWorkspacePackages(
   const isPackagePromptEnabled = options.prompts?.packages !== false;
   if (!isCI && isPackagePromptEnabled && !explicitPackages) {
     const selectedNames = await selectPackagePrompt(workspacePackages);
-    packagesToAnalyze = workspacePackages.filter((pkg) =>
+    workspacePackages = workspacePackages.filter((pkg) =>
       selectedNames.includes(pkg.name),
     );
   }
 
-  return {
-    workspacePackages,
-    packagesToAnalyze,
-  };
+  return workspacePackages;
 }
 
 async function findWorkspacePackages(

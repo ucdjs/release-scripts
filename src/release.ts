@@ -62,18 +62,18 @@ export async function release(
     return null;
   }
 
-  const { workspacePackages, packagesToAnalyze } = await discoverWorkspacePackages(
+  const workspacePackages = await discoverWorkspacePackages(
     workspaceRoot,
     options,
   );
 
-  if (packagesToAnalyze.length === 0) {
+  if (workspacePackages.length === 0) {
     logger.log("No packages found to analyze for release.");
     return null;
   }
 
   // Analyze commits for packages, to determine version bumps
-  const changedPackages = await analyzeCommits(packagesToAnalyze, workspaceRoot);
+  const changedPackages = await analyzeCommits(workspacePackages, workspaceRoot);
 
   if (changedPackages.size === 0) {
     throw new Error("No packages have changes requiring a release");
