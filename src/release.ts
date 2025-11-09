@@ -2,6 +2,7 @@ import type {
   SharedOptions,
   VersionUpdate,
 } from "./types";
+import farver from "farver";
 import { getWorkspacePackageCommits } from "./commits";
 import {
   checkoutBranch,
@@ -228,6 +229,11 @@ export async function release(
 
   // Checkout back to original branch
   await checkoutBranch(currentBranch, workspaceRoot);
+
+  if (pullRequest?.html_url) {
+    logger.info();
+    logger.info(`${farver.green("✓")} Pull request ${prExists ? "updated" : "created"}: ${farver.cyan(pullRequest.html_url)}`);
+  }
 
   return {
     updates: allUpdates,
