@@ -7,4 +7,14 @@ export default defineConfig({
   dts: true,
   treeshake: true,
   exports: true,
+  outputOptions: {
+    advancedChunks: {
+      groups: [
+        {
+          name: "eta",
+          test: /[\\/]node_modules[\\/]eta[\\/]/,
+        },
+      ],
+    },
+  },
 });

@@ -14,9 +14,6 @@ importers:
       commit-parser:
         specifier: 0.4.5
         version: 0.4.5
-      eta:
-        specifier: 4.0.1
-        version: 4.0.1
       farver:
         specifier: 1.0.0-beta.1
         version: 1.0.0-beta.1
@@ -39,6 +36,9 @@ importers:
       eslint:
         specifier: 9.39.1
         version: 9.39.1(jiti@2.6.1)
+      eta:
+        specifier: 4.0.1
+        version: 4.0.1
       tsdown:
         specifier: 0.16.0
         version: 0.16.0(typescript@5.9.3)
