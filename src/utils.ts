@@ -5,19 +5,13 @@ import type {
 import type { SharedOptions } from "./types";
 import process from "node:process";
 import farver from "farver";
+import mri from "mri";
 import { exec } from "tinyexec";
 
-export const globalOptions = {
-  /**
-   * If true, commands will be logged instead of executed
-   */
-  dryRun: false,
+export const args = mri(process.argv.slice(2));
 
-  /**
-   * Verbosity level of logging
-   */
-  verbose: false,
-};
+export const isDryRun = !!args.dry;
+export const isVerbose = !!args.verbose;
 
 export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
 
@@ -37,12 +31,12 @@ export const logger = {
     console.error(farver.red("[error]:"), ...args);
   },
   log: (...args: unknown[]) => {
-    if (!globalOptions.verbose) {
+    if (!isVerbose) {
       return;
     }
 
     // eslint-disable-next-line no-console
-    console.log(...args);
+    console.log(farver.magenta("[log]:"), ...args);
   },
 };
 
@@ -72,7 +66,7 @@ export async function dryRun(
   );
 }
 
-export const runIfNotDry = globalOptions.dryRun ? dryRun : run;
+export const runIfNotDry = isDryRun ? dryRun : run;
 
 export function exitWithError(message: string, hint?: string): never {
   logger.error(farver.bold(message));
@@ -87,7 +81,6 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
   const {
     workspaceRoot = process.cwd(),
     githubToken = "",
-    verbose = false,
     repo: fullRepo,
     packages = true,
     prompts = {
@@ -96,8 +89,6 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
     },
     ...rest
   } = options;
-
-  globalOptions.verbose = verbose;
 
   if (!githubToken.trim()) {
     exitWithError(
@@ -129,6 +120,10 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
     githubToken,
     owner,
     repo,
-    verbose,
   };
+}
+
+if (isDryRun) {
+  logger.debug(farver.inverse(farver.yellow(" DRY RUN ")));
+  logger.debug();
 }

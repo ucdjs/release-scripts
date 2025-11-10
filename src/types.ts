@@ -23,12 +23,6 @@ export interface SharedOptions {
   packages?: true | FindWorkspacePackagesOptions | string[];
 
   /**
-   * Whether to enable verbose logging
-   * @default false
-   */
-  verbose?: boolean;
-
-  /**
    * GitHub token for authentication
    */
   githubToken: string;

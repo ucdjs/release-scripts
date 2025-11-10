@@ -183,7 +183,7 @@ export async function updateChangelogs(
     return;
   }
 
-  logger.log("Generating changelogs...");
+  logger.info("Generating changelogs...");
 
   for (const update of updates) {
     // Only generate changelog for packages with direct changes

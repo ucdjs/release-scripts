@@ -30,7 +30,7 @@ import {
   createDependentUpdates,
   updateAllPackageJsonFiles,
 } from "./package";
-import { exitWithError, globalOptions, logger, normalizeSharedOptions } from "./utils";
+import { exitWithError, logger, normalizeSharedOptions } from "./utils";
 import { inferVersionUpdates } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
@@ -46,12 +46,6 @@ export interface ReleaseOptions extends SharedOptions {
      */
     default?: string;
   };
-
-  /**
-   * Whether to perform a dry run (no changes pushed or PR created)
-   * @default false
-   */
-  dryRun?: boolean;
 
   /**
    * Whether to enable safety safeguards (e.g., checking for clean working directory)
@@ -109,15 +103,12 @@ export async function release(
 ): Promise<ReleaseResult | null> {
   const normalizedOptions = normalizeSharedOptions(options);
 
-  normalizedOptions.dryRun ??= false;
   normalizedOptions.branch ??= {};
   normalizedOptions.branch.release ??= "release/next";
   normalizedOptions.branch.default = await getDefaultBranch();
   normalizedOptions.safeguards ??= true;
   normalizedOptions.changelog ??= { enabled: true };
   normalizedOptions.globalCommitMode ??= "dependencies";
-
-  globalOptions.dryRun = normalizedOptions.dryRun;
 
   const workspaceRoot = normalizedOptions.workspaceRoot;
 
