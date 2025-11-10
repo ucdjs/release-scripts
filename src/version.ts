@@ -3,8 +3,8 @@ import type { BumpKind, GlobalCommitMode, PackageJson, PackageRelease } from "./
 import type { WorkspacePackage } from "./workspace";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { combineWithGlobalCommits, determineHighestBump } from "./commits";
-import { promptVersionOverride } from "./prompts";
+import { determineHighestBump, getGlobalCommits } from "./commits";
+import { selectVersionPrompt } from "./prompts";
 import { isCI, logger } from "./utils";
 
 export function isValidSemver(version: string): boolean {
@@ -119,61 +119,73 @@ export function createVersionUpdate(
   };
 }
 
+function calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
+  const oldParts = oldVersion.split(".").map(Number);
+  const newParts = newVersion.split(".").map(Number);
+
+  if (newParts[0]! > oldParts[0]!) return "major";
+  if (newParts[1]! > oldParts[1]!) return "minor";
+  if (newParts[2]! > oldParts[2]!) return "patch";
+
+  return "none";
+}
+
 interface InferVersionUpdatesOptions {
   workspacePackages: WorkspacePackage[];
   packageCommits: Map<string, GitCommit[]>;
   workspaceRoot: string;
   allCommits: GitCommit[];
   showPrompt?: boolean;
-  globalCommitMode?: GlobalCommitMode;
+  globalCommits: GitCommit[];
 }
 
-/**
- * Infer version updates from package commits with optional interactive overrides
- *
- * @returns Version updates for packages with changes
- */
 export async function inferVersionUpdates({
   workspacePackages,
   packageCommits,
   allCommits,
   workspaceRoot,
   showPrompt,
-  globalCommitMode,
+  globalCommits,
 }: InferVersionUpdatesOptions): Promise<PackageRelease[]> {
   const versionUpdates: PackageRelease[] = [];
+  const processedPackages = new Set<string>();
 
+  // First pass: process packages with commits
   for (const [pkgName, pkgCommits] of packageCommits) {
     if (pkgCommits.length === 0) continue;
 
     const pkg = workspacePackages.find((p) => p.name === pkgName);
     if (!pkg) continue;
 
-    // Combine package commits with global commits based on settings
-    const commits = combineWithGlobalCommits(
-      workspaceRoot,
-      pkgCommits,
-      allCommits,
-      globalCommitMode,
-    );
+    processedPackages.add(pkgName);
 
-    const bump = determineHighestBump(commits);
+    // Modify pkgCommits to include global commits
+    pkgCommits.push(...globalCommits);
+
+    const bump = determineHighestBump(pkgCommits);
     if (bump === "none") {
       logger.info(`No version bump needed for package ${pkg.name}`);
       continue;
     }
 
-    let newVersion = getNextVersion(pkg.version, bump);
+    const newVersion = getNextVersion(pkg.version, bump);
 
-    if (!isCI && showPrompt) {
-      newVersion = await promptVersionOverride(
-        pkg,
-        workspaceRoot,
-        pkg.version,
-        newVersion,
-        bump,
-      );
-    }
+    // if (!isCI && showPrompt) {
+    //   console.log(`\nPackage ${pkg.name} has changes requiring a ${bump} bump.`);
+    //   const selectedVersion = await selectVersionPrompt(
+    //     workspaceRoot,
+    //     pkg,
+    //     pkg.version,
+    //     newVersion,
+    //   );
+
+    //   // User cancelled or skipped
+    //   if (selectedVersion === null) {
+    //     continue;
+    //   }
+
+    //   newVersion = selectedVersion;
+    // }
 
     versionUpdates.push({
       package: pkg,
@@ -183,6 +195,40 @@ export async function inferVersionUpdates({
       hasDirectChanges: true,
     });
   }
+
+  // Second pass: if prompts enabled and not in CI, allow manual bumps for packages without commits
+  // if (!isCI && showPrompt) {
+  //   for (const pkg of workspacePackages) {
+  //     // Skip packages we already processed
+  //     if (processedPackages.has(pkg.name)) continue;
+
+  //     // Prompt for manual version bump (suggested version is current = no change suggested)
+  //     const newVersion = await selectVersionPrompt(
+  //       workspaceRoot,
+  //       pkg,
+  //       pkg.version,
+  //       pkg.version,
+  //     );
+
+  //     // User cancelled - stop prompting remaining packages
+  //     if (newVersion === null) {
+  //       break;
+  //     }
+
+  //     // Only add if user changed the version
+  //     if (newVersion !== pkg.version) {
+  //       const bumpType = calculateBumpType(pkg.version, newVersion);
+
+  //       versionUpdates.push({
+  //         package: pkg,
+  //         currentVersion: pkg.version,
+  //         newVersion,
+  //         bumpType,
+  //         hasDirectChanges: false,
+  //       });
+  //     }
+  //   }
+  // }
 
   return versionUpdates;
 }

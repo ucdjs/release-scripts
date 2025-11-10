@@ -29,16 +29,24 @@ export async function selectPackagePrompt(
   return response.selectedPackages;
 }
 
+export interface VersionOverride {
+  packageName: string;
+  newVersion: string;
+}
+
 export async function selectVersionPrompt(
+  workspaceRoot: string,
   pkg: WorkspacePackage,
+  currentVersion: string,
   suggestedVersion: string,
-) {
+): Promise<string | null> {
   const answers = await prompts([
     {
       type: "autocomplete",
       name: "version",
       message: `${pkg.name}: ${farver.green(pkg.version)}`,
       choices: [
+        { value: "skip", title: `skip ${farver.dim("(no change)")}` },
         { value: "major", title: `major ${farver.bold(getNextVersion(pkg.version, "major"))}` },
         { value: "minor", title: `minor ${farver.bold(getNextVersion(pkg.version, "minor"))}` },
         { value: "patch", title: `patch ${farver.bold(getNextVersion(pkg.version, "patch"))}` },
@@ -47,7 +55,7 @@ export async function selectVersionPrompt(
 
         { value: "custom", title: "custom" },
       ],
-      initial: "suggested",
+      initial: suggestedVersion === currentVersion ? 0 : 4, // Default to "skip" if no change, otherwise "suggested"
     },
     {
       type: (prev) => prev === "custom" ? "text" : null,
@@ -61,99 +69,19 @@ export async function selectVersionPrompt(
     },
   ]);
 
-  logger.log(answers);
-
-  throw new Error("Not implemented yet");
-}
-
-export interface VersionOverride {
-  packageName: string;
-  newVersion: string;
-}
-
-export async function promptVersionOverride(
-  pkg: WorkspacePackage,
-  workspaceRoot: string,
-  currentVersion: string,
-  suggestedVersion: string,
-  suggestedBumpType: BumpKind,
-): Promise<string> {
-  const choices = [
-    {
-      title: `Use suggested: ${suggestedVersion} (${suggestedBumpType})`,
-      value: "suggested",
-    },
-  ];
-
-  // Add other bump type options if they differ from suggested
-  const bumpTypes: BumpKind[] = ["patch", "minor", "major"];
-  for (const bumpType of bumpTypes) {
-    if (bumpType !== suggestedBumpType) {
-      const version = getNextVersion(currentVersion, bumpType);
-      choices.push({
-        title: `${bumpType}: ${version}`,
-        value: bumpType,
-      });
-    }
+  // User cancelled (Ctrl+C)
+  if (!answers.version) {
+    return null;
   }
 
-  choices.push({
-    title: "Custom version",
-    value: "custom",
-  });
-
-  const response = await prompts([
-    {
-      type: "select",
-      name: "choice",
-      message: `${pkg.name} (${currentVersion}):`,
-      choices,
-      initial: 0,
-    },
-    {
-      type: (prev) => (prev === "custom" ? "text" : null),
-      name: "customVersion",
-      message: "Enter custom version:",
-      initial: suggestedVersion,
-      validate: (value) => {
-        const semverRegex = /^\d+\.\d+\.\d+(?:[-+].+)?$/;
-        return semverRegex.test(value) || "Invalid semver version (e.g., 1.0.0)";
-      },
-    },
-  ]);
-
-  if (response.choice === "suggested") {
+  if (answers.version === "skip") {
+    return null;
+  } else if (answers.version === "suggested") {
     return suggestedVersion;
-  } else if (response.choice === "custom") {
-    return response.customVersion;
+  } else if (answers.version === "custom") {
+    return answers.custom;
   } else {
     // It's a bump type
-    return getNextVersion(currentVersion, response.choice as BumpKind);
+    return getNextVersion(currentVersion, answers.version as BumpKind);
   }
-}
-
-export async function promptVersionOverrides(
-  packages: Array<{
-    package: WorkspacePackage;
-    currentVersion: string;
-    suggestedVersion: string;
-    bumpType: BumpKind;
-  }>,
-  workspaceRoot: string,
-): Promise<Map<string, string>> {
-  const overrides = new Map<string, string>();
-
-  for (const item of packages) {
-    const newVersion = await promptVersionOverride(
-      item.package,
-      workspaceRoot,
-      item.currentVersion,
-      item.suggestedVersion,
-      item.bumpType,
-    );
-
-    overrides.set(item.package.name, newVersion);
-  }
-
-  return overrides;
 }

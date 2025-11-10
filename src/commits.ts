@@ -31,6 +31,26 @@ export async function getLastPackageTag(
   }
 }
 
+export async function getLastTag(
+  workspaceRoot: string,
+): Promise<string | undefined> {
+  try {
+    const { stdout } = await run("git", ["describe", "--tags", "--abbrev=0"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    return stdout.trim();
+  } catch (err) {
+    logger.warn(
+      `Failed to get last tag: ${(err as Error).message}`,
+    );
+    return undefined;
+  }
+}
+
 export function determineHighestBump(commits: GitCommit[]): BumpKind {
   if (commits.length === 0) {
     return "none";
@@ -40,6 +60,7 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
 
   for (const commit of commits) {
     const bump = determineBumpType(commit);
+    logger.debug(`Commit ${commit.shortHash} results in a ${bump} bump`);
 
     // Priority: major > minor > patch > none
     if (bump === "major") {
@@ -78,17 +99,23 @@ export async function getCommitsForWorkspacePackage(
 
   logger.log(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
 
-  const touchedCommitHashes = getCommits({
+  const commitsAffectingPackage = getCommits({
     from: lastTag,
     to: "HEAD",
     cwd: workspaceRoot,
     folder: pkg.path,
   });
 
-  const touchedSet = new Set(touchedCommitHashes);
-  const packageCommits = allCommits.filter((commit) =>
-    touchedSet.has(commit),
-  );
+  logger.log(`BEFORE SORTING: ${commitsAffectingPackage.length} commits affect ${pkg.name}`);
+
+  const affectingCommitShas = new Set();
+  for (const commit of commitsAffectingPackage) {
+    affectingCommitShas.add(commit.shortHash);
+  }
+
+  const packageCommits = allCommits.filter((commit) => {
+    return affectingCommitShas.has(commit.shortHash);
+  });
 
   logger.log(`${packageCommits.length} commits affect ${pkg.name}`);
 
@@ -102,7 +129,10 @@ export async function getWorkspacePackageCommits(
   const changedPackages = new Map<string, GitCommit[]>();
 
   const promises = packages.map(async (pkg) => {
-    return { pkgName: pkg.name, commits: await getCommitsForWorkspacePackage(workspaceRoot, pkg) };
+    return {
+      pkgName: pkg.name,
+      commits: await getCommitsForWorkspacePackage(workspaceRoot, pkg),
+    };
   });
 
   const results = await Promise.all(promises);
@@ -128,64 +158,106 @@ export async function getAllWorkspaceCommits(
   });
 }
 
-/**
- * Get files changed in a specific commit
- */
-export async function getFilesChangedInCommit(
-  commitHash: string,
-  workspaceRoot: string,
-): Promise<string[] | null> {
+export async function getCommitFileList(workspaceRoot: string, from: string, to: string) {
+  const map = new Map<string, string[]>();
+
   try {
-    const { stdout } = await run("git", ["diff-tree", "--no-commit-id", "--name-only", "-r", commitHash], {
+    const { stdout } = await run("git", ["log", "--name-only", "--format=\"%H\"", `${from}^..${to}`], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
       },
     });
 
-    return stdout.split("\n").map((file) => file.trim()).filter(Boolean);
+    const lines = stdout.trim().split("\n");
+
+    let currentSha = null;
+
+    for (const line of lines) {
+      if (line === "") {
+      // Empty line separates commits
+        currentSha = null;
+      } else if (currentSha === null) {
+      // First non-empty line is a SHA
+        currentSha = line;
+        map.set(currentSha, []);
+      } else {
+      // Subsequent lines are files
+        map.get(currentSha)!.push(line);
+      }
+    }
+
+    return map;
   } catch {
     return null;
   }
 }
 
 /**
- * Filter and combine package commits with global commits
+ * Get global commits that should be included in all packages
+ * This is computed once and reused for all packages
  */
-export function combineWithGlobalCommits(
+export async function getGlobalCommits(
   workspaceRoot: string,
-  packageCommits: GitCommit[],
   allCommits: GitCommit[],
+  packageCommitsMap: Map<string, GitCommit[]>,
   mode?: false | "dependencies" | "all",
-): GitCommit[] {
+): Promise<GitCommit[]> {
   if (!mode) {
-    return packageCommits;
+    return [];
   }
 
-  // Find global commits (in allCommits but not in packageCommits)
-  const packageCommitShas = new Set(packageCommits.map((c) => c.shortHash));
-  const globalCommits = allCommits.filter((c) => !packageCommitShas.has(c.shortHash));
+  // Find commits that don't touch any package
+  const allPackageCommitShas = new Set<string>();
+  for (const commits of packageCommitsMap.values()) {
+    for (const commit of commits) {
+      allPackageCommitShas.add(commit.shortHash);
+    }
+  }
+
+  const globalCommits = allCommits.filter((c) => !allPackageCommitShas.has(c.shortHash));
 
   if (mode === "all") {
-    return [...packageCommits, ...globalCommits];
+    return globalCommits;
   }
 
   if (mode === "dependencies") {
-    const dependencyCommits = globalCommits.filter(async (c) => {
-      const affectedFiles = await getFilesChangedInCommit(c.shortHash, workspaceRoot);
+    // Check each global commit once to see if it affects dependency files
+    const dependencyCommits: GitCommit[] = [];
 
-      if (affectedFiles == null) return false;
+    const files = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"];
 
-      return affectedFiles.some((file) => [
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-      ].includes(file));
-    });
-    return [...packageCommits, ...dependencyCommits];
+    logger.info(`Checking ${globalCommits.length} global commits for dependency changes`);
+    logger.debug("First sha:", globalCommits[0]?.shortHash);
+    logger.debug("Last sha:", globalCommits[globalCommits.length - 1]?.shortHash);
+
+    const map = await getCommitFileList(
+      workspaceRoot,
+      globalCommits[globalCommits.length - 1]?.shortHash || "",
+      globalCommits[0]?.shortHash || "",
+    );
+    logger.debug("Commit files map size:", map?.size);
+
+    for (const commit of globalCommits) {
+      const affectedFiles = map?.get(commit.shortHash);
+
+      if (affectedFiles == null) continue;
+
+      const affectsDeps = affectedFiles.some((file) => {
+        logger.debug(`Commit ${commit.shortHash} changed file: ${file}`);
+        return files.includes(file) || (file.startsWith("packages/") && file.endsWith("package.json"));
+      });
+
+      if (affectsDeps) {
+        logger.info(`Global commit ${commit.shortHash} affects dependencies`);
+        dependencyCommits.push(commit);
+      }
+    }
+
+    return dependencyCommits;
   }
 
-  return packageCommits;
+  return [];
 }
 
 export function determineBumpType(commit: GitCommit): BumpKind {

@@ -6,7 +6,7 @@ import type {
 } from "./types";
 import farver from "farver";
 import { updateChangelogs } from "./changelog";
-import { getAllWorkspaceCommits, getWorkspacePackageCommits } from "./commits";
+import { getAllWorkspaceCommits, getGlobalCommits, getLastPackageTag, getLastTag, getWorkspacePackageCommits } from "./commits";
 import {
   checkoutBranch,
   commitChanges,
@@ -121,21 +121,49 @@ export async function release(
     options,
   );
 
+  logger.log(`Discovered ${workspacePackages.length} workspace packages`);
+  for (const pkg of workspacePackages) {
+    logger.log(`- ${pkg.name} (${farver.dim(pkg.version)})`);
+    logger.log(`  path: ${pkg.path}`);
+  }
+
   if (workspacePackages.length === 0) {
     logger.info(farver.yellow("No packages found to release."));
     return null;
   }
 
-  // Get commits for all packages
+  // TODO: what if the last tag pushed has included some important changes for another package?
+  // That package would miss those changes in its changelog.
+  // Maybe we should get the last tag for each package instead?
+  // And then filter commits, after that tag?
+
+  const lastTagPushed = await getLastTag(workspaceRoot);
+  logger.log(`Last pushed tag: ${lastTagPushed || farver.dim("none")}`);
+
+  if (!lastTagPushed) {
+    logger.warn("No tags found in the repository. All commits will be considered for release.");
+  }
+
+  const allCommits = await getAllWorkspaceCommits(workspaceRoot, lastTagPushed);
+
+  // Get commits affecting each package
   const packageCommits = await getWorkspacePackageCommits(workspaceRoot, workspacePackages);
+
+  // Get global commits, that may affect multiple packages
+  const globalCommitsAffectingPackages = await getGlobalCommits(
+    workspaceRoot,
+    allCommits,
+    packageCommits,
+    normalizedOptions.globalCommitMode,
+  );
 
   const versionUpdates = await inferVersionUpdates({
     workspacePackages,
     packageCommits,
     workspaceRoot,
     showPrompt: options.prompts?.versions !== false,
-    allCommits: await getAllWorkspaceCommits(workspaceRoot),
-    globalCommitMode: options.globalCommitMode,
+    allCommits,
+    globalCommits: globalCommitsAffectingPackages,
   });
 
   if (versionUpdates.length === 0) {
@@ -143,6 +171,8 @@ export async function release(
   }
 
   const graph = buildPackageDependencyGraph(workspacePackages);
+  console.error("Dependency graph built");
+  console.error(graph);
 
   // Get all packages needing updates (includes transitive dependents)
   const allUpdates = createDependentUpdates(
@@ -150,6 +180,11 @@ export async function release(
     workspacePackages,
     versionUpdates,
   );
+
+  logger.log(`Total packages to update (including dependents): ${allUpdates.length}`);
+  for (const update of allUpdates) {
+    logger.log(`- ${update.package.name}: ${farver.dim(update.currentVersion)} -> ${farver.bold(update.newVersion)}`);
+  }
 
   const currentBranch = await getCurrentBranch(workspaceRoot);
 
