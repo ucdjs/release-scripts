@@ -1,4 +1,4 @@
-import type { VersionUpdate } from "./types";
+import type { PackageRelease } from "./types";
 import { dedent } from "@luxass/utils";
 import { Eta } from "eta";
 import farver from "farver";
@@ -187,7 +187,7 @@ function dedentString(str: string): string {
     .trim();
 }
 
-export function generatePullRequestBody(updates: VersionUpdate[], body?: string): string {
+export function generatePullRequestBody(updates: PackageRelease[], body?: string): string {
   const eta = new Eta();
 
   const bodyTemplate = body ? dedentString(body) : defaultTemplate;

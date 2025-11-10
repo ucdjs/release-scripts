@@ -1,8 +1,8 @@
 import type { ChangelogOptions } from "./changelog";
 import type {
   GlobalCommitMode,
+  PackageRelease,
   SharedOptions,
-  VersionUpdate,
 } from "./types";
 import farver from "farver";
 import { updateChangelogs } from "./changelog";
@@ -85,7 +85,7 @@ export interface ReleaseResult {
   /**
    * Packages that will be updated
    */
-  updates: VersionUpdate[];
+  updates: PackageRelease[];
 
   /**
    * URL of the created or updated PR
@@ -122,7 +122,7 @@ export async function release(
   );
 
   if (workspacePackages.length === 0) {
-    logger.log("No packages found to release.");
+    logger.info(farver.yellow("No packages found to release."));
     return null;
   }
 

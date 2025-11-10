@@ -77,7 +77,7 @@ export interface FindWorkspacePackagesOptions {
   excludePrivate?: boolean;
 }
 
-export interface VersionUpdate {
+export interface PackageRelease {
   /**
    * The package being updated
    */

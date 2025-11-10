@@ -1,6 +1,6 @@
 import type {
   PackageUpdateOrder,
-  VersionUpdate,
+  PackageRelease,
 } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
@@ -168,8 +168,8 @@ export function getPackagePublishOrder(
 export function createDependentUpdates(
   graph: PackageDependencyGraph,
   workspacePackages: WorkspacePackage[],
-  directUpdates: VersionUpdate[],
-): VersionUpdate[] {
+  directUpdates: PackageRelease[],
+): PackageRelease[] {
   const allUpdates = [...directUpdates];
   const directUpdateMap = new Map(directUpdates.map((u) => [u.package.name, u]));
   const changedPackages = new Set(directUpdates.map((u) => u.package.name));
@@ -202,7 +202,7 @@ export function createDependentUpdates(
  * @param updates - Version updates to apply
  */
 export async function updateAllPackageJsonFiles(
-  updates: VersionUpdate[],
+  updates: PackageRelease[],
 ): Promise<void> {
   // Update package.json files in parallel
   await Promise.all(

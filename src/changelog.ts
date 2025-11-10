@@ -1,5 +1,5 @@
 import type { GitCommit } from "commit-parser";
-import type { VersionUpdate } from "./types";
+import type { PackageRelease } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
@@ -174,7 +174,7 @@ export async function writeChangelog(
  * Generate and write changelogs for all updated packages
  */
 export async function updateChangelogs(
-  updates: VersionUpdate[],
+  updates: PackageRelease[],
   packageCommits: Map<string, GitCommit[]>,
   options?: ChangelogOptions,
 ): Promise<void> {

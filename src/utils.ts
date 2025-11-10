@@ -12,6 +12,7 @@ export const args = mri(process.argv.slice(2));
 
 export const isDryRun = !!args.dry;
 export const isVerbose = !!args.verbose;
+export const isForce = !!args.force;
 
 export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
 
@@ -123,7 +124,8 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
   };
 }
 
-if (isDryRun) {
-  logger.debug(farver.inverse(farver.yellow(" DRY RUN ")));
+if (isDryRun || isVerbose || isForce) {
+  logger.debug(farver.inverse(farver.yellow(" Running with special flags ")));
+  logger.debug({ isDryRun, isVerbose, isForce });
   logger.debug();
 }

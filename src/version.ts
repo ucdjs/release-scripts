@@ -1,5 +1,5 @@
 import type { GitCommit } from "commit-parser";
-import type { BumpKind, GlobalCommitMode, PackageJson, VersionUpdate } from "./types";
+import type { BumpKind, GlobalCommitMode, PackageJson, PackageRelease } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -107,7 +107,7 @@ export function createVersionUpdate(
   pkg: WorkspacePackage,
   bump: BumpKind,
   hasDirectChanges: boolean,
-): VersionUpdate {
+): PackageRelease {
   const newVersion = getNextVersion(pkg.version, bump);
 
   return {
@@ -140,8 +140,8 @@ export async function inferVersionUpdates({
   workspaceRoot,
   showPrompt,
   globalCommitMode,
-}: InferVersionUpdatesOptions): Promise<VersionUpdate[]> {
-  const versionUpdates: VersionUpdate[] = [];
+}: InferVersionUpdatesOptions): Promise<PackageRelease[]> {
+  const versionUpdates: PackageRelease[] = [];
 
   for (const [pkgName, pkgCommits] of packageCommits) {
     if (pkgCommits.length === 0) continue;
@@ -246,7 +246,7 @@ export async function updatePackageJson(
  */
 export function getDependencyUpdates(
   pkg: WorkspacePackage,
-  allUpdates: VersionUpdate[],
+  allUpdates: PackageRelease[],
 ): Map<string, string> {
   const updates = new Map<string, string>();
 
