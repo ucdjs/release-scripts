@@ -101,6 +101,32 @@ export async function getCurrentBranch(
   }
 }
 
+/**
+ * Retrieves the list of available branches in the repository.
+ * @param {string} workspaceRoot - The root directory of the workspace
+ * @returns {Promise<string[]>} A Promise resolving to an array of branch names
+ */
+export async function getAvailableBranches(
+  workspaceRoot: string,
+): Promise<string[]> {
+  try {
+    const result = await run("git", ["branch", "--list"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    return result.stdout
+      .split("\n")
+      .map((line) => line.replace("*", "").trim())
+      .filter((line) => line.length > 0);
+  } catch (err) {
+    logger.error("Error getting available branches:", err);
+    throw err;
+  }
+}
+
 export async function checkoutBranch(
   branch: string,
   workspaceRoot: string,

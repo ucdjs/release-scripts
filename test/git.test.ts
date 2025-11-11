@@ -1,5 +1,6 @@
 import {
   doesBranchExist,
+  getAvailableBranches,
   getCurrentBranch,
   getDefaultBranch,
   isWorkingDirectoryClean,
@@ -185,6 +186,39 @@ describe("git utilities", () => {
         mockExec.mockRejectedValue(new Error("Some git error"));
 
         await expect(getCurrentBranch("/workspace")).rejects.toThrow(
+          "Some git error",
+        );
+      });
+    });
+
+    describe("getAvailableBranches", () => {
+      it("should return a list of available branches", async () => {
+        mockExec.mockResolvedValue({
+          stdout: "  main\n* feature-branch\ndevelop\n",
+          stderr: "",
+          exitCode: 0,
+        });
+
+        const result = await getAvailableBranches("/workspace");
+
+        expect(mockExec).toHaveBeenCalledWith(
+          "git",
+          ["branch", "--list"],
+          expect.objectContaining({
+            nodeOptions: expect.objectContaining({
+              cwd: "/workspace",
+              stdio: "pipe",
+            }),
+          }),
+        );
+
+        expect(result).toEqual(["main", "feature-branch", "develop"]);
+      });
+
+      it("should handle errors and throw", async () => {
+        mockExec.mockRejectedValue(new Error("Some git error"));
+
+        await expect(getAvailableBranches("/workspace")).rejects.toThrow(
           "Some git error",
         );
       });
