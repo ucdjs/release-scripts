@@ -1,6 +1,6 @@
 import type {
-  PackageUpdateOrder,
   PackageRelease,
+  PackageUpdateOrder,
 } from "./types";
 import type { WorkspacePackage } from "./workspace";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
