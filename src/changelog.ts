@@ -37,9 +37,6 @@ function getSectionLabel(type: string): string {
   return labelMap[type] || "Other Changes";
 }
 
-/**
- * Generate changelog content from commits
- */
 export function generateChangelog(
   pkg: WorkspacePackage,
   newVersion: string,
@@ -77,7 +74,19 @@ export function generateChangelog(
   }
 
   // Define display order
-  const typeOrder = ["feat", "fix", "perf", "refactor", "docs", "test", "build", "ci", "chore", "revert", "style"];
+  const typeOrder = [
+    "feat",
+    "fix",
+    "perf",
+    "refactor",
+    "docs",
+    "test",
+    "build",
+    "ci",
+    "chore",
+    "revert",
+    "style",
+  ];
 
   // Generate sections
   for (const type of typeOrder) {
@@ -112,9 +121,6 @@ export function generateChangelog(
   return changelog.trim();
 }
 
-/**
- * Write changelog to package's CHANGELOG.md file
- */
 export async function writeChangelog(
   pkg: WorkspacePackage,
   newContent: string,
@@ -131,28 +137,37 @@ export async function writeChangelog(
   let updatedContent: string;
 
   if (existingContent) {
-    // Remove title if it exists
-    const withoutTitle = existingContent.replace(/^# Changelog\n\n/, "");
+    // Remove the CHANGELOG title, if it exists.
+    // This will make it easier to add the new version entry.
+
+    const computedTitleRegex = new RegExp(`^# ${pkg.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\n\n`);
+    const withoutTitle = existingContent.replace(computedTitleRegex, "");
 
     // Check if this version already exists in the changelog
-    const versionHeaderRegex = new RegExp(`^## ${version.replace(/\./g, "\\.")}(\\s|$)`, "m");
-    const hasVersion = versionHeaderRegex.test(withoutTitle);
+    // Match both "## 0.1.0" and "## [0.1.0](...)"
+    const escapedVersion = version.replace(/\./g, "\\.");
+    const hasVersion = new RegExp(`^## (?:\\[${escapedVersion}\\]|${escapedVersion})(\\s|\\(|$)`, "m").test(withoutTitle);
 
+    // If there is a version in changelog, replace it. Otherwise, prepend it.
     if (hasVersion) {
+      logger.debug(`Version ${version} already exists in changelog, replacing entry`);
       // Replace existing version entry
       // Find the start of this version section and the next version section
+      // Match both "## 0.1.0" and "## [0.1.0](...)"
       const versionSectionRegex = new RegExp(
-        `^## ${version.replace(/\./g, "\\.")}[\\s\\S]*?(?=^## |$)`,
+        `^## (?:\\[${escapedVersion}\\]|${escapedVersion})[\\s\\S]*?(?=^## |$)`,
         "m",
       );
+
       const updated = withoutTitle.replace(versionSectionRegex, `${newContent}\n\n`);
-      updatedContent = `# Changelog\n\n${updated}`;
+      updatedContent = `# ${pkg.name}\n\n${updated}`;
     } else {
+      logger.debug(`Version ${version} does not exist in changelog, prepending entry`);
       // Prepend new version
-      updatedContent = `# Changelog\n\n${newContent}\n\n${withoutTitle}`;
+      updatedContent = `# ${pkg.name}\n\n${newContent}\n\n${withoutTitle}`;
     }
   } else {
-    updatedContent = `# Changelog\n\n${newContent}\n`;
+    updatedContent = `# ${pkg.name}\n\n${newContent}\n`;
   }
 
   await writeFile(changelogPath, updatedContent, "utf-8");
