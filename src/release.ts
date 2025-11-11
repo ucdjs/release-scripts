@@ -15,12 +15,12 @@ import {
   getLastTag,
   getWorkspacePackageCommits,
 } from "#versioning/commits";
-import farver from "farver";
 import {
   buildPackageDependencyGraph,
   createDependentUpdates,
-} from "./versioning/package";
-import { inferVersionUpdates } from "./versioning/version";
+} from "#versioning/package";
+import { inferVersionUpdates } from "#versioning/version";
+import farver from "farver";
 
 export interface ReleaseOptions extends SharedOptions {
   branch?: {
