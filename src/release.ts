@@ -11,6 +11,8 @@ import {
   checkoutBranch,
   commitChanges,
   createBranch,
+  deleteLocalBranch,
+  deleteRemoteBranch,
   doesBranchExist,
   getCurrentBranch,
   getDefaultBranch,
@@ -30,7 +32,7 @@ import {
   createDependentUpdates,
   updateAllPackageJsonFiles,
 } from "./package";
-import { exitWithError, logger, normalizeSharedOptions } from "./utils";
+import { args, exitWithError, logger, normalizeSharedOptions } from "./utils";
 import { inferVersionUpdates } from "./version";
 import { discoverWorkspacePackages } from "./workspace";
 
@@ -109,6 +111,8 @@ export async function release(
   normalizedOptions.safeguards ??= true;
   normalizedOptions.changelog ??= { enabled: true };
   normalizedOptions.globalCommitMode ??= "dependencies";
+
+  const isCleanFlag = !!args.clean;
 
   const workspaceRoot = normalizedOptions.workspaceRoot;
 
@@ -196,23 +200,37 @@ export async function release(
   }
 
   // Check if PR already exists
-  const existingPullRequest = await getExistingPullRequest({
+  let existingPullRequest = await getExistingPullRequest({
     owner: normalizedOptions.owner,
     repo: normalizedOptions.repo,
     branch: normalizedOptions.branch.release,
     githubToken: normalizedOptions.githubToken,
   });
 
-  const prExists = !!existingPullRequest;
+  let prExists = !!existingPullRequest;
   if (prExists) {
-    logger.log("Existing pull request found:", existingPullRequest.html_url);
+    logger.log("Existing pull request found:", existingPullRequest?.html_url);
   } else {
     logger.log("No existing pull request found, will create new one");
   }
 
-  // Ensure release branch exists
+  if (isCleanFlag) {
+    logger.log("Clean flag is detected, will re-open pull request branch from default branch");
+    prExists = false;
+    existingPullRequest = null;
+  }
+
+  // If clean, delete and recreate the branch for a fresh start
   const branchExists = await doesBranchExist(normalizedOptions.branch.release, workspaceRoot);
-  if (!branchExists) {
+  if (isCleanFlag && branchExists) {
+    logger.info("Working directory is clean - deleting and recreating release branch for fresh start");
+    await deleteRemoteBranch(normalizedOptions.branch.release, workspaceRoot);
+    await deleteLocalBranch(normalizedOptions.branch.release, workspaceRoot, true);
+  }
+
+  // Create or ensure release branch exists
+  const branchExistsAfterCleanup = await doesBranchExist(normalizedOptions.branch.release, workspaceRoot);
+  if (!branchExistsAfterCleanup) {
     logger.log("Creating release branch:", normalizedOptions.branch.release);
     await createBranch(normalizedOptions.branch.release, normalizedOptions.branch.default, workspaceRoot);
   }
@@ -223,26 +241,30 @@ export async function release(
     throw new Error(`Failed to checkout branch: ${normalizedOptions.branch.release}`);
   }
 
-  // Pull latest changes if branch exists remotely
-  if (branchExists) {
+  // Pull latest changes if branch exists remotely (and we didn't just delete it)
+  if (!isCleanFlag && branchExists) {
     logger.log("Pulling latest changes from remote");
     const hasPulled = await pullLatestChanges(normalizedOptions.branch.release, workspaceRoot);
     if (!hasPulled) {
       logger.log("Warning: Failed to pull latest changes, continuing anyway");
     }
-  }
 
-  // Rebase onto current branch to get latest commits from main
-  logger.log("Rebasing release branch onto", normalizedOptions.branch.default);
-  await rebaseBranch(normalizedOptions.branch.default, workspaceRoot);
+    // Rebase onto current branch to get latest commits from main
+    logger.log("Rebasing release branch onto", normalizedOptions.branch.default);
+    await rebaseBranch(normalizedOptions.branch.default, workspaceRoot);
+  }
 
   // Update package.json files
   await updateAllPackageJsonFiles(allUpdates);
 
   // Generate changelogs if enabled
-  await updateChangelogs(versionUpdates, packageCommits, {
-    ...options.changelog,
-    repository: options.changelog?.repository || {
+  await updateChangelogs({
+    updates: versionUpdates,
+    packageCommits,
+    options: {
+      ...options.changelog,
+    },
+    repository: {
       owner: normalizedOptions.owner,
       repo: normalizedOptions.repo,
     },
@@ -262,7 +284,7 @@ export async function release(
       logger.log("No updates needed, PR is already up to date");
       return {
         updates: allUpdates,
-        prUrl: existingPullRequest.html_url,
+        prUrl: existingPullRequest?.html_url,
         created: false,
       };
     } else {

@@ -17,19 +17,8 @@ export interface ChangelogOptions {
    * Transform function to customize the changelog content
    */
   transform?: (changelog: string, pkg: WorkspacePackage) => string | Promise<string>;
-
-  /**
-   * Repository information for generating links
-   */
-  repository?: {
-    owner: string;
-    repo: string;
-  };
 }
 
-/**
- * Get section label for commit type
- */
 function getSectionLabel(type: string): string {
   const labelMap: Record<string, string> = {
     feat: "Features",
@@ -170,14 +159,19 @@ export async function writeChangelog(
   logger.log(`Updated changelog: ${changelogPath}`);
 }
 
-/**
- * Generate and write changelogs for all updated packages
- */
-export async function updateChangelogs(
-  updates: PackageRelease[],
-  packageCommits: Map<string, GitCommit[]>,
-  options?: ChangelogOptions,
-): Promise<void> {
+interface UpdateChangelogsParams {
+  updates: PackageRelease[];
+  packageCommits: Map<string, GitCommit[]>;
+  options?: ChangelogOptions;
+  repository?: { owner: string; repo: string };
+}
+
+export async function updateChangelogs({
+  updates,
+  packageCommits,
+  options,
+  repository,
+}: UpdateChangelogsParams): Promise<void> {
   if (!options?.enabled) {
     logger.log("Changelog generation is disabled");
     return;
@@ -201,7 +195,7 @@ export async function updateChangelogs(
       update.newVersion,
       commits,
       update.currentVersion,
-      options.repository,
+      repository,
     );
 
     // Apply transform if provided

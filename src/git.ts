@@ -127,6 +127,52 @@ export async function checkoutBranch(
 }
 
 /**
+ * Delete a local git branch
+ * @param branch - The branch name to delete
+ * @param workspaceRoot - The root directory of the workspace
+ * @param force - Force delete even if not merged
+ */
+export async function deleteLocalBranch(
+  branch: string,
+  workspaceRoot: string,
+  force = false,
+): Promise<void> {
+  try {
+    logger.info(`Deleting local branch: ${farver.red(branch)}`);
+    await run("git", ["branch", force ? "-D" : "-d", branch], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+  } catch {
+    // Branch might not exist locally, that's ok
+  }
+}
+
+/**
+ * Delete a remote git branch
+ * @param branch - The branch name to delete
+ * @param workspaceRoot - The root directory of the workspace
+ */
+export async function deleteRemoteBranch(
+  branch: string,
+  workspaceRoot: string,
+): Promise<void> {
+  try {
+    logger.info(`Deleting remote branch: ${farver.red(branch)}`);
+    await run("git", ["push", "origin", "--delete", branch], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+  } catch {
+    // Branch might not exist remotely, that's ok
+  }
+}
+
+/**
  * Get the current branch name
  * @param workspaceRoot - The root directory of the workspace
  * @returns Promise resolving to the current branch name

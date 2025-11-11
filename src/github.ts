@@ -107,7 +107,7 @@ export async function upsertPullRequest({
 
     const requestBody = isUpdate
       ? { title, body }
-      : { title, body, head, base };
+      : { title, body, head, base, draft: true };
 
     logger.debug(`${isUpdate ? "Updating" : "Creating"} pull request (url: ${url})`);
     const res = await fetch(url, {
