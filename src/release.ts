@@ -1,11 +1,9 @@
-import type { ChangelogOptions } from "./changelog";
 import type {
   GlobalCommitMode,
   PackageRelease,
   SharedOptions,
 } from "./types";
 import farver from "farver";
-import { updateChangelogs } from "./changelog";
 import { getAllWorkspaceCommits, getGlobalCommits, getLastPackageTag, getLastTag, getWorkspacePackageCommits } from "./commits";
 import {
   checkoutBranch,
@@ -74,11 +72,6 @@ export interface ReleaseOptions extends SharedOptions {
      */
     body?: string;
   };
-
-  /**
-   * Changelog configuration
-   */
-  changelog?: ChangelogOptions;
 
   globalCommitMode?: GlobalCommitMode;
 }
@@ -256,19 +249,6 @@ export async function release(
 
   // Update package.json files
   await updateAllPackageJsonFiles(allUpdates);
-
-  // Generate changelogs if enabled
-  await updateChangelogs({
-    updates: versionUpdates,
-    packageCommits,
-    options: {
-      ...options.changelog,
-    },
-    repository: {
-      owner: normalizedOptions.owner,
-      repo: normalizedOptions.repo,
-    },
-  });
 
   // Commit the changes (if there are any)
   const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
