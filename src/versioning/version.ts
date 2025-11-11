@@ -1,11 +1,10 @@
+import type { WorkspacePackage } from "#core/workspace";
+import type { BumpKind, PackageJson, PackageRelease } from "#shared/types";
 import type { GitCommit } from "commit-parser";
-import type { BumpKind, GlobalCommitMode, PackageJson, PackageRelease } from "./types";
-import type { WorkspacePackage } from "./workspace";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { determineHighestBump, getGlobalCommits } from "./commits";
-import { selectVersionPrompt } from "./prompts";
-import { isCI, logger } from "./utils";
+import { logger } from "#shared/utils";
+import { determineHighestBump } from "./commits";
 
 export function isValidSemver(version: string): boolean {
   // Basic semver validation: X.Y.Z with optional pre-release/build metadata
@@ -119,7 +118,7 @@ export function createVersionUpdate(
   };
 }
 
-function calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
+function _calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
   const oldParts = oldVersion.split(".").map(Number);
   const newParts = newVersion.split(".").map(Number);
 
@@ -142,9 +141,9 @@ interface InferVersionUpdatesOptions {
 export async function inferVersionUpdates({
   workspacePackages,
   packageCommits,
-  allCommits,
-  workspaceRoot,
-  showPrompt,
+  allCommits: _allCommits,
+  workspaceRoot: _workspaceRoot,
+  showPrompt: _showPrompt,
   globalCommits,
 }: InferVersionUpdatesOptions): Promise<PackageRelease[]> {
   const versionUpdates: PackageRelease[] = [];

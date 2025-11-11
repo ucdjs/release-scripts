@@ -1,8 +1,8 @@
+import type { WorkspacePackage } from "#core/workspace";
+import type { BumpKind } from "#shared/types";
 import type { GitCommit } from "commit-parser";
-import type { BumpKind } from "./types";
-import type { WorkspacePackage } from "./workspace";
+import { logger, run } from "#shared/utils";
 import { getCommits } from "commit-parser";
-import { logger, run } from "./utils";
 
 export async function getLastPackageTag(
   packageName: string,

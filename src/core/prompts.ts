@@ -1,9 +1,8 @@
-import type { BumpKind } from "./types";
-import type { WorkspacePackage } from "./workspace";
+import type { WorkspacePackage } from "#core/workspace";
+import type { BumpKind } from "#shared/types";
+import { getNextVersion } from "#versioning/version";
 import farver from "farver";
 import prompts from "prompts";
-import { logger } from "./utils";
-import { getNextVersion } from "./version";
 
 export async function selectPackagePrompt(
   packages: WorkspacePackage[],

@@ -1,5 +1,5 @@
 import farver from "farver";
-import { exitWithError, logger, run, runIfNotDry } from "./utils";
+import { exitWithError, logger, run, runIfNotDry } from "../shared/utils";
 
 /**
  * Check if the working directory is clean (no uncommitted changes)

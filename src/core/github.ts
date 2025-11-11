@@ -1,8 +1,8 @@
-import type { PackageRelease } from "./types";
+import type { PackageRelease } from "#shared/types";
 import { dedent } from "@luxass/utils";
 import { Eta } from "eta";
 import farver from "farver";
-import { logger } from "./utils";
+import { logger } from "../shared/utils";
 
 interface SharedGitHubOptions {
   owner: string;

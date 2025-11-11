@@ -1,8 +1,8 @@
+import type { WorkspacePackage } from "#core/workspace";
 import type {
   PackageRelease,
   PackageUpdateOrder,
-} from "./types";
-import type { WorkspacePackage } from "./workspace";
+} from "#shared/types";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
 
 export interface PackageDependencyGraph {

@@ -1,8 +1,8 @@
+import type { SharedOptions } from "#shared/types";
 import type {
   Options as TinyExecOptions,
   Result as TinyExecResult,
 } from "tinyexec";
-import type { SharedOptions } from "./types";
 import process from "node:process";
 import farver from "farver";
 import mri from "mri";

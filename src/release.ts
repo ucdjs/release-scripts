@@ -2,20 +2,25 @@ import type {
   GlobalCommitMode,
   PackageRelease,
   SharedOptions,
-} from "./types";
-import farver from "farver";
-import { getAllWorkspaceCommits, getGlobalCommits, getLastTag, getWorkspacePackageCommits } from "./commits";
+} from "#shared/types";
 import {
   getDefaultBranch,
   isWorkingDirectoryClean,
-} from "./git";
+} from "#core/git";
+import { discoverWorkspacePackages } from "#core/workspace";
+import { exitWithError, logger, normalizeSharedOptions } from "#shared/utils";
+import {
+  getAllWorkspaceCommits,
+  getGlobalCommits,
+  getLastTag,
+  getWorkspacePackageCommits,
+} from "#versioning/commits";
+import farver from "farver";
 import {
   buildPackageDependencyGraph,
   createDependentUpdates,
-} from "./package";
-import { args, exitWithError, logger, normalizeSharedOptions } from "./utils";
-import { inferVersionUpdates } from "./version";
-import { discoverWorkspacePackages } from "./workspace";
+} from "./versioning/package";
+import { inferVersionUpdates } from "./versioning/version";
 
 export interface ReleaseOptions extends SharedOptions {
   branch?: {
