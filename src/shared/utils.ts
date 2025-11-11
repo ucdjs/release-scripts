@@ -118,7 +118,10 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
   return {
     ...rest,
     packages,
-    prompts,
+    prompts: {
+      packages: prompts?.packages ?? true,
+      versions: prompts?.versions ?? true,
+    },
     workspaceRoot,
     githubToken,
     owner,
