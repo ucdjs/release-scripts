@@ -111,10 +111,43 @@ export async function release(
     return null;
   }
 
-  // TODO: what if the last tag pushed has included some important changes for another package?
-  // That package would miss those changes in its changelog.
-  // Maybe we should get the last tag for each package instead?
-  // And then filter commits, after that tag?
+  // THE GLOBAL COMMITS PROBLEM
+  // ==========================
+
+  // Simple Example:
+  // ---------------
+
+  // Commits:
+  //   A: pkg-a changes
+  //   B: root package.json change (GLOBAL)
+  //   C: pkg-c changes
+
+  // Tags:
+  //   @pkg-a/1.0.0 → commit C (latest tag)
+  //   @pkg-b never released
+
+  // Current (BROKEN) approach:
+  // ---------------------------
+  // 1. Use latest tag: @pkg-a/1.0.0 (commit C)
+  // 2. Get commits since C for ALL packages
+  // 3. When releasing pkg-b:
+  //    - Starts from commit C
+  //    - MISSES commit B (global change)
+  //    - pkg-b released without the global dependency update
+
+  // Correct approach:
+  // -----------------
+  // Each package uses ITS OWN last tag:
+
+  //   pkg-a (last tag @ C): Gets commits since C
+  //   pkg-b (no tag):       Gets commits since beginning → INCLUDES B
+
+  // Result: Each package sees exactly the global commits it needs.
+
+  // Performance issue:
+  // ------------------
+  // Naive: Call git 2000+ times (one per commit per package)
+  // Need: Batch git operations, cache file lists
 
   const lastTagPushed = await getLastTag(workspaceRoot);
   logger.log(`Last pushed tag: ${lastTagPushed || farver.dim("none")}`);
