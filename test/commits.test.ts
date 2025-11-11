@@ -1,4 +1,5 @@
 import type { GitCommit } from "commit-parser";
+import { determineHighestBump, getLastPackageTag } from "#versioning/commits";
 import * as tinyexec from "tinyexec";
 import {
   afterEach,
@@ -8,7 +9,6 @@ import {
   it,
   vi,
 } from "vitest";
-import { determineHighestBump, getLastPackageTag } from "../src/commits";
 
 function createFakeCommit(commit: Partial<GitCommit>): GitCommit {
   return commit as GitCommit;

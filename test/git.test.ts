@@ -1,6 +1,6 @@
+import { doesBranchExist, isWorkingDirectoryClean } from "#core/git";
 import * as tinyexec from "tinyexec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { doesBranchExist, isWorkingDirectoryClean } from "../src/git";
 
 vi.mock("tinyexec");
 const mockExec = vi.mocked(tinyexec.exec);
