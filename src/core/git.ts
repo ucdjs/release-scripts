@@ -62,10 +62,11 @@ export async function doesBranchExist(
  * Falls back to "main" if the default branch cannot be determined.
  * @returns {Promise<string>} A Promise resolving to the default branch name as a string.
  */
-export async function getDefaultBranch(): Promise<string> {
+export async function getDefaultBranch(workspaceRoot: string): Promise<string> {
   try {
     const result = await run("git", ["symbolic-ref", "refs/remotes/origin/HEAD"], {
       nodeOptions: {
+        cwd: workspaceRoot,
         stdio: "pipe",
       },
     });
@@ -82,35 +83,47 @@ export async function getDefaultBranch(): Promise<string> {
   }
 }
 
+export async function getCurrentBranch(
+  workspaceRoot: string,
+): Promise<string> {
+  try {
+    const result = await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    return result.stdout.trim();
+  } catch (err) {
+    logger.error("Error getting current branch:", err);
+    throw err;
+  }
+}
+
 export async function checkoutBranch(
   branch: string,
   workspaceRoot: string,
 ): Promise<boolean> {
   try {
     logger.info(`Switching to branch: ${farver.green(branch)}`);
-    await run("git", ["checkout", branch], {
+    const result = await run("git", ["checkout", branch], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
       },
     });
-    return true;
+
+    const output = result.stdout.trim();
+    const match = output.match(/Switched to branch '(.+)'/);
+    if (match && match[1] === branch) {
+      return true;
+    }
+
+    return false;
   } catch {
     return false;
   }
-}
-
-export async function getCurrentBranch(
-  workspaceRoot: string,
-): Promise<string> {
-  const result = await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-      stdio: "pipe",
-    },
-  });
-
-  return result.stdout.trim();
 }
 
 export async function pullLatestChanges(
