@@ -3,6 +3,7 @@ import type {
   PackageRelease,
   PackageUpdateOrder,
 } from "#shared/types";
+import { logger } from "#shared/utils";
 import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "#versioning/version";
 
 export interface PackageDependencyGraph {
@@ -179,8 +180,10 @@ export function createDependentUpdates(
 
   // Create updates for packages that don't have direct updates
   for (const pkgName of affectedPackages) {
+    logger.debug(`Processing affected package: ${pkgName}`);
     // Skip if already has a direct update
     if (directUpdateMap.has(pkgName)) {
+      logger.debug(`Skipping ${pkgName}, already has a direct update`);
       continue;
     }
 

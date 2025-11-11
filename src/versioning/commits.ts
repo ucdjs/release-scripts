@@ -60,7 +60,7 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
 
   for (const commit of commits) {
     const bump = determineBumpType(commit);
-    logger.debug(`Commit ${commit.shortHash} results in a ${bump} bump`);
+    // logger.debug(`Commit ${commit.shortHash} results in a ${bump} bump`);
 
     // Priority: major > minor > patch > none
     if (bump === "major") {
@@ -105,8 +105,6 @@ export async function getCommitsForWorkspacePackage(
     cwd: workspaceRoot,
     folder: pkg.path,
   });
-
-  logger.log(`BEFORE SORTING: ${commitsAffectingPackage.length} commits affect ${pkg.name}`);
 
   const affectingCommitShas = new Set();
   for (const commit of commitsAffectingPackage) {
