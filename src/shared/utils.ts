@@ -1,9 +1,11 @@
+import type { ReleaseOptions } from "#release";
 import type { SharedOptions } from "#shared/types";
 import type {
   Options as TinyExecOptions,
   Result as TinyExecResult,
 } from "tinyexec";
 import process from "node:process";
+import { getAvailableBranches, getDefaultBranch } from "#core/git";
 import farver from "farver";
 import mri from "mri";
 import { exec } from "tinyexec";
@@ -128,4 +130,50 @@ if (isDryRun || isVerbose || isForce) {
   logger.debug(farver.inverse(farver.yellow(" Running with special flags ")));
   logger.debug({ isDryRun, isVerbose, isForce });
   logger.debug();
+}
+
+export async function normalizeReleaseOptions(options: ReleaseOptions) {
+  const normalized = normalizeSharedOptions(options);
+
+  let defaultBranch = options.branch?.default?.trim();
+  const releaseBranch = options.branch?.release?.trim() ?? "release/next";
+
+  if (defaultBranch != null && typeof defaultBranch === "string" && defaultBranch !== "") {
+    if (defaultBranch === "") {
+      exitWithError(
+        "Default branch is required",
+        "Specify the default branch in options",
+      );
+    }
+
+    // Ensure that default branch is available, and not the same as release branch
+    if (defaultBranch === releaseBranch) {
+      exitWithError(
+        `Default branch and release branch cannot be the same: "${defaultBranch}"`,
+        "Specify different branches for default and release",
+      );
+    }
+
+    const availableBranches = await getAvailableBranches(normalized.workspaceRoot);
+    if (!availableBranches.includes(defaultBranch)) {
+      exitWithError(
+        `Default branch "${defaultBranch}" does not exist in the repository`,
+        `Available branches: ${availableBranches.join(", ")}`,
+      );
+    }
+
+    defaultBranch ||= await getDefaultBranch(normalized.workspaceRoot);
+    logger.debug(`Using default branch: ${farver.green(defaultBranch)}`);
+  }
+
+  return {
+    ...normalized,
+    branch: {
+      release: releaseBranch,
+      default: defaultBranch,
+    },
+    safeguards: options.safeguards ?? true,
+    globalCommitMode: options.globalCommitMode ?? "dependencies",
+    pullRequest: options.pullRequest,
+  };
 }

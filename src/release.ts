@@ -1,14 +1,16 @@
 import type {
+  FindWorkspacePackagesOptions,
   GlobalCommitMode,
   PackageRelease,
   SharedOptions,
 } from "#shared/types";
+import process from "node:process";
 import {
   getDefaultBranch,
   isWorkingDirectoryClean,
 } from "#core/git";
 import { discoverWorkspacePackages } from "#core/workspace";
-import { exitWithError, logger, normalizeSharedOptions } from "#shared/utils";
+import { exitWithError, logger, normalizeReleaseOptions, normalizeSharedOptions } from "#shared/utils";
 import {
   getAllWorkspaceCommits,
   getGlobalCommits,
@@ -84,15 +86,10 @@ export interface ReleaseResult {
 export async function release(
   options: ReleaseOptions,
 ): Promise<ReleaseResult | null> {
-  const normalizedOptions = normalizeSharedOptions(options);
-
-  normalizedOptions.branch ??= {};
-  normalizedOptions.branch.release ??= "release/next";
-  normalizedOptions.branch.default = await getDefaultBranch();
-  normalizedOptions.safeguards ??= true;
-  normalizedOptions.globalCommitMode ??= "dependencies";
-
-  const workspaceRoot = normalizedOptions.workspaceRoot;
+  const {
+    workspaceRoot,
+    ...normalizedOptions
+  } = await normalizeReleaseOptions(options);
 
   if (normalizedOptions.safeguards && !(await isWorkingDirectoryClean(workspaceRoot))) {
     exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");

@@ -3,7 +3,7 @@ import type {
   PackageRelease,
   PackageUpdateOrder,
 } from "#shared/types";
-import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
+import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "#versioning/version";
 
 export interface PackageDependencyGraph {
   packages: Map<string, WorkspacePackage>;

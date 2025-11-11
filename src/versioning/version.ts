@@ -4,7 +4,7 @@ import type { GitCommit } from "commit-parser";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { logger } from "#shared/utils";
-import { determineHighestBump } from "./commits";
+import { determineHighestBump } from "#versioning/commits";
 
 export function isValidSemver(version: string): boolean {
   // Basic semver validation: X.Y.Z with optional pre-release/build metadata
