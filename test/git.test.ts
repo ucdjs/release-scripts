@@ -1,4 +1,8 @@
-import { doesBranchExist, isWorkingDirectoryClean } from "#core/git";
+import {
+  doesBranchExist,
+  getDefaultBranch,
+  isWorkingDirectoryClean,
+} from "#core/git";
 import * as tinyexec from "tinyexec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -77,6 +81,62 @@ describe("git utilities", () => {
 
       const result = await doesBranchExist("nonexistent-branch", "/workspace");
       expect(result).toBe(false);
+    });
+  });
+
+  describe("getDefaultBranch", () => {
+    it("should return the default branch name", async () => {
+      mockExec.mockResolvedValue({
+        stdout: "refs/remotes/origin/main\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const result = await getDefaultBranch();
+
+      expect(mockExec).toHaveBeenCalledWith(
+        "git",
+        ["symbolic-ref", "refs/remotes/origin/HEAD"],
+        expect.objectContaining({
+          nodeOptions: expect.objectContaining({
+            stdio: "pipe",
+          }),
+        }),
+      );
+
+      expect(result).toBe("main");
+    });
+
+    it("should return different branch name", async () => {
+      mockExec.mockResolvedValue({
+        stdout: "refs/remotes/origin/develop\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const result = await getDefaultBranch();
+
+      expect(result).toBe("develop");
+    });
+
+    it("should return 'main' if default branch cannot be determined", async () => {
+      mockExec.mockRejectedValue(new Error("Some git error"));
+
+      const result = await getDefaultBranch();
+
+      expect(result).toBe("main");
+    });
+
+    it("should return 'main' if remote show output is unexpected", async () => {
+      mockExec.mockResolvedValue({
+        stdout: "Some unexpected output\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const result = await getDefaultBranch();
+
+      expect(result).toBe("main");
     });
   });
 });

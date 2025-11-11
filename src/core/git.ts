@@ -1,5 +1,10 @@
+import {
+  exitWithError,
+  logger,
+  run,
+  runIfNotDry,
+} from "#shared/utils";
 import farver from "farver";
-import { exitWithError, logger, run, runIfNotDry } from "../shared/utils";
 
 /**
  * Check if the working directory is clean (no uncommitted changes)
@@ -53,11 +58,61 @@ export async function doesBranchExist(
 }
 
 /**
- * Pull latest changes from remote branch
- * @param branch - The branch name to pull from
- * @param workspaceRoot - The root directory of the workspace
- * @returns Promise resolving to true if pull succeeded, false otherwise
+ * Retrieves the default branch name from the remote repository.
+ * Falls back to "main" if the default branch cannot be determined.
+ * @returns {Promise<string>} A Promise resolving to the default branch name as a string.
  */
+export async function getDefaultBranch(): Promise<string> {
+  try {
+    const result = await run("git", ["symbolic-ref", "refs/remotes/origin/HEAD"], {
+      nodeOptions: {
+        stdio: "pipe",
+      },
+    });
+
+    const ref = result.stdout.trim();
+    const match = ref.match(/^refs\/remotes\/origin\/(.+)$/);
+    if (match && match[1]) {
+      return match[1];
+    }
+
+    return "main"; // Fallback
+  } catch {
+    return "main"; // Fallback
+  }
+}
+
+export async function checkoutBranch(
+  branch: string,
+  workspaceRoot: string,
+): Promise<boolean> {
+  try {
+    logger.info(`Switching to branch: ${farver.green(branch)}`);
+    await run("git", ["checkout", branch], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getCurrentBranch(
+  workspaceRoot: string,
+): Promise<string> {
+  const result = await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    nodeOptions: {
+      cwd: workspaceRoot,
+      stdio: "pipe",
+    },
+  });
+
+  return result.stdout.trim();
+}
+
 export async function pullLatestChanges(
   branch: string,
   workspaceRoot: string,
@@ -75,12 +130,6 @@ export async function pullLatestChanges(
   }
 }
 
-/**
- * Create a new git branch
- * @param branch - The new branch name
- * @param base - The base branch to create from
- * @param workspaceRoot - The root directory of the workspace
- */
 export async function createBranch(
   branch: string,
   base: string,
@@ -102,99 +151,6 @@ export async function createBranch(
   }
 }
 
-/**
- * Checkout a git branch
- * @param branch - The branch name to checkout
- * @param workspaceRoot - The root directory of the workspace
- * @returns Promise resolving to true if checkout succeeded, false otherwise
- */
-export async function checkoutBranch(
-  branch: string,
-  workspaceRoot: string,
-): Promise<boolean> {
-  try {
-    logger.info(`Switching to branch: ${farver.green(branch)}`);
-    await run("git", ["checkout", branch], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Delete a local git branch
- * @param branch - The branch name to delete
- * @param workspaceRoot - The root directory of the workspace
- * @param force - Force delete even if not merged
- */
-export async function deleteLocalBranch(
-  branch: string,
-  workspaceRoot: string,
-  force = false,
-): Promise<void> {
-  try {
-    logger.info(`Deleting local branch: ${farver.red(branch)}`);
-    await run("git", ["branch", force ? "-D" : "-d", branch], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-  } catch {
-    // Branch might not exist locally, that's ok
-  }
-}
-
-/**
- * Delete a remote git branch
- * @param branch - The branch name to delete
- * @param workspaceRoot - The root directory of the workspace
- */
-export async function deleteRemoteBranch(
-  branch: string,
-  workspaceRoot: string,
-): Promise<void> {
-  try {
-    logger.info(`Deleting remote branch: ${farver.red(branch)}`);
-    await run("git", ["push", "origin", "--delete", branch], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-  } catch {
-    // Branch might not exist remotely, that's ok
-  }
-}
-
-/**
- * Get the current branch name
- * @param workspaceRoot - The root directory of the workspace
- * @returns Promise resolving to the current branch name
- */
-export async function getCurrentBranch(
-  workspaceRoot: string,
-): Promise<string> {
-  const result = await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-      stdio: "pipe",
-    },
-  });
-
-  return result.stdout.trim();
-}
-
-/**
- * Rebase current branch onto another branch
- * @param ontoBranch - The target branch to rebase onto
- * @param workspaceRoot - The root directory of the workspace
- */
 export async function rebaseBranch(
   ontoBranch: string,
   workspaceRoot: string,
@@ -215,12 +171,6 @@ export async function rebaseBranch(
   }
 }
 
-/**
- * Check if local branch is ahead of remote (has commits to push)
- * @param branch - The branch name to check
- * @param workspaceRoot - The root directory of the workspace
- * @returns Promise resolving to true if local is ahead, false otherwise
- */
 export async function isBranchAheadOfRemote(
   branch: string,
   workspaceRoot: string,
@@ -241,11 +191,6 @@ export async function isBranchAheadOfRemote(
   }
 }
 
-/**
- * Check if there are any changes to commit (staged or unstaged)
- * @param workspaceRoot - The root directory of the workspace
- * @returns Promise resolving to true if there are changes, false otherwise
- */
 export async function hasChangesToCommit(
   workspaceRoot: string,
 ): Promise<boolean> {
@@ -259,12 +204,6 @@ export async function hasChangesToCommit(
   return result.stdout.trim() !== "";
 }
 
-/**
- * Commit changes with a message
- * @param message - The commit message
- * @param workspaceRoot - The root directory of the workspace
- * @returns Promise resolving to true if commit was made, false if there were no changes
- */
 export async function commitChanges(
   message: string,
   workspaceRoot: string,
@@ -302,14 +241,6 @@ export async function commitChanges(
   }
 }
 
-/**
- * Push branch to remote
- * @param branch - The branch name to push
- * @param workspaceRoot - The root directory of the workspace
- * @param options - Push options
- * @param options.force - Force push (overwrite remote)
- * @param options.forceWithLease - Force push with safety check (won't overwrite unexpected changes)
- */
 export async function pushBranch(
   branch: string,
   workspaceRoot: string,
@@ -339,25 +270,5 @@ export async function pushBranch(
       `Failed to push branch: ${branch}`,
       `Make sure you have permission to push to the remote repository`,
     );
-  }
-}
-
-export async function getDefaultBranch(): Promise<string> {
-  try {
-    const result = await run("git", ["symbolic-ref", "refs/remotes/origin/HEAD"], {
-      nodeOptions: {
-        stdio: "pipe",
-      },
-    });
-
-    const ref = result.stdout.trim();
-    const match = ref.match(/^refs\/remotes\/origin\/(.+)$/);
-    if (match && match[1]) {
-      return match[1];
-    }
-
-    return "main"; // Fallback
-  } catch {
-    return "main"; // Fallback
   }
 }
