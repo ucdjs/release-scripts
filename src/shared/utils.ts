@@ -141,7 +141,7 @@ export async function normalizeReleaseOptions(options: ReleaseOptions) {
   let defaultBranch = options.branch?.default?.trim();
   const releaseBranch = options.branch?.release?.trim() ?? "release/next";
 
-  if (defaultBranch != null && typeof defaultBranch === "string" && defaultBranch !== "") {
+  if (defaultBranch == null || (typeof defaultBranch === "string" && defaultBranch !== "")) {
     if (defaultBranch === "") {
       exitWithError(
         "Default branch is required",
@@ -157,6 +157,8 @@ export async function normalizeReleaseOptions(options: ReleaseOptions) {
       );
     }
 
+    defaultBranch ||= await getDefaultBranch(normalized.workspaceRoot);
+
     const availableBranches = await getAvailableBranches(normalized.workspaceRoot);
     if (!availableBranches.includes(defaultBranch)) {
       exitWithError(
@@ -165,7 +167,6 @@ export async function normalizeReleaseOptions(options: ReleaseOptions) {
       );
     }
 
-    defaultBranch ||= await getDefaultBranch(normalized.workspaceRoot);
     logger.debug(`Using default branch: ${farver.green(defaultBranch)}`);
   }
 

@@ -173,9 +173,10 @@ export async function checkoutBranch(
       },
     });
 
-    const output = result.stdout.trim();
+    const output = result.stderr.trim();
     const match = output.match(/Switched to branch '(.+)'/);
     if (match && match[1] === branch) {
+      logger.info(`Successfully switched to branch: ${farver.green(branch)}`);
       return true;
     }
 
