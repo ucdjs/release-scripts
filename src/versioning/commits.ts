@@ -211,8 +211,8 @@ function fileMatchesPackageFolder(
 
     // Check if file is inside this package folder
     if (
-      normalizedFile.startsWith(`${normalizedPkgPath}/`) ||
-      normalizedFile === normalizedPkgPath
+      normalizedFile.startsWith(`${normalizedPkgPath}/`)
+      || normalizedFile === normalizedPkgPath
     ) {
       return true;
     }

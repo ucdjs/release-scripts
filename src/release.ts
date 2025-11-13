@@ -1,17 +1,14 @@
 import type {
-  FindWorkspacePackagesOptions,
   GlobalCommitMode,
   PackageRelease,
   SharedOptions,
 } from "#shared/types";
-import process from "node:process";
 import {
   checkoutBranch,
   commitChanges,
   createBranch,
   doesBranchExist,
   getCurrentBranch,
-  getDefaultBranch,
   isBranchAheadOfRemote,
   isWorkingDirectoryClean,
   pullLatestChanges,
@@ -20,7 +17,7 @@ import {
 } from "#core/git";
 import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } from "#core/github";
 import { discoverWorkspacePackages } from "#core/workspace";
-import { exitWithError, logger, normalizeReleaseOptions, normalizeSharedOptions } from "#shared/utils";
+import { exitWithError, logger, normalizeReleaseOptions } from "#shared/utils";
 import {
   getGlobalCommitsPerPackage,
   getWorkspacePackageCommits,
