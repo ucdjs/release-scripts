@@ -83,6 +83,11 @@ export async function getDefaultBranch(workspaceRoot: string): Promise<string> {
   }
 }
 
+/**
+ * Retrieves the name of the current branch in the repository.
+ * @param {string} workspaceRoot - The root directory of the workspace
+ * @returns {Promise<string>} A Promise resolving to the current branch name as a string
+ */
 export async function getCurrentBranch(
   workspaceRoot: string,
 ): Promise<string> {
@@ -127,6 +132,34 @@ export async function getAvailableBranches(
   }
 }
 
+/**
+ * Creates a new branch from the specified base branch.
+ * @param {string} branch - The name of the new branch to create
+ * @param {string} base - The base branch to create the new branch from
+ * @param {string} workspaceRoot - The root directory of the workspace
+ * @returns {Promise<void>} A Promise that resolves when the branch is created
+ */
+export async function createBranch(
+  branch: string,
+  base: string,
+  workspaceRoot: string,
+): Promise<void> {
+  try {
+    logger.info(`Creating branch: ${farver.green(branch)} from ${farver.cyan(base)}`);
+    await runIfNotDry("git", ["checkout", "-b", branch, base], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+  } catch {
+    exitWithError(
+      `Failed to create branch: ${branch}`,
+      `Make sure the branch doesn't already exist and you have a clean working directory`,
+    );
+  }
+}
+
 export async function checkoutBranch(
   branch: string,
   workspaceRoot: string,
@@ -166,27 +199,6 @@ export async function pullLatestChanges(
     return true;
   } catch {
     return false;
-  }
-}
-
-export async function createBranch(
-  branch: string,
-  base: string,
-  workspaceRoot: string,
-): Promise<void> {
-  try {
-    logger.info(`Creating branch: ${farver.green(branch)} from ${farver.cyan(base)}`);
-    await runIfNotDry("git", ["checkout", "-b", branch, base], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-  } catch {
-    exitWithError(
-      `Failed to create branch: ${branch}`,
-      `Make sure the branch doesn't already exist and you have a clean working directory`,
-    );
   }
 }
 

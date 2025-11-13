@@ -6,9 +6,13 @@ import type {
 } from "#shared/types";
 import process from "node:process";
 import {
+  createBranch,
+  doesBranchExist,
+  getCurrentBranch,
   getDefaultBranch,
   isWorkingDirectoryClean,
 } from "#core/git";
+import { getExistingPullRequest } from "#core/github";
 import { discoverWorkspacePackages } from "#core/workspace";
 import { exitWithError, logger, normalizeReleaseOptions, normalizeSharedOptions } from "#shared/utils";
 import {
@@ -196,6 +200,40 @@ export async function release(
   logger.log(`Total packages to update (including dependents): ${allUpdates.length}`);
   for (const update of allUpdates) {
     logger.log(`- ${update.package.name}: ${farver.dim(update.currentVersion)} -> ${farver.bold(update.newVersion)}`);
+  }
+
+  const currentBranch = await getCurrentBranch(workspaceRoot);
+
+  if (currentBranch !== normalizedOptions.branch.default) {
+    exitWithError(
+      `Current branch is '${currentBranch}'. Please switch to the default branch '${normalizedOptions.branch.default}' before proceeding.`,
+      `git checkout ${normalizedOptions.branch.default}`,
+    );
+  }
+
+  const existingPullRequest = await getExistingPullRequest({
+    owner: normalizedOptions.owner,
+    repo: normalizedOptions.repo,
+    branch: normalizedOptions.branch.release,
+    githubToken: normalizedOptions.githubToken,
+  });
+
+  // If a pull request already exists, then we are sure that the "release branch" exists.
+  const doesReleasePRExist = !!existingPullRequest;
+
+  if (doesReleasePRExist) {
+    logger.log("An existing release pull request was found.");
+  } else {
+    logger.log("No existing pull request found, will create new one");
+    const branchExists = await doesBranchExist(normalizedOptions.branch.release, workspaceRoot);
+
+    if (!branchExists) {
+      await createBranch(
+        normalizedOptions.branch.release,
+        normalizedOptions.branch.default,
+        workspaceRoot,
+      );
+    }
   }
 
   return {

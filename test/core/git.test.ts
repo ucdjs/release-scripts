@@ -1,4 +1,5 @@
 import {
+  createBranch,
   doesBranchExist,
   getAvailableBranches,
   getCurrentBranch,
@@ -221,6 +222,37 @@ describe("git utilities", () => {
         await expect(getAvailableBranches("/workspace")).rejects.toThrow(
           "Some git error",
         );
+      });
+    });
+
+    describe("createBranch", () => {
+      it("should create a new branch from the specified base branch", async () => {
+        mockExec.mockResolvedValue({
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+        });
+
+        await createBranch("new-feature", "main", "/workspace");
+
+        expect(mockExec).toHaveBeenCalledWith(
+          "git",
+          ["checkout", "-b", "new-feature", "main"],
+          expect.objectContaining({
+            nodeOptions: expect.objectContaining({
+              cwd: "/workspace",
+              stdio: "pipe",
+            }),
+          }),
+        );
+      });
+
+      it("should handle errors and throw", async () => {
+        mockExec.mockRejectedValue(new Error("Some git error"));
+
+        await expect(
+          createBranch("new-feature", "main", "/workspace"),
+        ).rejects.toThrow("Some git error");
       });
     });
   });
