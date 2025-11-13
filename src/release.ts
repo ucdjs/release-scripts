@@ -22,9 +22,7 @@ import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } fr
 import { discoverWorkspacePackages } from "#core/workspace";
 import { exitWithError, logger, normalizeReleaseOptions, normalizeSharedOptions } from "#shared/utils";
 import {
-  getAllWorkspaceCommits,
-  getGlobalCommits,
-  getLastTag,
+  getGlobalCommitsPerPackage,
   getWorkspacePackageCommits,
 } from "#versioning/commits";
 import {
@@ -122,61 +120,15 @@ export async function release(
     return null;
   }
 
-  // THE GLOBAL COMMITS PROBLEM
-  // ==========================
-
-  // Simple Example:
-  // ---------------
-
-  // Commits:
-  //   A: pkg-a changes
-  //   B: root package.json change (GLOBAL)
-  //   C: pkg-c changes
-
-  // Tags:
-  //   @pkg-a/1.0.0 → commit C (latest tag)
-  //   @pkg-b never released
-
-  // Current (BROKEN) approach:
-  // ---------------------------
-  // 1. Use latest tag: @pkg-a/1.0.0 (commit C)
-  // 2. Get commits since C for ALL packages
-  // 3. When releasing pkg-b:
-  //    - Starts from commit C
-  //    - MISSES commit B (global change)
-  //    - pkg-b released without the global dependency update
-
-  // Correct approach:
-  // -----------------
-  // Each package uses ITS OWN last tag:
-
-  //   pkg-a (last tag @ C): Gets commits since C
-  //   pkg-b (no tag):       Gets commits since beginning → INCLUDES B
-
-  // Result: Each package sees exactly the global commits it needs.
-
-  // Performance issue:
-  // ------------------
-  // Naive: Call git 2000+ times (one per commit per package)
-  // Need: Batch git operations, cache file lists
-
-  const lastTagPushed = await getLastTag(workspaceRoot);
-  logger.log(`Last pushed tag: ${lastTagPushed || farver.dim("none")}`);
-
-  if (!lastTagPushed) {
-    logger.warn("No tags found in the repository. All commits will be considered for release.");
-  }
-
-  const allCommits = await getAllWorkspaceCommits(workspaceRoot, lastTagPushed);
-
-  // Get commits affecting each package
+  // Get commits affecting each package (each package uses its own last tag)
   const packageCommits = await getWorkspacePackageCommits(workspaceRoot, workspacePackages);
 
-  // Get global commits, that may affect multiple packages
-  const globalCommitsAffectingPackages = await getGlobalCommits(
+  // Get global commits per-package based on each package's own timeline
+  // This correctly handles packages with different release histories
+  const globalCommitsPerPackage = await getGlobalCommitsPerPackage(
     workspaceRoot,
-    allCommits,
     packageCommits,
+    workspacePackages,
     normalizedOptions.globalCommitMode,
   );
 
@@ -185,8 +137,7 @@ export async function release(
     packageCommits,
     workspaceRoot,
     showPrompt: options.prompts?.versions !== false,
-    allCommits,
-    globalCommits: globalCommitsAffectingPackages,
+    globalCommitsPerPackage,
   });
 
   if (versionUpdates.length === 0) {

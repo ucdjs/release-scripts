@@ -3,7 +3,8 @@ import type { BumpKind, PackageJson, PackageRelease } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { logger } from "#shared/utils";
+import { selectVersionPrompt } from "#core/prompts";
+import { isCI, logger } from "#shared/utils";
 import { determineHighestBump } from "#versioning/commits";
 
 export function isValidSemver(version: string): boolean {
@@ -136,26 +137,21 @@ interface InferVersionUpdatesOptions {
   workspacePackages: WorkspacePackage[];
   packageCommits: Map<string, GitCommit[]>;
   workspaceRoot: string;
-  allCommits: GitCommit[];
   showPrompt?: boolean;
-  globalCommits: GitCommit[];
+  globalCommitsPerPackage: Map<string, GitCommit[]>;
 }
 
 export async function inferVersionUpdates({
   workspacePackages,
   packageCommits,
-  allCommits: _allCommits,
-  workspaceRoot: _workspaceRoot,
-  showPrompt: _showPrompt,
-  globalCommits,
+  workspaceRoot,
+  showPrompt,
+  globalCommitsPerPackage,
 }: InferVersionUpdatesOptions): Promise<PackageRelease[]> {
   const versionUpdates: PackageRelease[] = [];
   const processedPackages = new Set<string>();
 
   logger.debug(`Starting version inference for ${packageCommits.size} packages with commits`);
-  if (globalCommits.length > 0) {
-    logger.debug(`Found ${globalCommits.length} global commits that will affect all packages`);
-  }
 
   // First pass: process packages with commits
   for (const [pkgName, pkgCommits] of packageCommits) {
@@ -172,14 +168,19 @@ export async function inferVersionUpdates({
     logger.log(`Processing package: ${pkg.name}`);
     logger.log(`  - Package-specific commits: ${pkgCommits.length}`);
 
-    // Modify pkgCommits to include global commits
-    pkgCommits.push(...globalCommits);
+    // Get this package's global commits
+    const globalCommits = globalCommitsPerPackage.get(pkgName) || [];
 
     if (globalCommits.length > 0) {
-      logger.log(`  - Total commits (including global): ${pkgCommits.length}`);
+      logger.log(`  - Global commits for this package: ${globalCommits.length}`);
     }
 
-    const bump = determineHighestBump(pkgCommits);
+    // Combine package-specific commits with its global commits
+    const allCommitsForPackage = [...pkgCommits, ...globalCommits];
+
+    logger.log(`  - Total commits: ${allCommitsForPackage.length}`);
+
+    const bump = determineHighestBump(allCommitsForPackage);
     logger.log(`  - Determined bump type: ${bump}`);
 
     if (bump === "none") {
@@ -187,24 +188,24 @@ export async function inferVersionUpdates({
       continue;
     }
 
-    const newVersion = getNextVersion(pkg.version, bump);
+    let newVersion = getNextVersion(pkg.version, bump);
 
-    // if (!isCI && showPrompt) {
-    //   console.log(`\nPackage ${pkg.name} has changes requiring a ${bump} bump.`);
-    //   const selectedVersion = await selectVersionPrompt(
-    //     workspaceRoot,
-    //     pkg,
-    //     pkg.version,
-    //     newVersion,
-    //   );
+    if (!isCI && showPrompt) {
+      logger.debug(`\nPackage ${pkg.name} has changes requiring a ${bump} bump.`);
+      const selectedVersion = await selectVersionPrompt(
+        workspaceRoot,
+        pkg,
+        pkg.version,
+        newVersion,
+      );
 
-    //   // User cancelled or skipped
-    //   if (selectedVersion === null) {
-    //     continue;
-    //   }
+      // User cancelled or skipped
+      if (selectedVersion === null) {
+        continue;
+      }
 
-    //   newVersion = selectedVersion;
-    // }
+      newVersion = selectedVersion;
+    }
 
     logger.log(`  - Version update: ${pkg.version} → ${newVersion}`);
 
@@ -220,38 +221,38 @@ export async function inferVersionUpdates({
   logger.debug(`Completed version inference. Total updates: ${versionUpdates.length}`);
 
   // Second pass: if prompts enabled and not in CI, allow manual bumps for packages without commits
-  // if (!isCI && showPrompt) {
-  //   for (const pkg of workspacePackages) {
-  //     // Skip packages we already processed
-  //     if (processedPackages.has(pkg.name)) continue;
+  if (!isCI && showPrompt) {
+    for (const pkg of workspacePackages) {
+      // Skip packages we already processed
+      if (processedPackages.has(pkg.name)) continue;
 
-  //     // Prompt for manual version bump (suggested version is current = no change suggested)
-  //     const newVersion = await selectVersionPrompt(
-  //       workspaceRoot,
-  //       pkg,
-  //       pkg.version,
-  //       pkg.version,
-  //     );
+      // Prompt for manual version bump (suggested version is current = no change suggested)
+      const newVersion = await selectVersionPrompt(
+        workspaceRoot,
+        pkg,
+        pkg.version,
+        pkg.version,
+      );
 
-  //     // User cancelled - stop prompting remaining packages
-  //     if (newVersion === null) {
-  //       break;
-  //     }
+      // User cancelled - stop prompting remaining packages
+      if (newVersion === null) {
+        break;
+      }
 
-  //     // Only add if user changed the version
-  //     if (newVersion !== pkg.version) {
-  //       const bumpType = calculateBumpType(pkg.version, newVersion);
+      // Only add if user changed the version
+      if (newVersion !== pkg.version) {
+        const bumpType = _calculateBumpType(pkg.version, newVersion);
 
-  //       versionUpdates.push({
-  //         package: pkg,
-  //         currentVersion: pkg.version,
-  //         newVersion,
-  //         bumpType,
-  //         hasDirectChanges: false,
-  //       });
-  //     }
-  //   }
-  // }
+        versionUpdates.push({
+          package: pkg,
+          currentVersion: pkg.version,
+          newVersion,
+          bumpType,
+          hasDirectChanges: false,
+        });
+      }
+    }
+  }
 
   return versionUpdates;
 }
