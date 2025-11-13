@@ -141,9 +141,10 @@ export async function release(
     logger.warn("No packages have changes requiring a release");
   }
 
+  // Build dependency graph for determining dependent updates
   const graph = buildPackageDependencyGraph(workspacePackages);
-  console.error("Dependency graph built");
-  console.error(graph);
+  logger.debug("Dependency graph built");
+  logger.debug(graph);
 
   // Get all packages needing updates (includes transitive dependents)
   const allUpdates = createDependentUpdates(
