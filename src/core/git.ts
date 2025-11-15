@@ -245,19 +245,6 @@ export async function isBranchAheadOfRemote(
   }
 }
 
-async function hasChangesToCommit(
-  workspaceRoot: string,
-): Promise<boolean> {
-  const result = await run("git", ["status", "--porcelain"], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-      stdio: "pipe",
-    },
-  });
-
-  return result.stdout.trim() !== "";
-}
-
 export async function commitChanges(
   message: string,
   workspaceRoot: string,
@@ -272,7 +259,7 @@ export async function commitChanges(
     });
 
     // Check if there are changes to commit
-    const hasChanges = await hasChangesToCommit(workspaceRoot);
+    const hasChanges = await isWorkingDirectoryClean(workspaceRoot);
     if (!hasChanges) {
       return false;
     }
