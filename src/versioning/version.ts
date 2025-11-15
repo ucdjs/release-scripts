@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { selectVersionPrompt } from "#core/prompts";
 import { isCI, logger } from "#shared/utils";
 import { determineHighestBump } from "#versioning/commits";
+import { buildPackageDependencyGraph, createDependentUpdates } from "#versioning/package";
 
 export function isValidSemver(version: string): boolean {
   // Basic semver validation: X.Y.Z with optional pre-release/build metadata
@@ -133,7 +134,7 @@ function _calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
   return "none";
 }
 
-interface InferVersionUpdatesOptions {
+interface CalculateVersionUpdatesOptions {
   workspacePackages: WorkspacePackage[];
   packageCommits: Map<string, GitCommit[]>;
   workspaceRoot: string;
@@ -141,13 +142,16 @@ interface InferVersionUpdatesOptions {
   globalCommitsPerPackage: Map<string, GitCommit[]>;
 }
 
-export async function inferVersionUpdates({
+/**
+ * Calculate version updates for packages based on their commits
+ */
+async function calculateVersionUpdates({
   workspacePackages,
   packageCommits,
   workspaceRoot,
   showPrompt,
   globalCommitsPerPackage,
-}: InferVersionUpdatesOptions): Promise<PackageRelease[]> {
+}: CalculateVersionUpdatesOptions): Promise<PackageRelease[]> {
   const versionUpdates: PackageRelease[] = [];
   const processedPackages = new Set<string>();
 
@@ -255,6 +259,53 @@ export async function inferVersionUpdates({
   }
 
   return versionUpdates;
+}
+
+/**
+ * Calculate version updates and prepare dependent updates
+ * Returns both the updates and a function to apply them
+ */
+export async function calculateAndPrepareVersionUpdates({
+  workspacePackages,
+  packageCommits,
+  workspaceRoot,
+  showPrompt,
+  globalCommitsPerPackage,
+}: CalculateVersionUpdatesOptions): Promise<{
+  allUpdates: PackageRelease[];
+  applyUpdates: () => Promise<void>;
+}> {
+  // Calculate direct version updates
+  const directUpdates = await calculateVersionUpdates({
+    workspacePackages,
+    packageCommits,
+    workspaceRoot,
+    showPrompt,
+    globalCommitsPerPackage,
+  });
+
+  // Build dependency graph and calculate dependent updates
+  const graph = buildPackageDependencyGraph(workspacePackages);
+  const allUpdates = createDependentUpdates(graph, workspacePackages, directUpdates);
+
+  // Create apply function that updates all package.json files
+  const applyUpdates = async () => {
+    await Promise.all(
+      allUpdates.map(async (update: PackageRelease) => {
+        const depUpdates = getDependencyUpdates(update.package, allUpdates);
+        await updatePackageJson(
+          update.package,
+          update.newVersion,
+          depUpdates,
+        );
+      }),
+    );
+  };
+
+  return {
+    allUpdates,
+    applyUpdates,
+  };
 }
 
 export async function updatePackageJson(

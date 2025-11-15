@@ -22,12 +22,7 @@ import {
   getGlobalCommitsPerPackage,
   getWorkspacePackageCommits,
 } from "#versioning/commits";
-import {
-  buildPackageDependencyGraph,
-  createDependentUpdates,
-  updateAllPackageJsonFiles,
-} from "#versioning/package";
-import { inferVersionUpdates } from "#versioning/version";
+import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 import farver from "farver";
 
 export interface ReleaseOptions extends SharedOptions {
@@ -129,7 +124,8 @@ export async function release(
     normalizedOptions.globalCommitMode,
   );
 
-  const versionUpdates = await inferVersionUpdates({
+  // Calculate version updates and prepare apply function
+  const { allUpdates, applyUpdates } = await calculateAndPrepareVersionUpdates({
     workspacePackages,
     packageCommits,
     workspaceRoot,
@@ -137,21 +133,9 @@ export async function release(
     globalCommitsPerPackage,
   });
 
-  if (versionUpdates.length === 0) {
+  if (allUpdates.filter((u) => u.hasDirectChanges).length === 0) {
     logger.warn("No packages have changes requiring a release");
   }
-
-  // Build dependency graph for determining dependent updates
-  const graph = buildPackageDependencyGraph(workspacePackages);
-  logger.debug("Dependency graph built");
-  logger.debug(graph);
-
-  // Get all packages needing updates (includes transitive dependents)
-  const allUpdates = createDependentUpdates(
-    graph,
-    workspacePackages,
-    versionUpdates,
-  );
 
   logger.log(`Total packages to update (including dependents): ${allUpdates.length}`);
   for (const update of allUpdates) {
@@ -219,9 +203,8 @@ export async function release(
   logger.log("Rebasing release branch onto", normalizedOptions.branch.default);
   await rebaseBranch(normalizedOptions.branch.default, workspaceRoot);
 
-  // TODO: Make this more robust by checking if any files were actually changed.
-  // For example, if there is no actual version change, there is no reason to update the files.
-  await updateAllPackageJsonFiles(allUpdates);
+  // Apply version updates to package.json files
+  await applyUpdates();
 
   // If there are any changes, we will commit them.
   const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
