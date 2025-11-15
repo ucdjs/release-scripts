@@ -5,9 +5,9 @@ import { logger, run } from "#shared/utils";
 import { getCommits } from "commit-parser";
 import farver from "farver";
 
-export async function getLastPackageTag(
-  packageName: string,
+export async function getMostRecentPackageTag(
   workspaceRoot: string,
+  packageName: string,
 ): Promise<string | undefined> {
   try {
     // Tags for each package follow the format: packageName@version
@@ -19,6 +19,9 @@ export async function getLastPackageTag(
     });
 
     const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
+    if (tags.length === 0) {
+      return undefined;
+    }
 
     // Find the last tag for the specified package
     return tags.reverse()[0];
@@ -57,58 +60,41 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
 }
 
 /**
- * Retrieves commits that affect a specific workspace package since its last tag.
+ * Get commits grouped by workspace package.
+ * For each package, retrieves all commits since its last release tag that affect that package.
  *
- * @param {string} workspaceRoot - The root directory of the workspace.
- * @param {WorkspacePackage} pkg - The workspace package to analyze.
- * @returns {Promise<GitCommit[]>} A promise that resolves to an array of GitCommit objects affecting the package.
+ * @param {string} workspaceRoot - The root directory of the workspace
+ * @param {WorkspacePackage[]} packages - Array of workspace packages to analyze
+ * @returns {Promise<Map<string, GitCommit[]>>} A map of package names to their commits since their last release
  */
-async function getCommitsForWorkspacePackage(
-  workspaceRoot: string,
-  pkg: WorkspacePackage,
-): Promise<GitCommit[]> {
-  const lastTag = await getLastPackageTag(pkg.name, workspaceRoot);
-
-  // Get all commits since last tag
-  const allCommits = getCommits({
-    from: lastTag,
-    to: "HEAD",
-    cwd: workspaceRoot,
-  });
-
-  logger.verbose("Found commits for package", `${farver.cyan(allCommits.length)} for ${farver.bold(pkg.name)} since ${lastTag || "beginning"}`);
-
-  const commitsAffectingPackage = getCommits({
-    from: lastTag,
-    to: "HEAD",
-    cwd: workspaceRoot,
-    folder: pkg.path,
-  });
-
-  const affectingCommitShas = new Set();
-  for (const commit of commitsAffectingPackage) {
-    affectingCommitShas.add(commit.shortHash);
-  }
-
-  const packageCommits = allCommits.filter((commit) => {
-    return affectingCommitShas.has(commit.shortHash);
-  });
-
-  logger.verbose("Commits affect package", `${farver.cyan(packageCommits.length)} affect ${farver.bold(pkg.name)}`);
-
-  return packageCommits;
-}
-
-export async function getWorkspacePackageCommits(
+export async function getWorkspacePackageGroupedCommits(
   workspaceRoot: string,
   packages: WorkspacePackage[],
 ): Promise<Map<string, GitCommit[]>> {
   const changedPackages = new Map<string, GitCommit[]>();
 
   const promises = packages.map(async (pkg) => {
+    // Get the latest tag that corresponds to the workspace package
+    // This will ensure that we only get commits, since the last release of this package.
+    const lastTag = await getMostRecentPackageTag(workspaceRoot, pkg.name);
+
+    // Get all commits since the last tag, that affect this package
+    const allCommits = await getCommits({
+      from: lastTag,
+      to: "HEAD",
+      cwd: workspaceRoot,
+      folder: pkg.path,
+    });
+
+    logger.verbose(
+      `Found ${farver.cyan(allCommits.length)} commits for package ${farver.bold(
+        pkg.name,
+      )} since tag ${farver.cyan(lastTag ?? "N/A")}`,
+    );
+
     return {
       pkgName: pkg.name,
-      commits: await getCommitsForWorkspacePackage(workspaceRoot, pkg),
+      commits: allCommits,
     };
   });
 
@@ -122,7 +108,7 @@ export async function getWorkspacePackageCommits(
 }
 
 async function getCommitFileList(workspaceRoot: string, from: string, to: string) {
-  const map = new Map<string, string[]>();
+  const commits = new Map<string, string[]>();
 
   try {
     const { stdout } = await run("git", ["log", "--name-only", "--format=%H", `${from}^..${to}`], {
@@ -132,30 +118,30 @@ async function getCommitFileList(workspaceRoot: string, from: string, to: string
       },
     });
 
-    const lines = stdout.trim().split("\n");
+    const lines = stdout.trim().split("\n").filter((line) => line.trim() !== "");
 
     let currentSha: string | null = null;
+    const HASH_REGEX = /^[0-9a-f]{40}$/i;
 
     for (const line of lines) {
       const trimmedLine = line.trim();
-      if (trimmedLine === "") {
-        currentSha = null;
-        continue;
-      }
 
-      // First non-empty line is a SHA
-      if (currentSha === null) {
+      if (HASH_REGEX.test(trimmedLine)) {
+        // Found a new commit hash
         currentSha = trimmedLine;
-        map.set(currentSha, []);
+        // Initialize the array of files for this new commit
+        commits.set(currentSha, []);
+      } else if (currentSha !== null) {
+        // Found a file path, and we have a current hash to assign it to
+        // Note: In case of merge commits, an empty line might appear which is already filtered.
+        // If the line is NOT a hash, it must be a file path.
 
-        continue;
+        // The file path is added to the array associated with the most recent hash.
+        commits.get(currentSha)?.push(trimmedLine);
       }
-
-      // Subsequent lines are files
-      map.get(currentSha)!.push(trimmedLine);
     }
 
-    return map;
+    return commits;
   } catch {
     return null;
   }
@@ -196,15 +182,15 @@ function fileMatchesPackageFolder(
 
 /**
  * Check if a commit is a "global" commit (doesn't touch any package folder).
+ * @param workspaceRoot - The workspace root
  * @param files - Array of files changed in the commit
  * @param packagePaths - Set of normalized package paths
- * @param workspaceRoot - The workspace root
  * @returns true if this is a global commit
  */
 function isGlobalCommit(
+  workspaceRoot: string,
   files: string[] | undefined,
   packagePaths: Set<string>,
-  workspaceRoot: string,
 ): boolean {
   if (!files || files.length === 0) {
     // If we can't determine files, consider it non-global to be safe
@@ -245,7 +231,8 @@ export async function getGlobalCommitsPerPackage(
 
   logger.verbose(`Computing global commits per-package (mode: ${farver.cyan(mode)})`);
 
-  // Step 1: Find the oldest and newest commits across all packages
+  // Find the oldest and newest commit across all packages
+  // This will ensure that we cover the full range in one git call
   let oldestCommit: string | null = null;
   let newestCommit: string | null = null;
 
@@ -255,6 +242,7 @@ export async function getGlobalCommitsPerPackage(
       if (!newestCommit) {
         newestCommit = commits[0]!.shortHash;
       }
+
       // Keep updating to find the oldest
       oldestCommit = commits[commits.length - 1]!.shortHash;
     }
@@ -267,29 +255,30 @@ export async function getGlobalCommitsPerPackage(
 
   logger.verbose("Fetching files for commits range", `${farver.cyan(oldestCommit)}..${farver.cyan(newestCommit)}`);
 
-  // Step 2: ONE batched git call to get files for all commits
-  const commitFilesMap = await getCommitFileList(workspaceRoot, oldestCommit, newestCommit);
-
-  if (!commitFilesMap) {
+  // Find the list of files per commit in the full range
+  const filesCommitMap = await getCommitFileList(workspaceRoot, oldestCommit, newestCommit);
+  if (!filesCommitMap) {
     logger.warn("Failed to get commit file list, returning empty global commits");
     return result;
   }
 
-  logger.verbose("Got file lists for commits", `${farver.cyan(commitFilesMap.size)} commits in ONE git call`);
+  logger.verbose("Got file lists for commits", `${farver.cyan(filesCommitMap.size)} commits in ONE git call`);
 
-  // Step 3: Build package paths set for efficient lookup
+  // Create a set of package paths for quick lookup
   const packagePaths = new Set(allPackages.map((p) => p.path));
 
-  // Step 4: For each package, filter their commits to find global ones
+  // Filter out commits that touch any package folder
+  // This ensures we only get commits that are truly global
   for (const [pkgName, commits] of packageCommits) {
     const globalCommitsForPackage: GitCommit[] = [];
 
     logger.verbose("Filtering global commits for package", `${farver.bold(pkgName)} from ${farver.cyan(commits.length)} commits`);
 
     for (const commit of commits) {
-      const files = commitFilesMap.get(commit.shortHash);
+      const files = filesCommitMap.get(commit.hash);
+      if (!files) continue;
 
-      if (isGlobalCommit(files, packagePaths, workspaceRoot)) {
+      if (isGlobalCommit(workspaceRoot, files, packagePaths)) {
         globalCommitsForPackage.push(commit);
       }
     }
@@ -311,7 +300,7 @@ export async function getGlobalCommitsPerPackage(
       ];
 
       for (const commit of globalCommitsForPackage) {
-        const files = commitFilesMap.get(commit.shortHash);
+        const files = filesCommitMap.get(commit.shortHash);
 
         if (!files) continue;
 
