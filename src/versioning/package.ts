@@ -6,7 +6,7 @@ import type {
 import { logger } from "#shared/utils";
 import { createVersionUpdate } from "#versioning/version";
 
-export interface PackageDependencyGraph {
+interface PackageDependencyGraph {
   packages: Map<string, WorkspacePackage>;
   dependents: Map<string, Set<string>>;
 }

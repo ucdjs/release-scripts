@@ -28,11 +28,6 @@ export async function selectPackagePrompt(
   return response.selectedPackages;
 }
 
-export interface VersionOverride {
-  packageName: string;
-  newVersion: string;
-}
-
 export async function selectVersionPrompt(
   workspaceRoot: string,
   pkg: WorkspacePackage,

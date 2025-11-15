@@ -30,26 +30,6 @@ export async function getLastPackageTag(
   }
 }
 
-export async function getLastTag(
-  workspaceRoot: string,
-): Promise<string | undefined> {
-  try {
-    const { stdout } = await run("git", ["describe", "--tags", "--abbrev=0"], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-
-    return stdout.trim();
-  } catch (err) {
-    logger.warn(
-      `Failed to get last tag: ${(err as Error).message}`,
-    );
-    return undefined;
-  }
-}
-
 export function determineHighestBump(commits: GitCommit[]): BumpKind {
   if (commits.length === 0) {
     return "none";
@@ -83,7 +63,7 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
  * @param {WorkspacePackage} pkg - The workspace package to analyze.
  * @returns {Promise<GitCommit[]>} A promise that resolves to an array of GitCommit objects affecting the package.
  */
-export async function getCommitsForWorkspacePackage(
+async function getCommitsForWorkspacePackage(
   workspaceRoot: string,
   pkg: WorkspacePackage,
 ): Promise<GitCommit[]> {
@@ -139,17 +119,6 @@ export async function getWorkspacePackageCommits(
   }
 
   return changedPackages;
-}
-
-export async function getAllWorkspaceCommits(
-  workspaceRoot: string,
-  lastTag?: string,
-): Promise<GitCommit[]> {
-  return getCommits({
-    from: lastTag,
-    to: "HEAD",
-    cwd: workspaceRoot,
-  });
 }
 
 async function getCommitFileList(workspaceRoot: string, from: string, to: string) {
@@ -365,7 +334,7 @@ export async function getGlobalCommitsPerPackage(
   return result;
 }
 
-export function determineBumpType(commit: GitCommit): BumpKind {
+function determineBumpType(commit: GitCommit): BumpKind {
   // Breaking change always results in major bump
   if (commit.isBreaking) {
     return "major";

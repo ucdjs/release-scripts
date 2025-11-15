@@ -331,7 +331,7 @@ export async function calculateAndPrepareVersionUpdates({
   };
 }
 
-export async function updatePackageJson(
+async function updatePackageJson(
   pkg: WorkspacePackage,
   newVersion: string,
   dependencyUpdates: Map<string, string>,
@@ -399,7 +399,7 @@ export async function updatePackageJson(
 /**
  * Get all dependency updates needed for a package
  */
-export function getDependencyUpdates(
+function getDependencyUpdates(
   pkg: WorkspacePackage,
   allUpdates: PackageRelease[],
 ): Map<string, string> {

@@ -10,9 +10,9 @@ import { exec } from "tinyexec";
 
 export const args = mri(process.argv.slice(2));
 
-export const isDryRun = !!args.dry;
-export const isVerbose = !!args.verbose;
-export const isForce = !!args.force;
+const isDryRun = !!args.dry;
+const isVerbose = !!args.verbose;
+const isForce = !!args.force;
 
 export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
 
