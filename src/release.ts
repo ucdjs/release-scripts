@@ -357,7 +357,6 @@ async function orchestrateReleasePullRequest({
       // After we have pulled the latest changes, we will rebase our changes onto the default branch
       // to ensure we have the latest updates.
       logger.step(`Rebasing onto ${defaultBranch}`);
-      logger.step(`Rebasing onto ${defaultBranch}`);
       const rebased = await rebaseBranch(defaultBranch, workspaceRoot);
       if (!rebased) {
         throw new Error(`Failed to rebase onto ${defaultBranch}. Please resolve conflicts manually.`);
