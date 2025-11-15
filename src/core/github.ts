@@ -10,7 +10,7 @@ interface SharedGitHubOptions {
   githubToken: string;
 }
 
-interface GitHubPullRequest {
+export interface GitHubPullRequest {
   number: number;
   title: string;
   body: string;

@@ -1,3 +1,4 @@
+import type { GitHubPullRequest } from "#core/github";
 import type {
   GlobalCommitMode,
   PackageRelease,
@@ -142,85 +143,33 @@ export async function release(
     logger.log(`- ${update.package.name}: ${farver.dim(update.currentVersion)} -> ${farver.bold(update.newVersion)}`);
   }
 
-  const currentBranch = await getCurrentBranch(workspaceRoot);
-
-  if (currentBranch !== normalizedOptions.branch.default) {
-    exitWithError(
-      `Current branch is '${currentBranch}'. Please switch to the default branch '${normalizedOptions.branch.default}' before proceeding.`,
-      `git checkout ${normalizedOptions.branch.default}`,
-    );
-  }
-
-  const existingPullRequest = await getExistingPullRequest({
+  // Orchestrate git and pull request workflow
+  const prOps = await orchestrateReleasePullRequest({
+    workspaceRoot,
     owner: normalizedOptions.owner,
     repo: normalizedOptions.repo,
-    branch: normalizedOptions.branch.release,
     githubToken: normalizedOptions.githubToken,
+    releaseBranch: normalizedOptions.branch.release,
+    defaultBranch: normalizedOptions.branch.default,
+    pullRequestTitle: options.pullRequest?.title,
+    pullRequestBody: options.pullRequest?.body,
   });
 
-  // If a pull request already exists, then we are sure that the "release branch" exists.
-  const doesReleasePRExist = !!existingPullRequest;
-
-  if (doesReleasePRExist) {
-    logger.log("An existing release pull request was found.");
-  } else {
-    logger.log("No existing pull request found, will create new one");
-  }
-
-  const branchExists = await doesBranchExist(normalizedOptions.branch.release, workspaceRoot);
-
-  if (!branchExists) {
-    await createBranch(
-      normalizedOptions.branch.release,
-      normalizedOptions.branch.default,
-      workspaceRoot,
-    );
-  }
-
-  // The following operations should be done in the correct order!
-  // First we will checkout the release branch, then pull the latest changes if it exists remotely,
-  // then rebase onto the default branch to get the latest changes from main, and only after that
-  // we will apply our updates.
-
-  logger.log(`Checking out release branch: ${normalizedOptions.branch.release}`);
-  const hasCheckedOut = await checkoutBranch(normalizedOptions.branch.release, workspaceRoot);
-  if (!hasCheckedOut) {
-    throw new Error(`Failed to checkout branch: ${normalizedOptions.branch.release}`);
-  }
-
-  // If the branch already exists, we will just pull the latest changes.
-  // Since the branch could have been updated remotely since we last checked it out.
-  if (branchExists) {
-    logger.log("Pulling latest changes from remote");
-    const hasPulled = await pullLatestChanges(normalizedOptions.branch.release, workspaceRoot);
-    if (!hasPulled) {
-      logger.log("Warning: Failed to pull latest changes, continuing anyway");
-    }
-  }
-
-  // After we have pulled the latest changes, we will rebase our changes onto the default branch
-  // to ensure we have the latest updates.
-  logger.log("Rebasing release branch onto", normalizedOptions.branch.default);
-  await rebaseBranch(normalizedOptions.branch.default, workspaceRoot);
+  // Prepare the release branch
+  await prOps.prepareBranch();
 
   // Apply version updates to package.json files
   await applyUpdates();
 
-  // If there are any changes, we will commit them.
-  const hasCommitted = await commitChanges("chore: update release versions", workspaceRoot);
+  // Commit and push changes
+  const hasChangesToPush = await prOps.commitAndPush(true);
 
-  // Check if branch is ahead of remote (has commits to push)
-  const isBranchAhead = await isBranchAheadOfRemote(normalizedOptions.branch.release, workspaceRoot);
-
-  if (!hasCommitted && !isBranchAhead) {
-    logger.log("No changes to commit and branch is in sync with remote");
-    await checkoutBranch(normalizedOptions.branch.default, workspaceRoot);
-
-    if (doesReleasePRExist) {
+  if (!hasChangesToPush) {
+    if (prOps.doesReleasePRExist && prOps.existingPullRequest) {
       logger.log("No updates needed, PR is already up to date");
       return {
         updates: allUpdates,
-        prUrl: existingPullRequest.html_url,
+        prUrl: prOps.existingPullRequest.html_url,
         created: false,
       };
     } else {
@@ -229,37 +178,156 @@ export async function release(
     }
   }
 
-  // Push with --force-with-lease for safety
-  logger.log("Pushing changes to remote");
-  await pushBranch(normalizedOptions.branch.release, workspaceRoot, { forceWithLease: true });
-
   // Create or update PR
-  const prTitle = existingPullRequest?.title || (options.pullRequest?.title || "chore: update package versions");
-  const prBody = generatePullRequestBody(allUpdates, options.pullRequest?.body);
+  const { pullRequest, created } = await prOps.createOrUpdatePullRequest(allUpdates);
 
-  const pullRequest = await upsertPullRequest({
-    owner: normalizedOptions.owner,
-    repo: normalizedOptions.repo,
-    pullNumber: existingPullRequest?.number,
-    title: prTitle,
-    body: prBody,
-    head: normalizedOptions.branch.release,
-    base: normalizedOptions.branch.default,
-    githubToken: normalizedOptions.githubToken,
-  });
-
-  logger.log(doesReleasePRExist ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);
-
-  await checkoutBranch(normalizedOptions.branch.default, workspaceRoot);
+  await prOps.checkoutDefaultBranch();
 
   if (pullRequest?.html_url) {
     logger.info();
-    logger.info(`${farver.green("✓")} Pull request ${doesReleasePRExist ? "updated" : "created"}: ${farver.cyan(pullRequest.html_url)}`);
+    logger.info(`${farver.green("✓")} Pull request ${created ? "created" : "updated"}: ${farver.cyan(pullRequest.html_url)}`);
   }
 
   return {
     updates: allUpdates,
     prUrl: pullRequest?.html_url,
-    created: !doesReleasePRExist,
+    created,
+  };
+}
+
+interface OrchestrateReleasePullRequestResult {
+  existingPullRequest: GitHubPullRequest | null;
+  doesReleasePRExist: boolean;
+  prepareBranch: () => Promise<void>;
+  commitAndPush: (hasChanges: boolean) => Promise<boolean>;
+  createOrUpdatePullRequest: (updates: PackageRelease[]) => Promise<{
+    pullRequest: GitHubPullRequest | null;
+    created: boolean;
+  }>;
+  checkoutDefaultBranch: () => Promise<void>;
+}
+
+async function orchestrateReleasePullRequest({
+  workspaceRoot,
+  owner,
+  repo,
+  githubToken,
+  releaseBranch,
+  defaultBranch,
+  pullRequestTitle,
+  pullRequestBody,
+}: {
+  workspaceRoot: string;
+  owner: string;
+  repo: string;
+  githubToken: string;
+  releaseBranch: string;
+  defaultBranch: string;
+  pullRequestTitle?: string;
+  pullRequestBody?: string;
+}): Promise<OrchestrateReleasePullRequestResult> {
+  const currentBranch = await getCurrentBranch(workspaceRoot);
+
+  if (currentBranch !== defaultBranch) {
+    exitWithError(
+      `Current branch is '${currentBranch}'. Please switch to the default branch '${defaultBranch}' before proceeding.`,
+      `git checkout ${defaultBranch}`,
+    );
+  }
+
+  const existingPullRequest = await getExistingPullRequest({
+    owner,
+    repo,
+    branch: releaseBranch,
+    githubToken,
+  });
+
+  const doesReleasePRExist = !!existingPullRequest;
+
+  if (doesReleasePRExist) {
+    logger.log("An existing release pull request was found.");
+  } else {
+    logger.log("No existing pull request found, will create new one");
+  }
+
+  const branchExists = await doesBranchExist(releaseBranch, workspaceRoot);
+
+  return {
+    existingPullRequest,
+    doesReleasePRExist,
+    prepareBranch: async () => {
+      if (!branchExists) {
+        await createBranch(releaseBranch, defaultBranch, workspaceRoot);
+      }
+
+      // The following operations should be done in the correct order!
+      // First we will checkout the release branch, then pull the latest changes if it exists remotely,
+      // then rebase onto the default branch to get the latest changes from main, and only after that
+      // we will apply our updates.
+      logger.log(`Checking out release branch: ${releaseBranch}`);
+      const hasCheckedOut = await checkoutBranch(releaseBranch, workspaceRoot);
+      if (!hasCheckedOut) {
+        throw new Error(`Failed to checkout branch: ${releaseBranch}`);
+      }
+
+      // If the branch already exists, we will just pull the latest changes.
+      // Since the branch could have been updated remotely since we last checked it out.
+      if (branchExists) {
+        logger.log("Pulling latest changes from remote");
+        const hasPulled = await pullLatestChanges(releaseBranch, workspaceRoot);
+        if (!hasPulled) {
+          logger.log("Warning: Failed to pull latest changes, continuing anyway");
+        }
+      }
+
+      // After we have pulled the latest changes, we will rebase our changes onto the default branch
+      // to ensure we have the latest updates.
+      logger.log("Rebasing release branch onto", defaultBranch);
+      await rebaseBranch(defaultBranch, workspaceRoot);
+    },
+    commitAndPush: async (hasChanges) => {
+      // If there are any changes, we will commit them.
+      const hasCommitted = hasChanges ? await commitChanges("chore: update release versions", workspaceRoot) : false;
+
+      // Check if branch is ahead of remote (has commits to push)
+      const isBranchAhead = await isBranchAheadOfRemote(releaseBranch, workspaceRoot);
+
+      if (!hasCommitted && !isBranchAhead) {
+        logger.log("No changes to commit and branch is in sync with remote");
+        await checkoutBranch(defaultBranch, workspaceRoot);
+        return false;
+      }
+
+      // Push with --force-with-lease for safety
+      logger.log("Pushing changes to remote");
+      await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
+
+      return true;
+    },
+    createOrUpdatePullRequest: async (updates) => {
+      const prTitle = existingPullRequest?.title || pullRequestTitle || "chore: update package versions";
+      const prBody = pullRequestBody || generatePullRequestBody(updates);
+
+      const pullRequest = await upsertPullRequest({
+        owner,
+        repo,
+        pullNumber: existingPullRequest?.number,
+        title: prTitle,
+        body: prBody,
+        head: releaseBranch,
+        base: defaultBranch,
+        githubToken,
+      });
+
+      logger.log(doesReleasePRExist ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);
+
+      return {
+        pullRequest,
+        created: !doesReleasePRExist,
+      };
+    },
+    checkoutDefaultBranch: async () => {
+      await checkoutBranch(defaultBranch, workspaceRoot);
+    },
   };
 }
