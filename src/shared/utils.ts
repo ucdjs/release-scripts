@@ -35,6 +35,18 @@ export const logger = {
     if (!isVerbose) {
       return;
     }
+    if (args.length === 0) {
+      // eslint-disable-next-line no-console
+      console.log();
+      return;
+    }
+
+    // If there is more than one argument, and the first is a string, treat it as a highlight
+    if (args.length > 1 && typeof args[0] === "string") {
+      // eslint-disable-next-line no-console
+      console.log(farver.dim(args[0]), ...args.slice(1));
+      return;
+    }
 
     // eslint-disable-next-line no-console
     console.log(...args);
@@ -44,9 +56,14 @@ export const logger = {
     // eslint-disable-next-line no-console
     console.log();
     // eslint-disable-next-line no-console
-    console.log(farver.bold(title));
+    console.log(`  ${farver.bold(title)}`);
     // eslint-disable-next-line no-console
-    console.log(farver.gray("─".repeat(title.length)));
+    console.log(`  ${farver.gray("─".repeat(title.length + 2))}`);
+  },
+
+  emptyLine: () => {
+    // eslint-disable-next-line no-console
+    console.log();
   },
 
   item: (message: string) => {

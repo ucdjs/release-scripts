@@ -102,18 +102,20 @@ export async function release(
     options,
   );
 
-  logger.section("📦 Workspace Packages");
-  logger.item(`Found ${workspacePackages.length} packages`);
-
-  for (const pkg of workspacePackages) {
-    logger.item(`${pkg.name} (${pkg.version})`);
-    logger.item(`  → ${pkg.path}`);
-  }
-
   if (workspacePackages.length === 0) {
     logger.warn("No packages found to release");
     return null;
   }
+
+  logger.section("📦 Workspace Packages");
+  logger.item(`Found ${workspacePackages.length} packages`);
+
+  for (const pkg of workspacePackages) {
+    logger.item(`${farver.cyan(pkg.name)} (${farver.bold(pkg.version)})`);
+    logger.item(`  ${farver.gray("→")} ${farver.gray(pkg.path)}`);
+  }
+
+  logger.emptyLine();
 
   // Get commits affecting each package (each package uses its own last tag)
   const packageCommits = await getWorkspacePackageCommits(workspaceRoot, workspacePackages);

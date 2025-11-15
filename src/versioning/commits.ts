@@ -3,6 +3,7 @@ import type { BumpKind } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import { logger, run } from "#shared/utils";
 import { getCommits } from "commit-parser";
+import farver from "farver";
 
 export async function getLastPackageTag(
   packageName: string,
@@ -97,7 +98,7 @@ export async function getCommitsForWorkspacePackage(
     cwd: workspaceRoot,
   });
 
-  logger.verbose(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
+  logger.verbose("Found commits for package", `${farver.cyan(allCommits.length)} for ${farver.bold(pkg.name)} since ${lastTag || "beginning"}`);
 
   const commitsAffectingPackage = getCommits({
     from: lastTag,
@@ -115,7 +116,7 @@ export async function getCommitsForWorkspacePackage(
     return affectingCommitShas.has(commit.shortHash);
   });
 
-  logger.verbose(`${packageCommits.length} commits affect ${pkg.name}`);
+  logger.verbose("Commits affect package", `${farver.cyan(packageCommits.length)} affect ${farver.bold(pkg.name)}`);
 
   return packageCommits;
 }
@@ -270,7 +271,7 @@ export async function getGlobalCommitsPerPackage(
     return result;
   }
 
-  logger.verbose(`Computing global commits per-package (mode: ${mode})`);
+  logger.verbose(`Computing global commits per-package (mode: ${farver.cyan(mode)})`);
 
   // Step 1: Find the oldest and newest commits across all packages
   let oldestCommit: string | null = null;
@@ -288,11 +289,11 @@ export async function getGlobalCommitsPerPackage(
   }
 
   if (!oldestCommit || !newestCommit) {
-    logger.verbose("No commits found across packages, returning empty global commits");
+    logger.verbose("No commits found across packages");
     return result;
   }
 
-  logger.verbose(`Fetching files for commits range: ${oldestCommit}..${newestCommit}`);
+  logger.verbose("Fetching files for commits range", `${farver.cyan(oldestCommit)}..${farver.cyan(newestCommit)}`);
 
   // Step 2: ONE batched git call to get files for all commits
   const commitFilesMap = await getCommitFileList(workspaceRoot, oldestCommit, newestCommit);
@@ -302,7 +303,7 @@ export async function getGlobalCommitsPerPackage(
     return result;
   }
 
-  logger.verbose(`Got file lists for ${commitFilesMap.size} commits in ONE git call`);
+  logger.verbose("Got file lists for commits", `${farver.cyan(commitFilesMap.size)} commits in ONE git call`);
 
   // Step 3: Build package paths set for efficient lookup
   const packagePaths = new Set(allPackages.map((p) => p.path));
@@ -311,7 +312,7 @@ export async function getGlobalCommitsPerPackage(
   for (const [pkgName, commits] of packageCommits) {
     const globalCommitsForPackage: GitCommit[] = [];
 
-    logger.verbose(`Filtering global commits for ${pkgName} from ${commits.length} commits`);
+    logger.verbose("Filtering global commits for package", `${farver.bold(pkgName)} from ${farver.cyan(commits.length)} commits`);
 
     for (const commit of commits) {
       const files = commitFilesMap.get(commit.shortHash);
@@ -321,7 +322,7 @@ export async function getGlobalCommitsPerPackage(
       }
     }
 
-    logger.verbose(`Package ${pkgName}: Found ${globalCommitsForPackage.length} global commits`);
+    logger.verbose("Package global commits found", `${farver.bold(pkgName)}: ${farver.cyan(globalCommitsForPackage.length)} global commits`);
 
     // Step 5: Apply mode filtering (all vs dependencies)
     if (mode === "all") {
@@ -348,12 +349,12 @@ export async function getGlobalCommitsPerPackage(
         });
 
         if (affectsDeps) {
-          logger.verbose(`Package ${pkgName}: Global commit ${commit.shortHash} affects dependencies`);
+          logger.verbose("Global commit affects dependencies", `${farver.bold(pkgName)}: commit ${farver.cyan(commit.shortHash)} affects dependencies`);
           dependencyCommits.push(commit);
         }
       }
 
-      logger.verbose(`Package ${pkgName}: ${dependencyCommits.length} global commits affect dependencies`);
+      logger.verbose("Global commits affect dependencies", `${farver.bold(pkgName)}: ${farver.cyan(dependencyCommits.length)} global commits affect dependencies`);
       result.set(pkgName, dependencyCommits);
     }
   }

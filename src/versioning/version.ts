@@ -220,7 +220,7 @@ async function calculateVersionUpdates({
       const commitDisplay = formatCommitsForDisplay(allCommitsForPackage);
       const commitLines = commitDisplay.split("\n");
       commitLines.forEach((line) => logger.item(line));
-      logger.info("");
+      logger.emptyLine();
 
       const selectedVersion = await selectVersionPrompt(
         workspaceRoot,
@@ -248,7 +248,7 @@ async function calculateVersionUpdates({
     });
   }
 
-  logger.verbose(`Completed version inference. Total updates: ${versionUpdates.length}`);
+
 
   // Second pass: if prompts enabled and not in CI, allow manual bumps for packages without commits
   if (!isCI && showPrompt) {
