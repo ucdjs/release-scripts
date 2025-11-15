@@ -7,6 +7,7 @@ import { selectVersionPrompt } from "#core/prompts";
 import { isCI, logger } from "#shared/utils";
 import { determineHighestBump } from "#versioning/commits";
 import { buildPackageDependencyGraph, createDependentUpdates } from "#versioning/package";
+import farver from "farver";
 
 export function isValidSemver(version: string): boolean {
   // Basic semver validation: X.Y.Z with optional pre-release/build metadata
@@ -134,6 +135,75 @@ function _calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
   return "none";
 }
 
+const messageColorMap: Record<string, (c: string) => string> = {
+  feat: farver.green,
+  feature: farver.green,
+
+  refactor: farver.cyan,
+  style: farver.cyan,
+
+  docs: farver.blue,
+  doc: farver.blue,
+  types: farver.blue,
+  type: farver.blue,
+
+  chore: farver.gray,
+  ci: farver.gray,
+  build: farver.gray,
+  deps: farver.gray,
+  dev: farver.gray,
+
+  fix: farver.yellow,
+  test: farver.yellow,
+
+  perf: farver.magenta,
+
+  revert: farver.red,
+  breaking: farver.red,
+};
+
+function formatCommitsForDisplay(commits: GitCommit[]): string {
+  if (commits.length === 0) {
+    return farver.dim("No commits found");
+  }
+
+  const maxCommitsToShow = 10;
+  const commitsToShow = commits.slice(0, maxCommitsToShow);
+  const hasMore = commits.length > maxCommitsToShow;
+
+  const typeLength = commits.map(({ type }) => type.length).reduce((a, b) => Math.max(a, b), 0);
+  const scopeLength = commits.map(({ scope }) => scope.length).reduce((a, b) => Math.max(a, b), 0);
+
+  const formattedCommits = commitsToShow.map((commit) => {
+    let color = messageColorMap[commit.type] || ((c: string) => c);
+    if (commit.isBreaking) {
+      color = (s) => farver.inverse.red(s);
+    }
+
+    const paddedType = commit.type.padStart(typeLength + 1, " ");
+    const paddedScope = !commit.scope
+      ? " ".repeat(scopeLength ? scopeLength + 2 : 0)
+      : farver.dim("(") + commit.scope + farver.dim(")") + " ".repeat(scopeLength - commit.scope.length);
+
+    return [
+      farver.dim(commit.shortHash),
+      " ",
+      color === farver.gray ? color(paddedType) : farver.bold(color(paddedType)),
+      " ",
+      paddedScope,
+      farver.dim(":"),
+      " ",
+      color === farver.gray ? color(commit.description) : commit.description,
+    ].join("");
+  }).join("\n");
+
+  if (hasMore) {
+    return `${formattedCommits}\n  ${farver.dim(`... and ${commits.length - maxCommitsToShow} more commits`)}`;
+  }
+
+  return formattedCommits;
+}
+
 interface CalculateVersionUpdatesOptions {
   workspacePackages: WorkspacePackage[];
   packageCommits: Map<string, GitCommit[]>;
@@ -196,6 +266,20 @@ async function calculateVersionUpdates({
 
     if (!isCI && showPrompt) {
       logger.debug(`\nPackage ${pkg.name} has changes requiring a ${bump} bump.`);
+
+      // Display commits that are causing the version bump
+      const commitDisplay = formatCommitsForDisplay(allCommitsForPackage);
+      // eslint-disable-next-line no-console
+      console.log();
+      // eslint-disable-next-line no-console
+      console.log(farver.bold(`${farver.green(allCommitsForPackage.length)} Commits since the last version:`));
+      // eslint-disable-next-line no-console
+      console.log();
+      // eslint-disable-next-line no-console
+      console.log(commitDisplay);
+      // eslint-disable-next-line no-console
+      console.log();
+
       const selectedVersion = await selectVersionPrompt(
         workspaceRoot,
         pkg,
@@ -229,6 +313,8 @@ async function calculateVersionUpdates({
     for (const pkg of workspacePackages) {
       // Skip packages we already processed
       if (processedPackages.has(pkg.name)) continue;
+
+      logger.log(`\n${farver.bold("Package:")} ${pkg.name} ${farver.dim("(no direct commits)")}`);
 
       // Prompt for manual version bump (suggested version is current = no change suggested)
       const newVersion = await selectVersionPrompt(
