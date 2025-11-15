@@ -9,16 +9,26 @@ import {
   commitChanges,
   createBranch,
   doesBranchExist,
+  getAvailableBranches,
   getCurrentBranch,
+  getDefaultBranch,
   isBranchAheadOfRemote,
   isWorkingDirectoryClean,
   pullLatestChanges,
   pushBranch,
   rebaseBranch,
 } from "#core/git";
-import { generatePullRequestBody, getExistingPullRequest, upsertPullRequest } from "#core/github";
+import {
+  generatePullRequestBody,
+  getExistingPullRequest,
+  upsertPullRequest,
+} from "#core/github";
 import { discoverWorkspacePackages } from "#core/workspace";
-import { exitWithError, logger, normalizeReleaseOptions } from "#shared/utils";
+import {
+  exitWithError,
+  logger,
+  normalizeSharedOptions,
+} from "#shared/utils";
 import {
   getGlobalCommitsPerPackage,
   getWorkspacePackageCommits,
@@ -63,6 +73,14 @@ export interface ReleaseOptions extends SharedOptions {
      * You can use custom template expressions, see [h3js/rendu](https://github.com/h3js/rendu)
      */
     body?: string;
+  };
+
+  changelog?: {
+    /**
+     * Whether to generate or update changelogs
+     * @default true
+     */
+    enabled?: boolean;
   };
 
   globalCommitMode?: GlobalCommitMode;
@@ -198,6 +216,56 @@ export async function release(
     updates: allUpdates,
     prUrl: pullRequest?.html_url,
     created,
+  };
+}
+
+async function normalizeReleaseOptions(options: ReleaseOptions) {
+  const normalized = normalizeSharedOptions(options);
+
+  let defaultBranch = options.branch?.default?.trim();
+  const releaseBranch = options.branch?.release?.trim() ?? "release/next";
+
+  if (defaultBranch == null || (typeof defaultBranch === "string" && defaultBranch !== "")) {
+    if (defaultBranch === "") {
+      exitWithError(
+        "Default branch is required",
+        "Specify the default branch in options",
+      );
+    }
+
+    // Ensure that default branch is available, and not the same as release branch
+    if (defaultBranch === releaseBranch) {
+      exitWithError(
+        `Default branch and release branch cannot be the same: "${defaultBranch}"`,
+        "Specify different branches for default and release",
+      );
+    }
+
+    defaultBranch ||= await getDefaultBranch(normalized.workspaceRoot);
+
+    const availableBranches = await getAvailableBranches(normalized.workspaceRoot);
+    if (!availableBranches.includes(defaultBranch)) {
+      exitWithError(
+        `Default branch "${defaultBranch}" does not exist in the repository`,
+        `Available branches: ${availableBranches.join(", ")}`,
+      );
+    }
+
+    logger.verbose(`Using default branch: ${farver.green(defaultBranch)}`);
+  }
+
+  return {
+    ...normalized,
+    branch: {
+      release: releaseBranch,
+      default: defaultBranch,
+    },
+    safeguards: options.safeguards ?? true,
+    globalCommitMode: options.globalCommitMode ?? "dependencies",
+    pullRequest: options.pullRequest,
+    changelog: {
+      enabled: options.changelog?.enabled ?? true,
+    },
   };
 }
 
