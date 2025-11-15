@@ -233,7 +233,7 @@ async function calculateVersionUpdates({
       newVersion = selectedVersion;
     }
 
-    logger.item(`Version update: ${pkg.version} → ${newVersion}`);
+    logger.verbose(`Version update: ${pkg.version} → ${newVersion}`);
 
     versionUpdates.push({
       package: pkg,
