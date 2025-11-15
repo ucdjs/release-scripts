@@ -345,49 +345,41 @@ async function updatePackageJson(
   // Update version
   packageJson.version = newVersion;
 
-  // Update workspace dependencies
-  for (const [depName, depVersion] of dependencyUpdates) {
-    if (packageJson.dependencies?.[depName]) {
-      const oldVersion = packageJson.dependencies[depName];
-      if (oldVersion === "workspace:*") {
-        // Don't update workspace protocol dependencies
-        // PNPM will handle this automatically
-        logger.verbose(`  - Skipping workspace:* dependency: ${depName}`);
-        continue;
-      }
+  function updateDependency(
+    deps: Record<string, string> | undefined,
+    depName: string,
+    depVersion: string,
+    isPeerDependency = false,
+  ): void {
+    if (!deps) return;
 
-      packageJson.dependencies[depName] = `^${depVersion}`;
-      logger.verbose(`  - Updated dependency ${depName}: ${oldVersion} → ^${depVersion}`);
+    const oldVersion = deps[depName];
+    if (!oldVersion) return;
+
+    if (oldVersion === "workspace:*") {
+      // Don't update workspace protocol dependencies
+      // PNPM will handle this automatically
+      logger.verbose(`  - Skipping workspace:* dependency: ${depName}`);
+      return;
     }
 
-    if (packageJson.devDependencies?.[depName]) {
-      const oldVersion = packageJson.devDependencies[depName];
-      if (oldVersion === "workspace:*") {
-        // Don't update workspace protocol dependencies
-        // PNPM will handle this automatically
-        logger.verbose(`  - Skipping workspace:* devDependency: ${depName}`);
-        continue;
-      }
-
-      packageJson.devDependencies[depName] = `^${depVersion}`;
-      logger.verbose(`  - Updated devDependency ${depName}: ${oldVersion} → ^${depVersion}`);
-    }
-
-    if (packageJson.peerDependencies?.[depName]) {
-      const oldVersion = packageJson.peerDependencies[depName];
-      if (oldVersion === "workspace:*") {
-        // Don't update workspace protocol dependencies
-        // PNPM will handle this automatically
-        logger.verbose(`  - Skipping workspace:* peerDependency: ${depName}`);
-        continue;
-      }
-
+    if (isPeerDependency) {
       // For peer dependencies, use a looser range to avoid version conflicts
       // Match the major version to maintain compatibility
       const majorVersion = depVersion.split(".")[0];
-      packageJson.peerDependencies[depName] = `>=${depVersion} <${Number(majorVersion) + 1}.0.0`;
-      logger.verbose(`  - Updated peerDependency ${depName}: ${oldVersion} → ^${depVersion}`);
+      deps[depName] = `>=${depVersion} <${Number(majorVersion) + 1}.0.0`;
+    } else {
+      deps[depName] = `^${depVersion}`;
     }
+
+    logger.verbose(`  - Updated dependency ${depName}: ${oldVersion} → ${deps[depName]}`);
+  }
+
+  // Update workspace dependencies
+  for (const [depName, depVersion] of dependencyUpdates) {
+    updateDependency(packageJson.dependencies, depName, depVersion);
+    updateDependency(packageJson.devDependencies, depName, depVersion);
+    updateDependency(packageJson.peerDependencies, depName, depVersion, true);
   }
 
   // Write back with formatting
