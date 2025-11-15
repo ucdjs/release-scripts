@@ -1,11 +1,9 @@
-import type { ReleaseOptions } from "#release";
 import type { SharedOptions } from "#shared/types";
 import type {
   Options as TinyExecOptions,
   Result as TinyExecResult,
 } from "tinyexec";
 import process from "node:process";
-import { getAvailableBranches, getDefaultBranch } from "#core/git";
 import farver from "farver";
 import mri from "mri";
 import { exec } from "tinyexec";
