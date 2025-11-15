@@ -259,14 +259,14 @@ export async function commitChanges(
     });
 
     // Check if there are changes to commit
-    const hasChanges = await isWorkingDirectoryClean(workspaceRoot);
-    if (!hasChanges) {
+    const isClean = await isWorkingDirectoryClean(workspaceRoot);
+    if (isClean) {
       return false;
     }
 
     // Commit
     logger.info(`Committing changes: ${farver.dim(message)}`);
-    await run("git", ["commit", "-m", message], {
+    await runIfNotDry("git", ["commit", "-m", message], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
