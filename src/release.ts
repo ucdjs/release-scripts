@@ -1,4 +1,3 @@
-import type { GitHubPullRequest } from "#core/github";
 import type {
   GlobalCommitMode,
   PackageRelease,
