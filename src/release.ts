@@ -186,7 +186,7 @@ export async function release(
   await applyUpdates();
 
   // Commit and push changes
-  const hasChangesToPush = await prOps.commitAndPush(true);
+  const hasChangesToPush = await prOps.syncChanges(true);
 
   if (!hasChangesToPush) {
     if (prOps.doesReleasePRExist && prOps.existingPullRequest) {
@@ -203,9 +203,9 @@ export async function release(
   }
 
   // Create or update PR
-  const { pullRequest, created } = await prOps.createOrUpdatePullRequest(allUpdates);
+  const { pullRequest, created } = await prOps.syncPullRequest(allUpdates);
 
-  await prOps.checkoutDefaultBranch();
+  await prOps.cleanup();
 
   if (pullRequest?.html_url) {
     logger.section("🚀 Pull Request");
@@ -269,18 +269,6 @@ async function normalizeReleaseOptions(options: ReleaseOptions) {
   };
 }
 
-interface OrchestrateReleasePullRequestResult {
-  existingPullRequest: GitHubPullRequest | null;
-  doesReleasePRExist: boolean;
-  prepareBranch: () => Promise<void>;
-  commitAndPush: (hasChanges: boolean) => Promise<boolean>;
-  createOrUpdatePullRequest: (updates: PackageRelease[]) => Promise<{
-    pullRequest: GitHubPullRequest | null;
-    created: boolean;
-  }>;
-  checkoutDefaultBranch: () => Promise<void>;
-}
-
 async function orchestrateReleasePullRequest({
   workspaceRoot,
   owner,
@@ -299,7 +287,7 @@ async function orchestrateReleasePullRequest({
   defaultBranch: string;
   pullRequestTitle?: string;
   pullRequestBody?: string;
-}): Promise<OrchestrateReleasePullRequestResult> {
+}) {
   const currentBranch = await getCurrentBranch(workspaceRoot);
 
   if (currentBranch !== defaultBranch) {
@@ -329,7 +317,7 @@ async function orchestrateReleasePullRequest({
   return {
     existingPullRequest,
     doesReleasePRExist,
-    prepareBranch: async () => {
+    async prepareBranch() {
       if (!branchExists) {
         await createBranch(releaseBranch, defaultBranch, workspaceRoot);
       }
@@ -362,7 +350,7 @@ async function orchestrateReleasePullRequest({
         throw new Error(`Failed to rebase onto ${defaultBranch}. Please resolve conflicts manually.`);
       }
     },
-    commitAndPush: async (hasChanges) => {
+    async syncChanges(hasChanges: boolean) {
       // If there are any changes, we will commit them.
       const hasCommitted = hasChanges ? await commitChanges("chore: update release versions", workspaceRoot) : false;
 
@@ -384,7 +372,7 @@ async function orchestrateReleasePullRequest({
 
       return true;
     },
-    createOrUpdatePullRequest: async (updates) => {
+    async syncPullRequest(updates: PackageRelease[]) {
       const prTitle = existingPullRequest?.title || pullRequestTitle || "chore: update package versions";
       const prBody = pullRequestBody || generatePullRequestBody(updates);
 
@@ -406,7 +394,7 @@ async function orchestrateReleasePullRequest({
         created: !doesReleasePRExist,
       };
     },
-    checkoutDefaultBranch: async () => {
+    async cleanup() {
       await checkoutBranch(defaultBranch, workspaceRoot);
     },
   };
