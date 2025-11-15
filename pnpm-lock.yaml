@@ -12,8 +12,8 @@ importers:
         specifier: 2.7.2
         version: 2.7.2
       commit-parser:
-        specifier: 1.0.0-beta.1
-        version: 1.0.0-beta.1
+        specifier: 1.0.0
+        version: 1.0.0
       farver:
         specifier: 1.0.0-beta.1
         version: 1.0.0-beta.1
@@ -932,8 +932,8 @@ packages:
     resolution: {integrity: sha512-buhp5kePrmda3vhc5B9t7pUQXAb2Tnd0qgpkIhPhkHXxJpiPJ11H0ZEU0oBpJ2QztSbzG/ZxMj/CHsYJqRHmyg==}
     engines: {node: '>= 12.0.0'}
 
-  commit-parser@1.0.0-beta.1:
-    resolution: {integrity: sha512-jHIb21M6OB/FIYXI3JUgS0xzie2zVQIDeXif4LuEEdMumaHANNI8fde1LMeyygA/3rEqMjWFg8tHmu3ox9veoA==}
+  commit-parser@1.0.0:
+    resolution: {integrity: sha512-1qCUCTZKbxki2uY1dgUihZc78D9ZWLrXBe2MEOxLOQNlI6oTbjBatovH5Eow2cOjcTEpNSHN+XStN60EzEUA/Q==}
 
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
@@ -2922,7 +2922,7 @@ snapshots:
 
   comment-parser@1.4.1: {}
 
-  commit-parser@1.0.0-beta.1:
+  commit-parser@1.0.0:
     dependencies:
       quansync: 0.2.11
 
