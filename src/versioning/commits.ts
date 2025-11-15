@@ -152,7 +152,7 @@ export async function getAllWorkspaceCommits(
   });
 }
 
-export async function getCommitFileList(workspaceRoot: string, from: string, to: string) {
+async function getCommitFileList(workspaceRoot: string, from: string, to: string) {
   const map = new Map<string, string[]>();
 
   try {

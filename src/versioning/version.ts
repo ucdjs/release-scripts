@@ -76,6 +76,10 @@ export function createVersionUpdate(
 }
 
 function _calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
+  if (!isValidSemver(oldVersion) || !isValidSemver(newVersion)) {
+    throw new Error(`Cannot calculate bump type for invalid semver: ${oldVersion} or ${newVersion}`);
+  }
+
   const oldParts = oldVersion.split(".").map(Number);
   const newParts = newVersion.split(".").map(Number);
 
@@ -380,7 +384,11 @@ export async function updatePackageJson(
 
       // For peer dependencies, might want to use a different range
       // For now, use ^
-      packageJson.peerDependencies[depName] = `^${depVersion}`;
+
+      // For peer dependencies, use a looser range to avoid version conflicts
+      // Match the major version to maintain compatibility
+      const majorVersion = depVersion.split(".")[0];
+      packageJson.peerDependencies[depName] = `>=${depVersion} <${Number(majorVersion) + 1}.0.0`;
       logger.verbose(`  - Updated peerDependency ${depName}: ${oldVersion} → ^${depVersion}`);
     }
   }

@@ -206,15 +206,17 @@ export async function pullLatestChanges(
 export async function rebaseBranch(
   ontoBranch: string,
   workspaceRoot: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     logger.info(`Rebasing onto: ${farver.cyan(ontoBranch)}`);
-    await run("git", ["rebase", ontoBranch], {
+    await runIfNotDry("git", ["rebase", ontoBranch], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
       },
     });
+
+    return true;
   } catch {
     exitWithError(
       `Failed to rebase onto: ${ontoBranch}`,
@@ -243,7 +245,7 @@ export async function isBranchAheadOfRemote(
   }
 }
 
-export async function hasChangesToCommit(
+async function hasChangesToCommit(
   workspaceRoot: string,
 ): Promise<boolean> {
   const result = await run("git", ["status", "--porcelain"], {
@@ -297,7 +299,7 @@ export async function pushBranch(
   branch: string,
   workspaceRoot: string,
   options?: { force?: boolean; forceWithLease?: boolean },
-): Promise<void> {
+): Promise<boolean> {
   try {
     const args = ["push", "origin", branch];
 
@@ -311,12 +313,14 @@ export async function pushBranch(
       logger.info(`Pushing branch: ${farver.green(branch)}`);
     }
 
-    await run("git", args, {
+    await runIfNotDry("git", args, {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
       },
     });
+
+    return true;
   } catch {
     exitWithError(
       `Failed to push branch: ${branch}`,

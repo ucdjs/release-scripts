@@ -357,7 +357,11 @@ async function orchestrateReleasePullRequest({
       // After we have pulled the latest changes, we will rebase our changes onto the default branch
       // to ensure we have the latest updates.
       logger.step(`Rebasing onto ${defaultBranch}`);
-      await rebaseBranch(defaultBranch, workspaceRoot);
+      logger.step(`Rebasing onto ${defaultBranch}`);
+      const rebased = await rebaseBranch(defaultBranch, workspaceRoot);
+      if (!rebased) {
+        throw new Error(`Failed to rebase onto ${defaultBranch}. Please resolve conflicts manually.`);
+      }
     },
     commitAndPush: async (hasChanges) => {
       // If there are any changes, we will commit them.
@@ -374,7 +378,12 @@ async function orchestrateReleasePullRequest({
 
       // Push with --force-with-lease for safety
       logger.step("Pushing changes to remote");
-      await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
+      // Push with --force-with-lease for safety
+      logger.step("Pushing changes to remote");
+      const pushed = await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
+      if (!pushed) {
+        throw new Error(`Failed to push changes to ${releaseBranch}. Remote may have been updated.`);
+      }
 
       return true;
     },
