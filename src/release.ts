@@ -30,7 +30,7 @@ import {
 } from "#shared/utils";
 import {
   getGlobalCommitsPerPackage,
-  getWorkspacePackageCommits,
+  getWorkspacePackageGroupedCommits,
 } from "#versioning/commits";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 import farver from "farver";
@@ -134,14 +134,16 @@ export async function release(
 
   logger.emptyLine();
 
-  // Get commits affecting each package (each package uses its own last tag)
-  const packageCommits = await getWorkspacePackageCommits(workspaceRoot, workspacePackages);
+  // Get all commits grouped by their package.
+  // Each package's commits are determined based on its own release history.
+  // So, for example, if package A was last released at v1.2.0 and package B at v2.0.0,
+  // we will get all commits since v1.2.0 for package A, and all commits since v2.0.0 for package B.
+  const groupedPackageCommits = await getWorkspacePackageGroupedCommits(workspaceRoot, workspacePackages);
 
   // Get global commits per-package based on each package's own timeline
-  // This correctly handles packages with different release histories
   const globalCommitsPerPackage = await getGlobalCommitsPerPackage(
     workspaceRoot,
-    packageCommits,
+    groupedPackageCommits,
     workspacePackages,
     normalizedOptions.globalCommitMode,
   );
@@ -149,7 +151,7 @@ export async function release(
   // Calculate version updates and prepare apply function
   const { allUpdates, applyUpdates } = await calculateAndPrepareVersionUpdates({
     workspacePackages,
-    packageCommits,
+    packageCommits: groupedPackageCommits,
     workspaceRoot,
     showPrompt: options.prompts?.versions !== false,
     globalCommitsPerPackage,
@@ -190,10 +192,15 @@ export async function release(
   if (!hasChangesToPush) {
     if (prOps.doesReleasePRExist && prOps.existingPullRequest) {
       logger.item("No updates needed, PR is already up to date");
+
+      const { pullRequest, created } = await prOps.syncPullRequest(allUpdates);
+
+      await prOps.cleanup();
+
       return {
         updates: allUpdates,
-        prUrl: prOps.existingPullRequest.html_url,
-        created: false,
+        prUrl: pullRequest?.html_url,
+        created,
       };
     } else {
       logger.error("No changes to commit, and no existing PR. Nothing to do.");
@@ -358,7 +365,6 @@ async function orchestrateReleasePullRequest({
 
       if (!hasCommitted && !isBranchAhead) {
         logger.item("No changes to commit and branch is in sync with remote");
-        await checkoutBranch(defaultBranch, workspaceRoot);
         return false;
       }
 
@@ -373,7 +379,7 @@ async function orchestrateReleasePullRequest({
     },
     async syncPullRequest(updates: PackageRelease[]) {
       const prTitle = existingPullRequest?.title || pullRequestTitle || "chore: update package versions";
-      const prBody = pullRequestBody || generatePullRequestBody(updates);
+      const prBody = generatePullRequestBody(updates, pullRequestBody);
 
       const pullRequest = await upsertPullRequest({
         owner,
