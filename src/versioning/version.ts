@@ -21,7 +21,7 @@ export function getNextVersion(currentVersion: string, bump: BumpKind): string {
     return currentVersion;
   }
 
-  if (!isValidSemver) {
+  if (!isValidSemver(currentVersion)) {
     throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
   }
 

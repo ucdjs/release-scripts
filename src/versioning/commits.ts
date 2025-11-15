@@ -10,7 +10,7 @@ export async function getLastPackageTag(
   workspaceRoot: string,
 ): Promise<string | undefined> {
   try {
-    // Tags for each package is always
+    // Tags for each package follow the format: packageName@version
     const { stdout } = await run("git", ["tag", "--list"], {
       nodeOptions: {
         cwd: workspaceRoot,
@@ -158,7 +158,7 @@ export async function getCommitFileList(workspaceRoot: string, from: string, to:
   const map = new Map<string, string[]>();
 
   try {
-    const { stdout } = await run("git", ["log", "--name-only", "--format=\"%H\"", `${from}^..${to}`], {
+    const { stdout } = await run("git", ["log", "--name-only", "--format=%H", `${from}^..${to}`], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",

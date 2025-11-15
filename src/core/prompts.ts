@@ -81,9 +81,13 @@ export async function selectVersionPrompt(
   } else if (answers.version === "suggested") {
     return suggestedVersion;
   } else if (answers.version === "custom") {
+    if (!answers.custom) {
+      return null;
+    }
+
     return answers.custom;
   } else {
     // It's a bump type
-    return getNextVersion(currentVersion, answers.version as BumpKind);
+    return getNextVersion(pkg.version, answers.version as BumpKind);
   }
 }

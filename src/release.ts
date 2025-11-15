@@ -225,34 +225,34 @@ async function normalizeReleaseOptions(options: ReleaseOptions) {
   let defaultBranch = options.branch?.default?.trim();
   const releaseBranch = options.branch?.release?.trim() ?? "release/next";
 
-  if (defaultBranch == null || (typeof defaultBranch === "string" && defaultBranch !== "")) {
-    if (defaultBranch === "") {
+  if (defaultBranch == null || defaultBranch.trim() === "") {
+    defaultBranch = await getDefaultBranch(normalized.workspaceRoot);
+
+    if (!defaultBranch) {
       exitWithError(
-        "Default branch is required",
-        "Specify the default branch in options",
+        "Could not determine default branch",
+        "Please specify the default branch in options",
       );
     }
-
-    // Ensure that default branch is available, and not the same as release branch
-    if (defaultBranch === releaseBranch) {
-      exitWithError(
-        `Default branch and release branch cannot be the same: "${defaultBranch}"`,
-        "Specify different branches for default and release",
-      );
-    }
-
-    defaultBranch ||= await getDefaultBranch(normalized.workspaceRoot);
-
-    const availableBranches = await getAvailableBranches(normalized.workspaceRoot);
-    if (!availableBranches.includes(defaultBranch)) {
-      exitWithError(
-        `Default branch "${defaultBranch}" does not exist in the repository`,
-        `Available branches: ${availableBranches.join(", ")}`,
-      );
-    }
-
-    logger.verbose(`Using default branch: ${farver.green(defaultBranch)}`);
   }
+
+  // Ensure that default branch is available, and not the same as release branch
+  if (defaultBranch === releaseBranch) {
+    exitWithError(
+      `Default branch and release branch cannot be the same: "${defaultBranch}"`,
+      "Specify different branches for default and release",
+    );
+  }
+
+  const availableBranches = await getAvailableBranches(normalized.workspaceRoot);
+  if (!availableBranches.includes(defaultBranch)) {
+    exitWithError(
+      `Default branch "${defaultBranch}" does not exist in the repository`,
+      `Available branches: ${availableBranches.join(", ")}`,
+    );
+  }
+
+  logger.verbose(`Using default branch: ${farver.green(defaultBranch)}`);
 
   return {
     ...normalized,
