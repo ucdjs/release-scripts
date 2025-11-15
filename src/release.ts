@@ -378,8 +378,6 @@ async function orchestrateReleasePullRequest({
 
       // Push with --force-with-lease for safety
       logger.step("Pushing changes to remote");
-      // Push with --force-with-lease for safety
-      logger.step("Pushing changes to remote");
       const pushed = await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
       if (!pushed) {
         throw new Error(`Failed to push changes to ${releaseBranch}. Remote may have been updated.`);
