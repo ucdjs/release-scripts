@@ -1,6 +1,6 @@
 import type { WorkspacePackage } from "#core/workspace";
 import type { BumpKind } from "#shared/types";
-import { getNextVersion } from "#versioning/version";
+import { getNextVersion, isValidSemver } from "#versioning/version";
 import farver from "farver";
 import prompts from "prompts";
 
@@ -62,8 +62,11 @@ export async function selectVersionPrompt(
       message: "Enter the new version number:",
       initial: suggestedVersion,
       validate: (custom: string) => {
-        const semverRegex = /^\d+\.\d+\.\d+(?:[-+].+)?$/;
-        return semverRegex.test(custom) ? true : "That's not a valid version number";
+        if (isValidSemver(custom)) {
+          return true;
+        }
+
+        return "That's not a valid version number";
       },
     },
   ]);

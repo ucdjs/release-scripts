@@ -60,7 +60,7 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
 
   for (const commit of commits) {
     const bump = determineBumpType(commit);
-    // logger.debug(`Commit ${commit.shortHash} results in a ${bump} bump`);
+    // logger.verbose(`Commit ${commit.shortHash} results in a ${bump} bump`);
 
     // Priority: major > minor > patch > none
     if (bump === "major") {
@@ -97,7 +97,7 @@ export async function getCommitsForWorkspacePackage(
     cwd: workspaceRoot,
   });
 
-  logger.log(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
+  logger.verbose(`Found ${allCommits.length} commits for ${pkg.name} since ${lastTag || "beginning"}`);
 
   const commitsAffectingPackage = getCommits({
     from: lastTag,
@@ -115,7 +115,7 @@ export async function getCommitsForWorkspacePackage(
     return affectingCommitShas.has(commit.shortHash);
   });
 
-  logger.log(`${packageCommits.length} commits affect ${pkg.name}`);
+  logger.verbose(`${packageCommits.length} commits affect ${pkg.name}`);
 
   return packageCommits;
 }
@@ -266,11 +266,11 @@ export async function getGlobalCommitsPerPackage(
   const result = new Map<string, GitCommit[]>();
 
   if (!mode) {
-    logger.debug("Global commits mode disabled");
+    logger.verbose("Global commits mode disabled");
     return result;
   }
 
-  logger.debug(`Computing global commits per-package (mode: ${mode})`);
+  logger.verbose(`Computing global commits per-package (mode: ${mode})`);
 
   // Step 1: Find the oldest and newest commits across all packages
   let oldestCommit: string | null = null;
@@ -288,11 +288,11 @@ export async function getGlobalCommitsPerPackage(
   }
 
   if (!oldestCommit || !newestCommit) {
-    logger.debug("No commits found across packages, returning empty global commits");
+    logger.verbose("No commits found across packages, returning empty global commits");
     return result;
   }
 
-  logger.debug(`Fetching files for commits range: ${oldestCommit}..${newestCommit}`);
+  logger.verbose(`Fetching files for commits range: ${oldestCommit}..${newestCommit}`);
 
   // Step 2: ONE batched git call to get files for all commits
   const commitFilesMap = await getCommitFileList(workspaceRoot, oldestCommit, newestCommit);
@@ -302,7 +302,7 @@ export async function getGlobalCommitsPerPackage(
     return result;
   }
 
-  logger.debug(`Got file lists for ${commitFilesMap.size} commits in ONE git call`);
+  logger.verbose(`Got file lists for ${commitFilesMap.size} commits in ONE git call`);
 
   // Step 3: Build package paths set for efficient lookup
   const packagePaths = new Set(allPackages.map((p) => p.path));
@@ -311,7 +311,7 @@ export async function getGlobalCommitsPerPackage(
   for (const [pkgName, commits] of packageCommits) {
     const globalCommitsForPackage: GitCommit[] = [];
 
-    logger.debug(`Filtering global commits for ${pkgName} from ${commits.length} commits`);
+    logger.verbose(`Filtering global commits for ${pkgName} from ${commits.length} commits`);
 
     for (const commit of commits) {
       const files = commitFilesMap.get(commit.shortHash);
@@ -321,7 +321,7 @@ export async function getGlobalCommitsPerPackage(
       }
     }
 
-    logger.debug(`Package ${pkgName}: Found ${globalCommitsForPackage.length} global commits`);
+    logger.verbose(`Package ${pkgName}: Found ${globalCommitsForPackage.length} global commits`);
 
     // Step 5: Apply mode filtering (all vs dependencies)
     if (mode === "all") {
@@ -348,12 +348,12 @@ export async function getGlobalCommitsPerPackage(
         });
 
         if (affectsDeps) {
-          logger.debug(`Package ${pkgName}: Global commit ${commit.shortHash} affects dependencies`);
+          logger.verbose(`Package ${pkgName}: Global commit ${commit.shortHash} affects dependencies`);
           dependencyCommits.push(commit);
         }
       }
 
-      logger.debug(`Package ${pkgName}: ${dependencyCommits.length} global commits affect dependencies`);
+      logger.verbose(`Package ${pkgName}: ${dependencyCommits.length} global commits affect dependencies`);
       result.set(pkgName, dependencyCommits);
     }
   }

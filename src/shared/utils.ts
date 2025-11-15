@@ -21,25 +21,47 @@ export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" 
 export const logger = {
   info: (...args: unknown[]) => {
     // eslint-disable-next-line no-console
-    console.info(farver.cyan("[info]:"), ...args);
-  },
-  debug: (...args: unknown[]) => {
-    // eslint-disable-next-line no-console
-    console.debug(farver.gray("[debug]:"), ...args);
+    console.info(...args);
   },
   warn: (...args: unknown[]) => {
-    console.warn(farver.yellow("[warn]:"), ...args);
+    console.warn(`  ${farver.yellow("⚠")}`, ...args);
   },
   error: (...args: unknown[]) => {
-    console.error(farver.red("[error]:"), ...args);
+    console.error(`  ${farver.red("✖")}`, ...args);
   },
-  log: (...args: unknown[]) => {
+
+  // Only log if verbose mode is enabled
+  verbose: (...args: unknown[]) => {
     if (!isVerbose) {
       return;
     }
 
     // eslint-disable-next-line no-console
-    console.log(farver.magenta("[log]:"), ...args);
+    console.log(...args);
+  },
+
+  section: (title: string) => {
+    // eslint-disable-next-line no-console
+    console.log();
+    // eslint-disable-next-line no-console
+    console.log(farver.bold(title));
+    // eslint-disable-next-line no-console
+    console.log(farver.gray("─".repeat(title.length)));
+  },
+
+  item: (message: string) => {
+    // eslint-disable-next-line no-console
+    console.log(`  ${message}`);
+  },
+
+  step: (message: string) => {
+    // eslint-disable-next-line no-console
+    console.log(`  ${farver.blue("→")} ${message}`);
+  },
+
+  success: (message: string) => {
+    // eslint-disable-next-line no-console
+    console.log(`  ${farver.green("✓")} ${message}`);
   },
 };
 
@@ -63,7 +85,7 @@ export async function dryRun(
   args: string[],
   opts?: Partial<TinyExecOptions>,
 ): Promise<void> {
-  return logger.log(
+  return logger.verbose(
     farver.blue(`[dryrun] ${bin} ${args.join(" ")}`),
     opts || "",
   );
@@ -130,9 +152,9 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
 }
 
 if (isDryRun || isVerbose || isForce) {
-  logger.debug(farver.inverse(farver.yellow(" Running with special flags ")));
-  logger.debug({ isDryRun, isVerbose, isForce });
-  logger.debug();
+  logger.verbose(farver.inverse(farver.yellow(" Running with special flags ")));
+  logger.verbose({ isDryRun, isVerbose, isForce });
+  logger.verbose();
 }
 
 export async function normalizeReleaseOptions(options: ReleaseOptions) {
@@ -167,7 +189,7 @@ export async function normalizeReleaseOptions(options: ReleaseOptions) {
       );
     }
 
-    logger.debug(`Using default branch: ${farver.green(defaultBranch)}`);
+    logger.verbose(`Using default branch: ${farver.green(defaultBranch)}`);
   }
 
   return {

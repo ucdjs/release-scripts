@@ -102,14 +102,16 @@ export async function release(
     options,
   );
 
-  logger.log(`Discovered ${workspacePackages.length} workspace packages`);
+  logger.section("📦 Workspace Packages");
+  logger.item(`Found ${workspacePackages.length} packages`);
+
   for (const pkg of workspacePackages) {
-    logger.log(`- ${pkg.name} (${farver.dim(pkg.version)})`);
-    logger.log(`  path: ${pkg.path}`);
+    logger.item(`${pkg.name} (${pkg.version})`);
+    logger.item(`  → ${pkg.path}`);
   }
 
   if (workspacePackages.length === 0) {
-    logger.info(farver.yellow("No packages found to release."));
+    logger.warn("No packages found to release");
     return null;
   }
 
@@ -138,9 +140,11 @@ export async function release(
     logger.warn("No packages have changes requiring a release");
   }
 
-  logger.log(`Total packages to update (including dependents): ${allUpdates.length}`);
+  logger.section("🔄 Version Updates");
+  logger.item(`Updating ${allUpdates.length} packages (including dependents)`);
+
   for (const update of allUpdates) {
-    logger.log(`- ${update.package.name}: ${farver.dim(update.currentVersion)} -> ${farver.bold(update.newVersion)}`);
+    logger.item(`${update.package.name}: ${update.currentVersion} → ${update.newVersion}`);
   }
 
   // Orchestrate git and pull request workflow
@@ -166,7 +170,7 @@ export async function release(
 
   if (!hasChangesToPush) {
     if (prOps.doesReleasePRExist && prOps.existingPullRequest) {
-      logger.log("No updates needed, PR is already up to date");
+      logger.item("No updates needed, PR is already up to date");
       return {
         updates: allUpdates,
         prUrl: prOps.existingPullRequest.html_url,
@@ -184,8 +188,8 @@ export async function release(
   await prOps.checkoutDefaultBranch();
 
   if (pullRequest?.html_url) {
-    logger.info();
-    logger.info(`${farver.green("✓")} Pull request ${created ? "created" : "updated"}: ${farver.cyan(pullRequest.html_url)}`);
+    logger.section("🚀 Pull Request");
+    logger.success(`Pull request ${created ? "created" : "updated"}: ${pullRequest.html_url}`);
   }
 
   return {
@@ -245,9 +249,9 @@ async function orchestrateReleasePullRequest({
   const doesReleasePRExist = !!existingPullRequest;
 
   if (doesReleasePRExist) {
-    logger.log("An existing release pull request was found.");
+    logger.item("Found existing release pull request");
   } else {
-    logger.log("No existing pull request found, will create new one");
+    logger.item("Will create new pull request");
   }
 
   const branchExists = await doesBranchExist(releaseBranch, workspaceRoot);
@@ -264,7 +268,7 @@ async function orchestrateReleasePullRequest({
       // First we will checkout the release branch, then pull the latest changes if it exists remotely,
       // then rebase onto the default branch to get the latest changes from main, and only after that
       // we will apply our updates.
-      logger.log(`Checking out release branch: ${releaseBranch}`);
+      logger.step(`Checking out release branch: ${releaseBranch}`);
       const hasCheckedOut = await checkoutBranch(releaseBranch, workspaceRoot);
       if (!hasCheckedOut) {
         throw new Error(`Failed to checkout branch: ${releaseBranch}`);
@@ -273,16 +277,16 @@ async function orchestrateReleasePullRequest({
       // If the branch already exists, we will just pull the latest changes.
       // Since the branch could have been updated remotely since we last checked it out.
       if (branchExists) {
-        logger.log("Pulling latest changes from remote");
+        logger.step("Pulling latest changes from remote");
         const hasPulled = await pullLatestChanges(releaseBranch, workspaceRoot);
         if (!hasPulled) {
-          logger.log("Warning: Failed to pull latest changes, continuing anyway");
+          logger.warn("Failed to pull latest changes, continuing anyway");
         }
       }
 
       // After we have pulled the latest changes, we will rebase our changes onto the default branch
       // to ensure we have the latest updates.
-      logger.log("Rebasing release branch onto", defaultBranch);
+      logger.step(`Rebasing onto ${defaultBranch}`);
       await rebaseBranch(defaultBranch, workspaceRoot);
     },
     commitAndPush: async (hasChanges) => {
@@ -293,13 +297,13 @@ async function orchestrateReleasePullRequest({
       const isBranchAhead = await isBranchAheadOfRemote(releaseBranch, workspaceRoot);
 
       if (!hasCommitted && !isBranchAhead) {
-        logger.log("No changes to commit and branch is in sync with remote");
+        logger.item("No changes to commit and branch is in sync with remote");
         await checkoutBranch(defaultBranch, workspaceRoot);
         return false;
       }
 
       // Push with --force-with-lease for safety
-      logger.log("Pushing changes to remote");
+      logger.step("Pushing changes to remote");
       await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
 
       return true;
@@ -319,7 +323,7 @@ async function orchestrateReleasePullRequest({
         githubToken,
       });
 
-      logger.log(doesReleasePRExist ? "Updated pull request:" : "Created pull request:", pullRequest?.html_url);
+      logger.success(`${doesReleasePRExist ? "Updated" : "Created"} pull request: ${pullRequest?.html_url}`);
 
       return {
         pullRequest,

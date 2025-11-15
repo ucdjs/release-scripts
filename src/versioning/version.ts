@@ -15,61 +15,15 @@ export function isValidSemver(version: string): boolean {
   return semverRegex.test(version);
 }
 
-export function validateSemver(version: string): void {
-  if (!isValidSemver(version)) {
-    throw new Error(`Invalid semver version: ${version}`);
-  }
-}
-
-export function isValidBumpKind(bump: string): bump is BumpKind {
-  return ["none", "patch", "minor", "major"].includes(bump);
-}
-
-export function validateBumpKind(bump: string): asserts bump is BumpKind {
-  if (!isValidBumpKind(bump)) {
-    throw new Error(`Invalid bump kind: ${bump}. Must be one of: none, patch, minor, major`);
-  }
-}
-
-export function isValidPackageName(name: string): boolean {
-  // NPM package name rules (simplified)
-  // - Can contain lowercase letters, numbers, hyphens, underscores
-  // - Can be scoped (@scope/name)
-  const packageNameRegex = /^(?:@[a-z0-9_-][a-z0-9_.-]*\/)?[a-z0-9_-][a-z0-9_.-]*$/;
-  return packageNameRegex.test(name);
-}
-
-export function validatePackageName(name: string): void {
-  if (!isValidPackageName(name)) {
-    throw new Error(`Invalid package name: ${name}`);
-  }
-}
-
-export function validateNonEmpty<T>(
-  array: T[],
-  message: string,
-): asserts array is [T, ...T[]] {
-  if (array.length === 0) {
-    throw new Error(message);
-  }
-}
-
-export function validateNotNull<T>(
-  value: T | null | undefined,
-  message: string,
-): asserts value is T {
-  if (value === null || value === undefined) {
-    throw new Error(message);
-  }
-}
-
 export function getNextVersion(currentVersion: string, bump: BumpKind): string {
   if (bump === "none") {
-    logger.log(`No version bump needed, keeping version ${currentVersion}`);
+    logger.verbose(`No version bump needed, keeping version ${currentVersion}`);
     return currentVersion;
   }
 
-  validateSemver(currentVersion);
+  if (!isValidSemver) {
+    throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
+  }
 
   // eslint-disable-next-line regexp/no-super-linear-backtracking
   const match = currentVersion.match(/^(\d+)\.(\d+)\.(\d+)(.*)$/);
@@ -99,10 +53,7 @@ export function getNextVersion(currentVersion: string, bump: BumpKind): string {
       break;
   }
 
-  // Remove any pre-release/build metadata when bumping
-  const newVersion = `${newMajor}.${newMinor}.${newPatch}`;
-  logger.log(`Bumping version: ${currentVersion} → ${newVersion} (${bump})`);
-  return newVersion;
+  return `${newMajor}.${newMinor}.${newPatch}`;
 }
 
 /**
@@ -225,11 +176,11 @@ async function calculateVersionUpdates({
   const versionUpdates: PackageRelease[] = [];
   const processedPackages = new Set<string>();
 
-  logger.debug(`Starting version inference for ${packageCommits.size} packages with commits`);
+  logger.verbose(`Starting version inference for ${packageCommits.size} packages with commits`);
 
   // First pass: process packages with commits
   for (const [pkgName, pkgCommits] of packageCommits) {
-    logger.log("-------------");
+    logger.verbose("-------------");
 
     const pkg = workspacePackages.find((p) => p.name === pkgName);
     if (!pkg) {
@@ -239,46 +190,37 @@ async function calculateVersionUpdates({
 
     processedPackages.add(pkgName);
 
-    logger.log(`Processing package: ${pkg.name}`);
-    logger.log(`  - Package-specific commits: ${pkgCommits.length}`);
+    logger.verbose(`Processing package: ${pkg.name}`);
+    logger.verbose(`  - Package-specific commits: ${pkgCommits.length}`);
 
     // Get this package's global commits
     const globalCommits = globalCommitsPerPackage.get(pkgName) || [];
 
     if (globalCommits.length > 0) {
-      logger.log(`  - Global commits for this package: ${globalCommits.length}`);
+      logger.verbose(`  - Global commits for this package: ${globalCommits.length}`);
     }
 
     // Combine package-specific commits with its global commits
     const allCommitsForPackage = [...pkgCommits, ...globalCommits];
 
-    logger.log(`  - Total commits: ${allCommitsForPackage.length}`);
+    logger.verbose(`  - Total commits: ${allCommitsForPackage.length}`);
 
     const bump = determineHighestBump(allCommitsForPackage);
-    logger.log(`  - Determined bump type: ${bump}`);
 
     if (bump === "none") {
-      logger.info(`No version bump needed for package ${pkg.name}`);
       continue;
     }
 
     let newVersion = getNextVersion(pkg.version, bump);
 
     if (!isCI && showPrompt) {
-      logger.debug(`\nPackage ${pkg.name} has changes requiring a ${bump} bump.`);
-
       // Display commits that are causing the version bump
+      // Display commits that are causing the version bump
+      logger.section("📝 Commits affecting this package");
       const commitDisplay = formatCommitsForDisplay(allCommitsForPackage);
-      // eslint-disable-next-line no-console
-      console.log();
-      // eslint-disable-next-line no-console
-      console.log(farver.bold(`${farver.green(allCommitsForPackage.length)} Commits since the last version:`));
-      // eslint-disable-next-line no-console
-      console.log();
-      // eslint-disable-next-line no-console
-      console.log(commitDisplay);
-      // eslint-disable-next-line no-console
-      console.log();
+      const commitLines = commitDisplay.split("\n");
+      commitLines.forEach((line) => logger.item(line));
+      logger.info("");
 
       const selectedVersion = await selectVersionPrompt(
         workspaceRoot,
@@ -295,7 +237,7 @@ async function calculateVersionUpdates({
       newVersion = selectedVersion;
     }
 
-    logger.log(`  - Version update: ${pkg.version} → ${newVersion}`);
+    logger.item(`Version update: ${pkg.version} → ${newVersion}`);
 
     versionUpdates.push({
       package: pkg,
@@ -306,7 +248,7 @@ async function calculateVersionUpdates({
     });
   }
 
-  logger.debug(`Completed version inference. Total updates: ${versionUpdates.length}`);
+  logger.verbose(`Completed version inference. Total updates: ${versionUpdates.length}`);
 
   // Second pass: if prompts enabled and not in CI, allow manual bumps for packages without commits
   if (!isCI && showPrompt) {
@@ -314,7 +256,8 @@ async function calculateVersionUpdates({
       // Skip packages we already processed
       if (processedPackages.has(pkg.name)) continue;
 
-      logger.log(`\n${farver.bold("Package:")} ${pkg.name} ${farver.dim("(no direct commits)")}`);
+      logger.section(`📦 Package: ${pkg.name}`);
+      logger.item("No direct commits found");
 
       // Prompt for manual version bump (suggested version is current = no change suggested)
       const newVersion = await selectVersionPrompt(
@@ -401,9 +344,9 @@ export async function updatePackageJson(
 ): Promise<void> {
   const packageJsonPath = join(pkg.path, "package.json");
 
-  logger.debug(`Updating package.json for ${pkg.name}`);
-  logger.debug(`  - New version: ${newVersion}`);
-  logger.debug(`  - Dependency updates to apply: ${dependencyUpdates.size}`);
+  logger.verbose(`Updating package.json for ${pkg.name}`);
+  logger.verbose(`  - New version: ${newVersion}`);
+  logger.verbose(`  - Dependency updates to apply: ${dependencyUpdates.size}`);
 
   // Read current package.json
   const content = await readFile(packageJsonPath, "utf-8");
@@ -419,12 +362,12 @@ export async function updatePackageJson(
       if (oldVersion === "workspace:*") {
         // Don't update workspace protocol dependencies
         // PNPM will handle this automatically
-        logger.debug(`  - Skipping workspace:* dependency: ${depName}`);
+        logger.verbose(`  - Skipping workspace:* dependency: ${depName}`);
         continue;
       }
 
       packageJson.dependencies[depName] = `^${depVersion}`;
-      logger.debug(`  - Updated dependency ${depName}: ${oldVersion} → ^${depVersion}`);
+      logger.verbose(`  - Updated dependency ${depName}: ${oldVersion} → ^${depVersion}`);
     }
 
     if (packageJson.devDependencies?.[depName]) {
@@ -432,12 +375,12 @@ export async function updatePackageJson(
       if (oldVersion === "workspace:*") {
         // Don't update workspace protocol dependencies
         // PNPM will handle this automatically
-        logger.debug(`  - Skipping workspace:* devDependency: ${depName}`);
+        logger.verbose(`  - Skipping workspace:* devDependency: ${depName}`);
         continue;
       }
 
       packageJson.devDependencies[depName] = `^${depVersion}`;
-      logger.debug(`  - Updated devDependency ${depName}: ${oldVersion} → ^${depVersion}`);
+      logger.verbose(`  - Updated devDependency ${depName}: ${oldVersion} → ^${depVersion}`);
     }
 
     if (packageJson.peerDependencies?.[depName]) {
@@ -445,21 +388,21 @@ export async function updatePackageJson(
       if (oldVersion === "workspace:*") {
         // Don't update workspace protocol dependencies
         // PNPM will handle this automatically
-        logger.debug(`  - Skipping workspace:* peerDependency: ${depName}`);
+        logger.verbose(`  - Skipping workspace:* peerDependency: ${depName}`);
         continue;
       }
 
       // For peer dependencies, might want to use a different range
       // For now, use ^
       packageJson.peerDependencies[depName] = `^${depVersion}`;
-      logger.debug(`  - Updated peerDependency ${depName}: ${oldVersion} → ^${depVersion}`);
+      logger.verbose(`  - Updated peerDependency ${depName}: ${oldVersion} → ^${depVersion}`);
     }
   }
 
   // Write back with formatting
   const updated = `${JSON.stringify(packageJson, null, 2)}\n`;
   await writeFile(packageJsonPath, updated, "utf-8");
-  logger.debug(`  - Successfully wrote updated package.json`);
+  logger.verbose(`  - Successfully wrote updated package.json`);
 }
 
 /**
@@ -477,22 +420,22 @@ export function getDependencyUpdates(
     ...pkg.workspaceDevDependencies,
   ];
 
-  logger.debug(`Checking dependency updates for ${pkg.name}`);
-  logger.debug(`  - Total workspace dependencies: ${allDeps.length}`);
+  logger.verbose(`Checking dependency updates for ${pkg.name}`);
+  logger.verbose(`  - Total workspace dependencies: ${allDeps.length}`);
 
   for (const dep of allDeps) {
     // Find if this dependency is being updated
     const update = allUpdates.find((u) => u.package.name === dep);
     if (update) {
-      logger.debug(`  - Dependency ${dep} will be updated: ${update.currentVersion} → ${update.newVersion} (${update.bumpType})`);
+      logger.verbose(`  - Dependency ${dep} will be updated: ${update.currentVersion} → ${update.newVersion} (${update.bumpType})`);
       updates.set(dep, update.newVersion);
     }
   }
 
   if (updates.size === 0) {
-    logger.debug(`  - No dependency updates needed`);
+    logger.verbose(`  - No dependency updates needed`);
   } else {
-    logger.debug(`  - Total dependency updates: ${updates.size}`);
+    logger.verbose(`  - Total dependency updates: ${updates.size}`);
   }
 
   return updates;
