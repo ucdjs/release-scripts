@@ -170,6 +170,7 @@ async function getCommitFileList(workspaceRoot: string, from: string, to: string
     for (const line of lines) {
       const trimmedLine = line.trim();
       if (trimmedLine === "") {
+        currentSha = null;
         continue;
       }
 
