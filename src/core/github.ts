@@ -1,8 +1,8 @@
-import type { PackageRelease } from "./types";
+import type { PackageRelease } from "#shared/types";
+import { logger } from "#shared/utils";
 import { dedent } from "@luxass/utils";
 import { Eta } from "eta";
 import farver from "farver";
-import { logger } from "./utils";
 
 interface SharedGitHubOptions {
   owner: string;
@@ -10,7 +10,7 @@ interface SharedGitHubOptions {
   githubToken: string;
 }
 
-interface GitHubPullRequest {
+export interface GitHubPullRequest {
   number: number;
   title: string;
   body: string;
@@ -27,7 +27,7 @@ export async function getExistingPullRequest({
   branch: string;
 }): Promise<GitHubPullRequest | null> {
   try {
-    logger.debug(`Requesting pull request for branch: ${branch} (url: https://api.github.com/repos/${owner}/${repo}/pulls?state=open&head=${branch})`);
+    logger.verbose(`Requesting pull request for branch: ${branch} (url: https://api.github.com/repos/${owner}/${repo}/pulls?state=open&head=${branch})`);
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&head=${branch}`, {
       headers: {
         Accept: "application/vnd.github.v3+json",
@@ -107,9 +107,9 @@ export async function upsertPullRequest({
 
     const requestBody = isUpdate
       ? { title, body }
-      : { title, body, head, base };
+      : { title, body, head, base, draft: true };
 
-    logger.debug(`${isUpdate ? "Updating" : "Creating"} pull request (url: ${url})`);
+    logger.verbose(`${isUpdate ? "Updating" : "Creating"} pull request (url: ${url})`);
     const res = await fetch(url, {
       method,
       headers: {

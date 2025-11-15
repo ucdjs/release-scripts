@@ -1,9 +1,10 @@
+import type { WorkspacePackage } from "#core/workspace";
 import type {
-  PackageUpdateOrder,
   PackageRelease,
-} from "./types";
-import type { WorkspacePackage } from "./workspace";
-import { createVersionUpdate, getDependencyUpdates, updatePackageJson } from "./version";
+  PackageUpdateOrder,
+} from "#shared/types";
+import { logger } from "#shared/utils";
+import { createVersionUpdate } from "#versioning/version";
 
 export interface PackageDependencyGraph {
   packages: Map<string, WorkspacePackage>;
@@ -179,8 +180,10 @@ export function createDependentUpdates(
 
   // Create updates for packages that don't have direct updates
   for (const pkgName of affectedPackages) {
+    logger.verbose(`Processing affected package: ${pkgName}`);
     // Skip if already has a direct update
     if (directUpdateMap.has(pkgName)) {
+      logger.verbose(`Skipping ${pkgName}, already has a direct update`);
       continue;
     }
 
@@ -192,27 +195,4 @@ export function createDependentUpdates(
   }
 
   return allUpdates;
-}
-
-/**
- * Update all package.json files with new versions and dependency updates
- *
- * Updates are performed in parallel for better performance.
- *
- * @param updates - Version updates to apply
- */
-export async function updateAllPackageJsonFiles(
-  updates: PackageRelease[],
-): Promise<void> {
-  // Update package.json files in parallel
-  await Promise.all(
-    updates.map(async (update) => {
-      const depUpdates = getDependencyUpdates(update.package, updates);
-      await updatePackageJson(
-        update.package,
-        update.newVersion,
-        depUpdates,
-      );
-    }),
-  );
 }

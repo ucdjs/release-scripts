@@ -9,6 +9,13 @@
     "type": "git",
     "url": "git+https://github.com/ucdjs/release-scripts.git"
   },
+  "imports": {
+    "#core/*": "./src/core/*.ts",
+    "#versioning/*": "./src/versioning/*.ts",
+    "#shared/*": "./src/shared/*.ts",
+    "#release": "./src/release.ts",
+    "#publish": "./src/publish.ts"
+  },
   "exports": {
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"

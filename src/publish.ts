@@ -1,4 +1,4 @@
-import type { SharedOptions } from "./types";
+import type { SharedOptions } from "#shared/types";
 
 // eslint-disable-next-line ts/no-empty-object-type
 export interface PublishOptions extends SharedOptions {}

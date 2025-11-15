@@ -1,8 +1,8 @@
+import type { SharedOptions } from "#shared/types";
 import type {
   Options as TinyExecOptions,
   Result as TinyExecResult,
 } from "tinyexec";
-import type { SharedOptions } from "./types";
 import process from "node:process";
 import farver from "farver";
 import mri from "mri";
@@ -19,25 +19,64 @@ export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" 
 export const logger = {
   info: (...args: unknown[]) => {
     // eslint-disable-next-line no-console
-    console.info(farver.cyan("[info]:"), ...args);
-  },
-  debug: (...args: unknown[]) => {
-    // eslint-disable-next-line no-console
-    console.debug(farver.gray("[debug]:"), ...args);
+    console.info(...args);
   },
   warn: (...args: unknown[]) => {
-    console.warn(farver.yellow("[warn]:"), ...args);
+    console.warn(`  ${farver.yellow("⚠")}`, ...args);
   },
   error: (...args: unknown[]) => {
-    console.error(farver.red("[error]:"), ...args);
+    console.error(`  ${farver.red("✖")}`, ...args);
   },
-  log: (...args: unknown[]) => {
+
+  // Only log if verbose mode is enabled
+  verbose: (...args: unknown[]) => {
     if (!isVerbose) {
+      return;
+    }
+    if (args.length === 0) {
+      // eslint-disable-next-line no-console
+      console.log();
+      return;
+    }
+
+    // If there is more than one argument, and the first is a string, treat it as a highlight
+    if (args.length > 1 && typeof args[0] === "string") {
+      // eslint-disable-next-line no-console
+      console.log(farver.dim(args[0]), ...args.slice(1));
       return;
     }
 
     // eslint-disable-next-line no-console
-    console.log(farver.magenta("[log]:"), ...args);
+    console.log(...args);
+  },
+
+  section: (title: string) => {
+    // eslint-disable-next-line no-console
+    console.log();
+    // eslint-disable-next-line no-console
+    console.log(`  ${farver.bold(title)}`);
+    // eslint-disable-next-line no-console
+    console.log(`  ${farver.gray("─".repeat(title.length + 2))}`);
+  },
+
+  emptyLine: () => {
+    // eslint-disable-next-line no-console
+    console.log();
+  },
+
+  item: (message: string) => {
+    // eslint-disable-next-line no-console
+    console.log(`  ${message}`);
+  },
+
+  step: (message: string) => {
+    // eslint-disable-next-line no-console
+    console.log(`  ${farver.blue("→")} ${message}`);
+  },
+
+  success: (message: string) => {
+    // eslint-disable-next-line no-console
+    console.log(`  ${farver.green("✓")} ${message}`);
   },
 };
 
@@ -61,7 +100,7 @@ export async function dryRun(
   args: string[],
   opts?: Partial<TinyExecOptions>,
 ): Promise<void> {
-  return logger.log(
+  return logger.verbose(
     farver.blue(`[dryrun] ${bin} ${args.join(" ")}`),
     opts || "",
   );
@@ -116,7 +155,10 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
   return {
     ...rest,
     packages,
-    prompts,
+    prompts: {
+      packages: prompts?.packages ?? true,
+      versions: prompts?.versions ?? true,
+    },
     workspaceRoot,
     githubToken,
     owner,
@@ -125,7 +167,7 @@ export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
 }
 
 if (isDryRun || isVerbose || isForce) {
-  logger.debug(farver.inverse(farver.yellow(" Running with special flags ")));
-  logger.debug({ isDryRun, isVerbose, isForce });
-  logger.debug();
+  logger.verbose(farver.inverse(farver.yellow(" Running with special flags ")));
+  logger.verbose({ isDryRun, isVerbose, isForce });
+  logger.verbose();
 }
