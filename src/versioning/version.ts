@@ -180,8 +180,6 @@ async function calculateVersionUpdates({
 
   // First pass: process packages with commits
   for (const [pkgName, pkgCommits] of packageCommits) {
-    logger.verbose("-------------");
-
     const pkg = workspacePackages.find((p) => p.name === pkgName);
     if (!pkg) {
       logger.error(`Package ${pkgName} not found in workspace packages, skipping`);
@@ -189,9 +187,6 @@ async function calculateVersionUpdates({
     }
 
     processedPackages.add(pkgName);
-
-    logger.verbose(`Processing package: ${pkg.name}`);
-    logger.verbose(`  - Package-specific commits: ${pkgCommits.length}`);
 
     // Get this package's global commits
     const globalCommits = globalCommitsPerPackage.get(pkgName) || [];
@@ -202,8 +197,6 @@ async function calculateVersionUpdates({
 
     // Combine package-specific commits with its global commits
     const allCommitsForPackage = [...pkgCommits, ...globalCommits];
-
-    logger.verbose(`  - Total commits: ${allCommitsForPackage.length}`);
 
     const bump = determineHighestBump(allCommitsForPackage);
 
@@ -247,8 +240,6 @@ async function calculateVersionUpdates({
       hasDirectChanges: true,
     });
   }
-
-
 
   // Second pass: if prompts enabled and not in CI, allow manual bumps for packages without commits
   if (!isCI && showPrompt) {
@@ -344,10 +335,6 @@ export async function updatePackageJson(
 ): Promise<void> {
   const packageJsonPath = join(pkg.path, "package.json");
 
-  logger.verbose(`Updating package.json for ${pkg.name}`);
-  logger.verbose(`  - New version: ${newVersion}`);
-  logger.verbose(`  - Dependency updates to apply: ${dependencyUpdates.size}`);
-
   // Read current package.json
   const content = await readFile(packageJsonPath, "utf-8");
   const packageJson: PackageJson = JSON.parse(content);
@@ -420,9 +407,6 @@ export function getDependencyUpdates(
     ...pkg.workspaceDevDependencies,
   ];
 
-  logger.verbose(`Checking dependency updates for ${pkg.name}`);
-  logger.verbose(`  - Total workspace dependencies: ${allDeps.length}`);
-
   for (const dep of allDeps) {
     // Find if this dependency is being updated
     const update = allUpdates.find((u) => u.package.name === dep);
@@ -434,8 +418,6 @@ export function getDependencyUpdates(
 
   if (updates.size === 0) {
     logger.verbose(`  - No dependency updates needed`);
-  } else {
-    logger.verbose(`  - Total dependency updates: ${updates.size}`);
   }
 
   return updates;
