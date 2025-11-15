@@ -382,9 +382,6 @@ export async function updatePackageJson(
         continue;
       }
 
-      // For peer dependencies, might want to use a different range
-      // For now, use ^
-
       // For peer dependencies, use a looser range to avoid version conflicts
       // Match the major version to maintain compatibility
       const majorVersion = depVersion.split(".")[0];
