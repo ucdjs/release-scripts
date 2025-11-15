@@ -11,7 +11,7 @@ export async function getLastPackageTag(
 ): Promise<string | undefined> {
   try {
     // Tags for each package follow the format: packageName@version
-    const { stdout } = await run("git", ["tag", "--list"], {
+    const { stdout } = await run("git", ["tag", "--list", `${packageName}@*`], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
@@ -21,9 +21,7 @@ export async function getLastPackageTag(
     const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
 
     // Find the last tag for the specified package
-    const lastTag = tags.reverse().find((tag) => tag.startsWith(`${packageName}@`));
-
-    return lastTag;
+    return tags.reverse()[0];
   } catch (err) {
     logger.warn(
       `Failed to get tags for package ${packageName}: ${(err as Error).message}`,
@@ -167,20 +165,24 @@ export async function getCommitFileList(workspaceRoot: string, from: string, to:
 
     const lines = stdout.trim().split("\n");
 
-    let currentSha = null;
+    let currentSha: string | null = null;
 
     for (const line of lines) {
-      if (line === "") {
-      // Empty line separates commits
-        currentSha = null;
-      } else if (currentSha === null) {
-      // First non-empty line is a SHA
-        currentSha = line;
-        map.set(currentSha, []);
-      } else {
-      // Subsequent lines are files
-        map.get(currentSha)!.push(line);
+      const trimmedLine = line.trim();
+      if (trimmedLine === "") {
+        continue;
       }
+
+      // First non-empty line is a SHA
+      if (currentSha === null) {
+        currentSha = trimmedLine;
+        map.set(currentSha, []);
+
+        continue;
+      }
+
+      // Subsequent lines are files
+      map.get(currentSha)!.push(trimmedLine);
     }
 
     return map;

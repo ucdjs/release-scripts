@@ -225,7 +225,7 @@ async function normalizeReleaseOptions(options: ReleaseOptions) {
   let defaultBranch = options.branch?.default?.trim();
   const releaseBranch = options.branch?.release?.trim() ?? "release/next";
 
-  if (defaultBranch == null || defaultBranch.trim() === "") {
+  if (defaultBranch == null || defaultBranch === "") {
     defaultBranch = await getDefaultBranch(normalized.workspaceRoot);
 
     if (!defaultBranch) {

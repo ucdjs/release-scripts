@@ -208,7 +208,6 @@ async function calculateVersionUpdates({
 
     if (!isCI && showPrompt) {
       // Display commits that are causing the version bump
-      // Display commits that are causing the version bump
       logger.section("📝 Commits affecting this package");
       const commitDisplay = formatCommitsForDisplay(allCommitsForPackage);
       const commitLines = commitDisplay.split("\n");
