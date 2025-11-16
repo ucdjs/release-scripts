@@ -16,6 +16,18 @@ export interface GitHubPullRequest {
   body: string;
   draft: boolean;
   html_url?: string;
+  head?: {
+    sha: string;
+  };
+}
+
+export type CommitStatusState = "error" | "failure" | "pending" | "success";
+
+export interface CommitStatusOptions {
+  state: CommitStatusState;
+  targetUrl?: string;
+  description?: string;
+  context: string;
 }
 
 export async function getExistingPullRequest({
@@ -70,6 +82,13 @@ export async function getExistingPullRequest({
       body: firstPullRequest.body,
       draft: firstPullRequest.draft,
       html_url: firstPullRequest.html_url,
+      head: "head" in firstPullRequest
+        && typeof firstPullRequest.head === "object"
+        && firstPullRequest.head !== null
+        && "sha" in firstPullRequest.head
+        && typeof firstPullRequest.head.sha === "string"
+        ? { sha: firstPullRequest.head.sha }
+        : undefined,
     };
 
     logger.info(`Found existing pull request: ${farver.yellow(`#${pullRequest.number}`)}`);
@@ -201,4 +220,47 @@ export function generatePullRequestBody(updates: PackageRelease[], body?: string
       hasDirectChanges: u.hasDirectChanges,
     })),
   });
+}
+
+export async function setCommitStatus({
+  owner,
+  repo,
+  sha,
+  githubToken,
+  state,
+  targetUrl,
+  description,
+  context,
+}: SharedGitHubOptions & {
+  sha: string;
+} & CommitStatusOptions): Promise<void> {
+  try {
+    const url = `https://api.github.com/repos/${owner}/${repo}/statuses/${sha}`;
+
+    logger.verbose(`Setting commit status on ${sha} to ${state} (url: ${url})`);
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github.v3+json",
+        Authorization: `token ${githubToken}`,
+      },
+      body: JSON.stringify({
+        state,
+        target_url: targetUrl,
+        description: description || "",
+        context,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`GitHub API request failed with status ${res.status}: ${errorText}`);
+    }
+
+    logger.info(`Commit status set to ${farver.cyan(state)} for ${farver.gray(sha.substring(0, 7))}`);
+  } catch (err) {
+    logger.error("Error setting commit status:", err);
+    throw err;
+  }
 }
