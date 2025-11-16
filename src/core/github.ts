@@ -30,30 +30,58 @@ export interface CommitStatusOptions {
   context: string;
 }
 
-export async function getExistingPullRequest({
-  owner,
-  repo,
-  branch,
-  githubToken,
-}: SharedGitHubOptions & {
-  branch: string;
-}): Promise<GitHubPullRequest | null> {
-  try {
-    logger.verbose(`Requesting pull request for branch: ${branch} (url: https://api.github.com/repos/${owner}/${repo}/pulls?state=open&head=${branch})`);
-    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&head=${branch}`, {
+export interface UpsertPullRequestOptions {
+  title: string;
+  body: string;
+  head?: string;
+  base?: string;
+  pullNumber?: number;
+}
+
+export class GitHubClient {
+  private readonly owner: string;
+  private readonly repo: string;
+  private readonly githubToken: string;
+  private readonly apiBase = "https://api.github.com";
+
+  constructor({ owner, repo, githubToken }: SharedGitHubOptions) {
+    this.owner = owner;
+    this.repo = repo;
+    this.githubToken = githubToken;
+  }
+
+  private async request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+    const url = path.startsWith("http") ? path : `${this.apiBase}${path}`;
+
+    const res = await fetch(url, {
+      ...init,
       headers: {
+        ...init.headers,
         Accept: "application/vnd.github.v3+json",
-        Authorization: `token ${githubToken}`,
+        Authorization: `token ${this.githubToken}`,
       },
     });
 
     if (!res.ok) {
-      throw new Error(`GitHub API request failed with status ${res.status}`);
+      const errorText = await res.text();
+      throw new Error(`GitHub API request failed with status ${res.status}: ${errorText || "No response body"}`);
     }
 
-    const pulls = await res.json();
+    if (res.status === 204) {
+      return undefined as T;
+    }
 
-    if (pulls == null || !Array.isArray(pulls) || pulls.length === 0) {
+    return res.json() as Promise<T>;
+  }
+
+  async getExistingPullRequest(branch: string): Promise<GitHubPullRequest | null> {
+    const head = branch.includes(":") ? branch : `${this.owner}:${branch}`;
+    const endpoint = `/repos/${this.owner}/${this.repo}/pulls?state=open&head=${encodeURIComponent(head)}`;
+
+    logger.verbose(`Requesting pull request for branch: ${branch} (url: ${this.apiBase}${endpoint})`);
+    const pulls = await this.request<unknown[]>(endpoint);
+
+    if (!Array.isArray(pulls) || pulls.length === 0) {
       return null;
     }
 
@@ -92,57 +120,31 @@ export async function getExistingPullRequest({
     };
 
     logger.info(`Found existing pull request: ${farver.yellow(`#${pullRequest.number}`)}`);
-
     return pullRequest;
-  } catch (err) {
-    logger.error("Error fetching pull request:", err);
-    return null;
   }
-}
 
-export async function upsertPullRequest({
-  owner,
-  repo,
-  title,
-  body,
-  head,
-  base,
-  pullNumber,
-  githubToken,
-}: SharedGitHubOptions & {
-  title: string;
-  body: string;
-  head?: string;
-  base?: string;
-  pullNumber?: number;
-}): Promise<GitHubPullRequest | null> {
-  try {
-    const isUpdate = pullNumber != null;
-    const url = isUpdate
-      ? `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}`
-      : `https://api.github.com/repos/${owner}/${repo}/pulls`;
-
-    const method = isUpdate ? "PATCH" : "POST";
+  async upsertPullRequest({
+    title,
+    body,
+    head,
+    base,
+    pullNumber,
+  }: UpsertPullRequestOptions): Promise<GitHubPullRequest | null> {
+    const isUpdate = typeof pullNumber === "number";
+    const endpoint = isUpdate
+      ? `/repos/${this.owner}/${this.repo}/pulls/${pullNumber}`
+      : `/repos/${this.owner}/${this.repo}/pulls`;
 
     const requestBody = isUpdate
       ? { title, body }
       : { title, body, head, base, draft: true };
 
-    logger.verbose(`${isUpdate ? "Updating" : "Creating"} pull request (url: ${url})`);
-    const res = await fetch(url, {
-      method,
-      headers: {
-        Accept: "application/vnd.github.v3+json",
-        Authorization: `token ${githubToken}`,
-      },
+    logger.verbose(`${isUpdate ? "Updating" : "Creating"} pull request (url: ${this.apiBase}${endpoint})`);
+
+    const pr = await this.request<unknown>(endpoint, {
+      method: isUpdate ? "PATCH" : "POST",
       body: JSON.stringify(requestBody),
     });
-
-    if (!res.ok) {
-      throw new Error(`GitHub API request failed with status ${res.status}`);
-    }
-
-    const pr = await res.json();
 
     if (
       typeof pr !== "object"
@@ -171,10 +173,48 @@ export async function upsertPullRequest({
       draft: pr.draft,
       html_url: pr.html_url,
     };
-  } catch (err) {
-    logger.error(`Error upserting pull request:`, err);
-    throw err;
   }
+
+  async setCommitStatus({
+    sha,
+    state,
+    targetUrl,
+    description,
+    context,
+  }: CommitStatusOptions & { sha: string }): Promise<void> {
+    const endpoint = `/repos/${this.owner}/${this.repo}/statuses/${sha}`;
+
+    logger.verbose(`Setting commit status on ${sha} to ${state} (url: ${this.apiBase}${endpoint})`);
+
+    await this.request(endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        state,
+        target_url: targetUrl,
+        description: description || "",
+        context,
+      }),
+    });
+
+    logger.info(`Commit status set to ${farver.cyan(state)} for ${farver.gray(sha.substring(0, 7))}`);
+  }
+
+  async resolveAuthorInfo(email: string): Promise<string | null> {
+    const q = encodeURIComponent(`${email} type:user in:email`);
+    const data = await this.request<{
+      items?: Array<{ login: string }>;
+    }>(`/search/users?q=${q}`);
+
+    if (!data.items || data.items.length === 0) {
+      return null;
+    }
+
+    return data.items[0]!.login;
+  }
+}
+
+export function createGitHubClient(options: SharedGitHubOptions): GitHubClient {
+  return new GitHubClient(options);
 }
 
 export const DEFAULT_PR_BODY_TEMPLATE = dedent`
@@ -220,66 +260,4 @@ export function generatePullRequestBody(updates: PackageRelease[], body?: string
       hasDirectChanges: u.hasDirectChanges,
     })),
   });
-}
-
-export async function setCommitStatus({
-  owner,
-  repo,
-  sha,
-  githubToken,
-  state,
-  targetUrl,
-  description,
-  context,
-}: SharedGitHubOptions & {
-  sha: string;
-} & CommitStatusOptions): Promise<void> {
-  try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/statuses/${sha}`;
-
-    logger.verbose(`Setting commit status on ${sha} to ${state} (url: ${url})`);
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Accept: "application/vnd.github.v3+json",
-        Authorization: `token ${githubToken}`,
-      },
-      body: JSON.stringify({
-        state,
-        target_url: targetUrl,
-        description: description || "",
-        context,
-      }),
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`GitHub API request failed with status ${res.status}: ${errorText}`);
-    }
-
-    logger.info(`Commit status set to ${farver.cyan(state)} for ${farver.gray(sha.substring(0, 7))}`);
-  } catch (err) {
-    logger.error("Error setting commit status:", err);
-    throw err;
-  }
-}
-
-export async function resolveAuthorInfo(
-  githubToken: string,
-  email: string,
-): Promise<string | null> {
-  const q = encodeURIComponent(`${email} type:user in:email`);
-  const data = await fetch(`https://api.github.com/search/users?q=${q}`, {
-    headers: {
-      Authorization: `Bearer ${githubToken}`,
-    },
-  });
-
-  if (data && data.length > 0) {
-    const user = data[0];
-    return ` [${user.login}](https://github.com/${user.login})`;
-  }
-
-  return null;
 }

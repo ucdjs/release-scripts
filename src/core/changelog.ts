@@ -1,4 +1,5 @@
 import type { NormalizedReleaseOptions } from "#shared/options";
+import type { CommitGroup } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import type { WorkspacePackage } from "./workspace";
 import { writeFile } from "node:fs/promises";
@@ -6,7 +7,6 @@ import { join, relative } from "node:path";
 import { logger } from "#shared/utils";
 import { groupByType } from "commit-parser";
 import { readFileFromGit } from "./git";
-import { resolveAuthorInfo } from "./github";
 
 export function generateChangelogEntry(options: {
   packageName: string;
@@ -16,8 +16,18 @@ export function generateChangelogEntry(options: {
   commits: GitCommit[];
   owner: string;
   repo: string;
+  groups: CommitGroup[];
 }): string {
-  const { packageName, version, previousVersion, date, commits, owner, repo } = options;
+  const {
+    packageName,
+    version,
+    previousVersion,
+    date,
+    commits,
+    owner,
+    repo,
+    groups,
+  } = options;
 
   // Build version header
   let header: string;
@@ -30,34 +40,27 @@ export function generateChangelogEntry(options: {
 
   const lines: string[] = [header, ""];
 
+  // Merge all configured types under their group name so we can fetch by group directly
   const grouped = groupByType(commits, {
-    excludeKeys: [
-      "chore",
-      "test",
-    ],
+    includeNonConventional: false,
+    mergeKeys: Object.fromEntries(
+      groups.map((g) => [g.name, g.types]),
+    ) as Record<string, string[]>,
   });
 
-  const typeToTitleMap: Record<string, string> = {
-    feat: "Features",
-    fix: "Bug Fixes",
-    misc: "Miscellaneous",
-    refactor: "Refactoring",
-    perf: "Performance Improvements",
-    docs: "Documentation",
-    build: "Build System",
-    ci: "Continuous Integration",
-  };
+  // Iterate through configured groups
+  for (const group of groups) {
+    // With mergeKeys above, all group types are merged under the group name
+    const commitsInGroup: GitCommit[] = grouped.get(group.name) ?? [];
 
-  for (const key of grouped.keys()) {
-    const commitsInGroup = grouped.get(key)!;
     if (commitsInGroup.length === 0) {
-      logger.verbose(`No commits found for type ${key}, skipping section.`);
+      logger.verbose(`No commits found for group "${group.name}", skipping section.`);
       continue;
     }
 
-    logger.verbose(`Found ${commitsInGroup.length} commits for type ${key}.`);
+    logger.verbose(`Found ${commitsInGroup.length} commits for group "${group.name}".`);
 
-    lines.push(`### ${typeToTitleMap[key] ?? key}`, "");
+    lines.push(`### ${group.title}`, "");
     for (const commit of commitsInGroup) {
       const commitUrl = `https://github.com/${owner}/${repo}/commit/${commit.hash}`;
 
@@ -145,6 +148,7 @@ export async function updateChangelog(options: {
     commits,
     owner: normalizedOptions.owner!,
     repo: normalizedOptions.repo!,
+    groups: normalizedOptions.groups,
   });
 
   let updatedContent: string;

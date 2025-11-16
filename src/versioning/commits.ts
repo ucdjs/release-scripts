@@ -2,7 +2,7 @@ import type { WorkspacePackage } from "#core/workspace";
 import type { BumpKind } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import { getGroupedFilesByCommitSha, getMostRecentPackageTag } from "#core/git";
-import { logger, run } from "#shared/utils";
+import { logger } from "#shared/utils";
 import { getCommits } from "commit-parser";
 import farver from "farver";
 

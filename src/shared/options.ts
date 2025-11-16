@@ -1,10 +1,17 @@
 import type { ReleaseOptions } from "#release";
-import type { SharedOptions } from "./types";
+import type { CommitGroup, SharedOptions } from "./types";
 import process from "node:process";
 import { getAvailableBranches, getDefaultBranch } from "#core/git";
 import { DEFAULT_PR_BODY_TEMPLATE } from "#core/github";
 import farver from "farver";
 import { exitWithError, logger } from "./utils";
+
+export const DEFAULT_COMMIT_GROUPS: CommitGroup[] = [
+  { name: "features", title: "Features", types: ["feat"] },
+  { name: "fixes", title: "Bug Fixes", types: ["fix", "perf"] },
+  { name: "refactor", title: "Refactoring", types: ["refactor"] },
+  { name: "docs", title: "Documentation", types: ["docs"] },
+];
 
 type DeepRequired<T> = Required<{
   [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>
@@ -32,6 +39,7 @@ export function normalizeSharedOptions(options: SharedOptions): NormalizedShared
       packages: true,
       versions: true,
     },
+    groups = DEFAULT_COMMIT_GROUPS,
   } = options;
 
   if (!githubToken.trim()) {
@@ -73,6 +81,7 @@ export function normalizeSharedOptions(options: SharedOptions): NormalizedShared
     githubToken,
     owner,
     repo,
+    groups,
   };
 }
 

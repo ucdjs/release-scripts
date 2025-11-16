@@ -1,18 +1,16 @@
+import type { GitHubClient } from "#core/github";
 import type {
   GlobalCommitMode,
   PackageRelease,
   SharedOptions,
 } from "#shared/types";
-import type { GitCommit } from "commit-parser";
 import { updateChangelog } from "#core/changelog";
 import {
   checkoutBranch,
   commitChanges,
   createBranch,
   doesBranchExist,
-  getAvailableBranches,
   getCurrentBranch,
-  getDefaultBranch,
   isBranchAheadOfRemote,
   isWorkingDirectoryClean,
   pullLatestChanges,
@@ -20,12 +18,11 @@ import {
   rebaseBranch,
 } from "#core/git";
 import {
+  createGitHubClient,
   generatePullRequestBody,
-  getExistingPullRequest,
-  upsertPullRequest,
 } from "#core/github";
 import { discoverWorkspacePackages } from "#core/workspace";
-import { normalizeReleaseOptions, normalizeSharedOptions } from "#shared/options";
+import { normalizeReleaseOptions } from "#shared/options";
 import {
   exitWithError,
   logger,
@@ -171,11 +168,15 @@ export async function release(
   }
 
   // Orchestrate git and pull request workflow
-  const prOps = await orchestrateReleasePullRequest({
-    workspaceRoot,
+  const githubClient = createGitHubClient({
     owner: normalizedOptions.owner,
     repo: normalizedOptions.repo,
     githubToken: normalizedOptions.githubToken,
+  });
+
+  const prOps = await orchestrateReleasePullRequest({
+    workspaceRoot,
+    githubClient,
     releaseBranch: normalizedOptions.branch.release,
     defaultBranch: normalizedOptions.branch.default,
     pullRequestTitle: options.pullRequest?.title,
@@ -264,18 +265,14 @@ export async function release(
 
 async function orchestrateReleasePullRequest({
   workspaceRoot,
-  owner,
-  repo,
-  githubToken,
+  githubClient,
   releaseBranch,
   defaultBranch,
   pullRequestTitle,
   pullRequestBody,
 }: {
   workspaceRoot: string;
-  owner: string;
-  repo: string;
-  githubToken: string;
+  githubClient: GitHubClient;
   releaseBranch: string;
   defaultBranch: string;
   pullRequestTitle?: string;
@@ -290,12 +287,7 @@ async function orchestrateReleasePullRequest({
     );
   }
 
-  const existingPullRequest = await getExistingPullRequest({
-    owner,
-    repo,
-    branch: releaseBranch,
-    githubToken,
-  });
+  const existingPullRequest = await githubClient.getExistingPullRequest(releaseBranch);
 
   const doesReleasePRExist = !!existingPullRequest;
 
@@ -368,15 +360,12 @@ async function orchestrateReleasePullRequest({
       const prTitle = existingPullRequest?.title || pullRequestTitle || "chore: update package versions";
       const prBody = generatePullRequestBody(updates, pullRequestBody);
 
-      const pullRequest = await upsertPullRequest({
-        owner,
-        repo,
+      const pullRequest = await githubClient.upsertPullRequest({
         pullNumber: existingPullRequest?.number,
         title: prTitle,
         body: prBody,
         head: releaseBranch,
         base: defaultBranch,
-        githubToken,
       });
 
       logger.success(`${doesReleasePRExist ? "Updated" : "Created"} pull request: ${pullRequest?.html_url}`);

@@ -3,6 +3,23 @@ import type { WorkspacePackage } from "#core/workspace";
 export type BumpKind = "none" | "patch" | "minor" | "major";
 export type GlobalCommitMode = false | "dependencies" | "all";
 
+export interface CommitGroup {
+  /**
+   * Unique identifier for the group
+   */
+  name: string;
+
+  /**
+   * Display title (e.g., "Features", "Bug Fixes")
+   */
+  title: string;
+
+  /**
+   * Conventional commit types to include in this group
+   */
+  types: string[];
+}
+
 export interface SharedOptions {
   /**
    * Repository identifier (e.g., "owner/repo")
@@ -41,6 +58,13 @@ export interface SharedOptions {
      */
     versions?: boolean;
   };
+
+  /**
+   * Commit grouping configuration
+   * Used for changelog generation and commit display
+   * @default DEFAULT_COMMIT_GROUPS
+   */
+  groups?: CommitGroup[];
 }
 
 export interface PackageJson {
