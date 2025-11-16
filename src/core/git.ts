@@ -315,3 +315,120 @@ export async function pushBranch(
     );
   }
 }
+
+export async function readFileFromGit(
+  workspaceRoot: string,
+  ref: string,
+  filePath: string,
+): Promise<string | null> {
+  try {
+    const result = await run("git", ["show", `${ref}:${filePath}`], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    return result.stdout;
+  } catch {
+    return null;
+  }
+}
+
+export async function getMostRecentPackageTag(
+  workspaceRoot: string,
+  packageName: string,
+): Promise<string | undefined> {
+  try {
+    // Tags for each package follow the format: packageName@version
+    const { stdout } = await run("git", ["tag", "--list", `${packageName}@*`], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
+    if (tags.length === 0) {
+      return undefined;
+    }
+
+    // Find the last tag for the specified package
+    return tags.reverse()[0];
+  } catch (err) {
+    logger.warn(
+      `Failed to get tags for package ${packageName}: ${(err as Error).message}`,
+    );
+    return undefined;
+  }
+}
+
+/**
+ * Builds a mapping of commit SHAs to the list of files changed in each commit
+ * within a given inclusive range.
+ *
+ * Internally runs:
+ *   git log --name-only --format=%H <from>^..<to>
+ *
+ * Notes
+ * - This includes the commit identified by `from` (via `from^..to`).
+ * - Order of commits in the resulting Map follows `git log` output
+ *   (reverse chronological, newest first).
+ * - On failure (e.g., invalid refs), the function returns null.
+ *
+ * @param {string} workspaceRoot Absolute path to the git repository root used as cwd.
+ * @param {string} from          Starting commit/ref (inclusive).
+ * @param {string} to            Ending commit/ref (inclusive).
+ * @returns {Promise<Map<string, string[]> | null>} Promise resolving to a Map where keys are commit SHAs and values are
+ *          arrays of file paths changed by that commit, or null on error.
+ */
+export async function getGroupedFilesByCommitSha(
+  workspaceRoot: string,
+  from: string,
+  to: string,
+): Promise<Map<string, string[]> | null> {
+  //                    commit hash    file paths
+  const commitsMap = new Map<string, string[]>();
+
+  try {
+    const { stdout } = await run("git", ["log", "--name-only", "--format=%H", `${from}^..${to}`], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    const lines = stdout.trim().split("\n").filter((line) => line.trim() !== "");
+
+    let currentSha: string | null = null;
+    const HASH_REGEX = /^[0-9a-f]{40}$/i;
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+
+      // Found a new commit hash
+      if (HASH_REGEX.test(trimmedLine)) {
+        currentSha = trimmedLine;
+        commitsMap.set(currentSha, []);
+
+        continue;
+      }
+
+      if (currentSha === null) {
+        // Malformed output: file path found before any commit hash
+        continue;
+      }
+
+      // Found a file path, and we have a current hash to assign it to
+      // Note: In case of merge commits, an empty line might appear which is already filtered.
+      // If the line is NOT a hash, it must be a file path.
+
+      // The file path is added to the array associated with the most recent hash.
+      commitsMap.get(currentSha)!.push(trimmedLine);
+    }
+
+    return commitsMap;
+  } catch {
+    return null;
+  }
+}

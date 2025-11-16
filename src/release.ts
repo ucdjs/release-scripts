@@ -3,6 +3,8 @@ import type {
   PackageRelease,
   SharedOptions,
 } from "#shared/types";
+import type { GitCommit } from "commit-parser";
+import { updateChangelog } from "#core/changelog";
 import {
   checkoutBranch,
   commitChanges,
@@ -23,10 +25,10 @@ import {
   upsertPullRequest,
 } from "#core/github";
 import { discoverWorkspacePackages } from "#core/workspace";
+import { normalizeReleaseOptions, normalizeSharedOptions } from "#shared/options";
 import {
   exitWithError,
   logger,
-  normalizeSharedOptions,
 } from "#shared/utils";
 import {
   getGlobalCommitsPerPackage,
@@ -186,6 +188,41 @@ export async function release(
   // Apply version updates to package.json files
   await applyUpdates();
 
+  // If the changelog option is enabled, update changelogs
+  if (normalizedOptions.changelog.enabled) {
+    logger.step("Updating changelogs");
+
+    const changelogPromises = allUpdates.map((update) => {
+      const pkgCommits = groupedPackageCommits.get(update.package.name) || [];
+
+      const globalCommits = globalCommitsPerPackage.get(update.package.name) || [];
+      const allCommits = [...pkgCommits, ...globalCommits];
+
+      if (allCommits.length === 0) {
+        logger.verbose(`No commits for ${update.package.name}, skipping changelog`);
+        return Promise.resolve();
+      }
+
+      logger.verbose(`Updating changelog for ${farver.cyan(update.package.name)}`);
+
+      return updateChangelog({
+        normalizedOptions: {
+          ...normalizedOptions,
+          workspaceRoot,
+        },
+        workspacePackage: update.package,
+        version: update.newVersion,
+        previousVersion: update.currentVersion !== "0.0.0" ? update.currentVersion : undefined,
+        commits: allCommits,
+        date: new Date().toISOString().split("T")[0]!,
+      });
+    }).filter((p): p is Promise<void> => p != null);
+
+    const updates = await Promise.all(changelogPromises);
+
+    logger.success(`Updated ${updates.length} changelog(s)`);
+  }
+
   // Commit and push changes
   const hasChangesToPush = await prOps.syncChanges(true);
 
@@ -222,56 +259,6 @@ export async function release(
     updates: allUpdates,
     prUrl: pullRequest?.html_url,
     created,
-  };
-}
-
-async function normalizeReleaseOptions(options: ReleaseOptions) {
-  const normalized = normalizeSharedOptions(options);
-
-  let defaultBranch = options.branch?.default?.trim();
-  const releaseBranch = options.branch?.release?.trim() ?? "release/next";
-
-  if (defaultBranch == null || defaultBranch === "") {
-    defaultBranch = await getDefaultBranch(normalized.workspaceRoot);
-
-    if (!defaultBranch) {
-      exitWithError(
-        "Could not determine default branch",
-        "Please specify the default branch in options",
-      );
-    }
-  }
-
-  // Ensure that default branch is available, and not the same as release branch
-  if (defaultBranch === releaseBranch) {
-    exitWithError(
-      `Default branch and release branch cannot be the same: "${defaultBranch}"`,
-      "Specify different branches for default and release",
-    );
-  }
-
-  const availableBranches = await getAvailableBranches(normalized.workspaceRoot);
-  if (!availableBranches.includes(defaultBranch)) {
-    exitWithError(
-      `Default branch "${defaultBranch}" does not exist in the repository`,
-      `Available branches: ${availableBranches.join(", ")}`,
-    );
-  }
-
-  logger.verbose(`Using default branch: ${farver.green(defaultBranch)}`);
-
-  return {
-    ...normalized,
-    branch: {
-      release: releaseBranch,
-      default: defaultBranch,
-    },
-    safeguards: options.safeguards ?? true,
-    globalCommitMode: options.globalCommitMode ?? "dependencies",
-    pullRequest: options.pullRequest,
-    changelog: {
-      enabled: options.changelog?.enabled ?? true,
-    },
   };
 }
 

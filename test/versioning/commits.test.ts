@@ -1,5 +1,5 @@
 import type { GitCommit } from "commit-parser";
-import { determineHighestBump, getLastPackageTag } from "#versioning/commits";
+import { determineHighestBump, getMostRecentPackageTag } from "#versioning/commits";
 import * as tinyexec from "tinyexec";
 import {
   afterEach,
@@ -20,7 +20,7 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-describe("getLastPackageTag", () => {
+describe("getMostRecentPackageTag", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -33,11 +33,11 @@ describe("getLastPackageTag", () => {
       exitCode: 0,
     } as any);
 
-    const result = await getLastPackageTag("my-package", "/workspace");
+    const result = await getMostRecentPackageTag("/workspace", "my-package");
 
     expect(mockExec).toHaveBeenCalledWith(
       "git",
-      ["tag", "--list"],
+      ["tag", "--list", "my-package@*"],
       expect.objectContaining({
         nodeOptions: expect.objectContaining({
           cwd: "/workspace",
@@ -51,12 +51,12 @@ describe("getLastPackageTag", () => {
   it("should return undefined if no tag exists for package", async () => {
     const mockExec = vi.mocked(tinyexec.exec);
     mockExec.mockResolvedValue({
-      stdout: "other-package@1.0.0\n",
+      stdout: "",
       stderr: "",
       exitCode: 0,
     } as any);
 
-    const result = await getLastPackageTag("my-package", "/workspace");
+    const result = await getMostRecentPackageTag("/workspace", "my-package");
 
     expect(result).toBeUndefined();
   });
@@ -69,7 +69,7 @@ describe("getLastPackageTag", () => {
       exitCode: 0,
     } as any);
 
-    const result = await getLastPackageTag("my-package", "/workspace");
+    const result = await getMostRecentPackageTag("/workspace", "my-package");
 
     expect(result).toBeUndefined();
   });

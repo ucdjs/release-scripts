@@ -7,7 +7,7 @@ export interface SharedOptions {
   /**
    * Repository identifier (e.g., "owner/repo")
    */
-  repo: string;
+  repo: `${string}/${string}`;
 
   /**
    * Root directory of the workspace (defaults to process.cwd())

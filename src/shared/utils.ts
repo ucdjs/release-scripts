@@ -1,4 +1,3 @@
-import type { SharedOptions } from "#shared/types";
 import type {
   Options as TinyExecOptions,
   Result as TinyExecResult,
@@ -64,9 +63,9 @@ export const logger = {
     console.log();
   },
 
-  item: (message: string) => {
+  item: (message: string, ...args: unknown[]) => {
     // eslint-disable-next-line no-console
-    console.log(`  ${message}`);
+    console.log(`  ${message}`, ...args);
   },
 
   step: (message: string) => {
@@ -115,55 +114,6 @@ export function exitWithError(message: string, hint?: string): never {
   }
 
   process.exit(1);
-}
-
-export function normalizeSharedOptions<T extends SharedOptions>(options: T) {
-  const {
-    workspaceRoot = process.cwd(),
-    githubToken = "",
-    repo: fullRepo,
-    packages = true,
-    prompts = {
-      packages: true,
-      versions: true,
-    },
-    ...rest
-  } = options;
-
-  if (!githubToken.trim()) {
-    exitWithError(
-      "GitHub token is required",
-      "Set GITHUB_TOKEN environment variable or pass it in options",
-    );
-  }
-
-  if (!fullRepo || !fullRepo.trim() || !fullRepo.includes("/")) {
-    exitWithError(
-      "Repository (repo) is required",
-      "Specify the repository in 'owner/repo' format (e.g., 'octocat/hello-world')",
-    );
-  }
-
-  const [owner, repo] = fullRepo.split("/");
-  if (!owner || !repo) {
-    exitWithError(
-      `Invalid repo format: "${fullRepo}"`,
-      "Expected format: \"owner/repo\" (e.g., \"octocat/hello-world\")",
-    );
-  }
-
-  return {
-    ...rest,
-    packages,
-    prompts: {
-      packages: prompts?.packages ?? true,
-      versions: prompts?.versions ?? true,
-    },
-    workspaceRoot,
-    githubToken,
-    owner,
-    repo,
-  };
 }
 
 if (isDryRun || isVerbose || isForce) {

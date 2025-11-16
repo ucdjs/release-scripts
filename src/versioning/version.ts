@@ -127,7 +127,7 @@ function formatCommitsForDisplay(commits: GitCommit[]): string {
   const hasMore = commits.length > maxCommitsToShow;
 
   const typeLength = commits.map(({ type }) => type.length).reduce((a, b) => Math.max(a, b), 0);
-  const scopeLength = commits.map(({ scope }) => scope.length).reduce((a, b) => Math.max(a, b), 0);
+  const scopeLength = commits.map(({ scope }) => scope?.length).reduce((a, b) => Math.max(a || 0, b || 0), 0) || 0;
 
   const formattedCommits = commitsToShow.map((commit) => {
     let color = messageColorMap[commit.type] || ((c: string) => c);

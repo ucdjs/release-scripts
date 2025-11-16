@@ -1,37 +1,10 @@
 import type { WorkspacePackage } from "#core/workspace";
 import type { BumpKind } from "#shared/types";
 import type { GitCommit } from "commit-parser";
+import { getGroupedFilesByCommitSha, getMostRecentPackageTag } from "#core/git";
 import { logger, run } from "#shared/utils";
 import { getCommits } from "commit-parser";
 import farver from "farver";
-
-export async function getMostRecentPackageTag(
-  workspaceRoot: string,
-  packageName: string,
-): Promise<string | undefined> {
-  try {
-    // Tags for each package follow the format: packageName@version
-    const { stdout } = await run("git", ["tag", "--list", `${packageName}@*`], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-
-    const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
-    if (tags.length === 0) {
-      return undefined;
-    }
-
-    // Find the last tag for the specified package
-    return tags.reverse()[0];
-  } catch (err) {
-    logger.warn(
-      `Failed to get tags for package ${packageName}: ${(err as Error).message}`,
-    );
-    return undefined;
-  }
-}
 
 export function determineHighestBump(commits: GitCommit[]): BumpKind {
   if (commits.length === 0) {
@@ -105,46 +78,6 @@ export async function getWorkspacePackageGroupedCommits(
   }
 
   return changedPackages;
-}
-
-async function getCommitFileList(workspaceRoot: string, from: string, to: string) {
-  const commits = new Map<string, string[]>();
-
-  try {
-    const { stdout } = await run("git", ["log", "--name-only", "--format=%H", `${from}^..${to}`], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-
-    const lines = stdout.trim().split("\n").filter((line) => line.trim() !== "");
-
-    let currentSha: string | null = null;
-    const HASH_REGEX = /^[0-9a-f]{40}$/i;
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-
-      if (HASH_REGEX.test(trimmedLine)) {
-        // Found a new commit hash
-        currentSha = trimmedLine;
-        // Initialize the array of files for this new commit
-        commits.set(currentSha, []);
-      } else if (currentSha !== null) {
-        // Found a file path, and we have a current hash to assign it to
-        // Note: In case of merge commits, an empty line might appear which is already filtered.
-        // If the line is NOT a hash, it must be a file path.
-
-        // The file path is added to the array associated with the most recent hash.
-        commits.get(currentSha)?.push(trimmedLine);
-      }
-    }
-
-    return commits;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -273,7 +206,7 @@ export async function getGlobalCommitsPerPackage(
 
   logger.verbose("Fetching files for commits range", `${farver.cyan(commitRange.oldest)}..${farver.cyan(commitRange.newest)}`);
 
-  const commitFilesMap = await getCommitFileList(workspaceRoot, commitRange.oldest, commitRange.newest);
+  const commitFilesMap = await getGroupedFilesByCommitSha(workspaceRoot, commitRange.oldest, commitRange.newest);
   if (!commitFilesMap) {
     logger.warn("Failed to get commit file list, returning empty global commits");
     return result;
