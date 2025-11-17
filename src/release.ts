@@ -79,6 +79,11 @@ export interface ReleaseOptions extends SharedOptions {
      * @default true
      */
     enabled?: boolean;
+
+    /**
+     * Custom changelog entry template (ETA format)
+     */
+    template?: string;
   };
 
   globalCommitMode?: GlobalCommitMode;
@@ -167,7 +172,6 @@ export async function release(
     logger.item(`${update.package.name}: ${update.currentVersion} → ${update.newVersion}`);
   }
 
-  // Orchestrate git and pull request workflow
   const githubClient = createGitHubClient({
     owner: normalizedOptions.owner,
     repo: normalizedOptions.repo,
@@ -211,6 +215,7 @@ export async function release(
           ...normalizedOptions,
           workspaceRoot,
         },
+        githubClient,
         workspacePackage: update.package,
         version: update.newVersion,
         previousVersion: update.currentVersion !== "0.0.0" ? update.currentVersion : undefined,
