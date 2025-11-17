@@ -14,7 +14,8 @@
     "#versioning/*": "./src/versioning/*.ts",
     "#shared/*": "./src/shared/*.ts",
     "#release": "./src/release.ts",
-    "#publish": "./src/publish.ts"
+    "#publish": "./src/publish.ts",
+    "#verify": "./src/verify.ts"
   },
   "exports": {
     ".": "./dist/index.mjs",

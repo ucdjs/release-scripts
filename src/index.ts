@@ -7,3 +7,7 @@ export {
   type ReleaseOptions,
   type ReleaseResult,
 } from "#release";
+export {
+  verify,
+  type VerifyOptions,
+} from "#verify";
