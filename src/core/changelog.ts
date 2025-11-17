@@ -1,14 +1,36 @@
 import type { NormalizedReleaseOptions } from "#shared/options";
 import type { CommitGroup } from "#shared/types";
 import type { GitCommit } from "commit-parser";
+import type { GitHubClient } from "./github";
 import type { WorkspacePackage } from "./workspace";
 import { writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { logger } from "#shared/utils";
+import { dedent } from "@luxass/utils";
 import { groupByType } from "commit-parser";
+import { Eta } from "eta";
 import { readFileFromGit } from "./git";
 
-export function generateChangelogEntry(options: {
+const DEFAULT_CHANGELOG_TEMPLATE = dedent`
+  <% if (it.previousVersion) { %>
+  ## [<%= it.version %>](<%= it.compareUrl %>) (<%= it.date %>)
+  <% } else { %>
+  ## <%= it.version %> (<%= it.date %>)
+  <% } %>
+
+  <% it.groups.forEach((group) => { %>
+  <% if (group.commits.length > 0) { %>
+  ### <%= group.title %>
+
+  <% group.commits.forEach((commit) => { %>
+  * <%= commit.line %>
+  <% }) %>
+
+  <% } %>
+  <% }) %>
+`;
+
+export async function generateChangelogEntry(options: {
   packageName: string;
   version: string;
   previousVersion?: string;
@@ -17,7 +39,9 @@ export function generateChangelogEntry(options: {
   owner: string;
   repo: string;
   groups: CommitGroup[];
-}): string {
+  template?: string;
+  githubClient: GitHubClient;
+}): Promise<string> {
   const {
     packageName,
     version,
@@ -27,20 +51,16 @@ export function generateChangelogEntry(options: {
     owner,
     repo,
     groups,
+    template,
+    githubClient,
   } = options;
 
-  // Build version header
-  let header: string;
-  if (previousVersion) {
-    const compareUrl = `https://github.com/${owner}/${repo}/compare/${packageName}@${previousVersion}...${packageName}@${version}`;
-    header = `## [${version}](${compareUrl}) (${date})`;
-  } else {
-    header = `## ${version} (${date})`;
-  }
+  // Build compare URL
+  const compareUrl = previousVersion
+    ? `https://github.com/${owner}/${repo}/compare/${packageName}@${previousVersion}...${packageName}@${version}`
+    : undefined;
 
-  const lines: string[] = [header, ""];
-
-  // Merge all configured types under their group name so we can fetch by group directly
+  // Group commits by type using commit-parser
   const grouped = groupByType(commits, {
     includeNonConventional: false,
     mergeKeys: Object.fromEntries(
@@ -48,25 +68,40 @@ export function generateChangelogEntry(options: {
     ) as Record<string, string[]>,
   });
 
-  // Iterate through configured groups
-  for (const group of groups) {
-    // With mergeKeys above, all group types are merged under the group name
-    const commitsInGroup: GitCommit[] = grouped.get(group.name) ?? [];
-
-    if (commitsInGroup.length === 0) {
-      logger.verbose(`No commits found for group "${group.name}", skipping section.`);
+  // Append resolved authors to each commit
+  for (const commit of commits) {
+    if (commit.authors.length === 0) {
       continue;
     }
 
-    logger.verbose(`Found ${commitsInGroup.length} commits for group "${group.name}".`);
+    const resolvedAuthors = await Promise.all(commit.authors.map(async (author) => {
+      const username = await githubClient.resolveAuthorInfo(author.email);
+      return {
+        ...author,
+        username,
+      };
+    }));
 
-    lines.push(`### ${group.title}`, "");
-    for (const commit of commitsInGroup) {
+    // @ts-expect-error -- adding resolvedAuthors property
+    commit.resolvedAuthors = resolvedAuthors;
+  }
+
+  // Format commits for each group
+  const templateGroups = groups.map((group) => {
+    const commitsInGroup: GitCommit[] = grouped.get(group.name) ?? [];
+
+    if (commitsInGroup.length > 0) {
+      logger.verbose(`Found ${commitsInGroup.length} commits for group "${group.name}".`);
+    }
+
+    // Format each commit
+    const formattedCommits = commitsInGroup.map((commit) => {
       const commitUrl = `https://github.com/${owner}/${repo}/commit/${commit.hash}`;
+      let line = `${commit.description}`;
 
-      let line = `* ${commit.description}`;
-
-      if (commit.references.length > 0) logger.verbose("Located references in commit", commit.references.length);
+      if (commit.references.length > 0) {
+        logger.verbose("Located references in commit", commit.references.length);
+      }
 
       // Append references (PRs, issues)
       for (const ref of commit.references) {
@@ -88,21 +123,37 @@ export function generateChangelogEntry(options: {
 
       // Append authors if available
       if (commit.authors.length > 0) {
+        // @ts-expect-error -- accessing resolvedAuthors property
+        // eslint-disable-next-line no-console
+        console.log(commit.resolvedAuthors);
         line += ` (by ${commit.authors.map((a) => a.name).join(", ")})`;
       }
 
-      lines.push(line);
-    }
+      return { line };
+    });
 
-    lines.push("");
-  }
+    return {
+      name: group.name,
+      title: group.title,
+      commits: formattedCommits,
+    };
+  });
 
-  // Remove trailing empty line
-  if (lines[lines.length - 1] === "") {
-    lines.pop();
-  }
+  const templateData = {
+    packageName,
+    version,
+    previousVersion,
+    date,
+    compareUrl,
+    owner,
+    repo,
+    groups: templateGroups,
+  };
 
-  return lines.join("\n");
+  const eta = new Eta();
+  const templateToUse = template || DEFAULT_CHANGELOG_TEMPLATE;
+
+  return eta.renderString(templateToUse, templateData).trim();
 }
 
 export async function updateChangelog(options: {
@@ -112,6 +163,7 @@ export async function updateChangelog(options: {
   previousVersion?: string;
   commits: GitCommit[];
   date: string;
+  githubClient: GitHubClient;
 }): Promise<void> {
   const {
     version,
@@ -140,7 +192,7 @@ export async function updateChangelog(options: {
   logger.verbose("Existing content found: ", Boolean(existingContent));
 
   // Generate the new changelog entry
-  const newEntry = generateChangelogEntry({
+  const newEntry = await generateChangelogEntry({
     packageName: workspacePackage.name,
     version,
     previousVersion,
@@ -149,6 +201,8 @@ export async function updateChangelog(options: {
     owner: normalizedOptions.owner!,
     repo: normalizedOptions.repo!,
     groups: normalizedOptions.groups,
+    template: normalizedOptions.changelog?.template,
+    githubClient: options.githubClient,
   });
 
   let updatedContent: string;
