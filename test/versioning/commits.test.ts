@@ -1,11 +1,8 @@
-import type { GitCommit } from "commit-parser";
 import { determineHighestBump } from "#versioning/commits";
 import {
-  afterEach,
   describe,
   expect,
   it,
-  vi,
 } from "vitest";
 import { createCommit } from "../_shared";
 

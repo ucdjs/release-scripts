@@ -1,5 +1,4 @@
 import type { WorkspacePackage } from "#core/workspace";
-import type { GitCommit } from "commit-parser";
 
 export type BumpKind = "none" | "patch" | "minor" | "major";
 export type GlobalCommitMode = false | "dependencies" | "all";
