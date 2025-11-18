@@ -1,27 +1,8 @@
 import type { GitHubClient } from "#core/github";
-import type { GitCommit } from "commit-parser";
-
 import { generateChangelogEntry } from "#core/changelog";
 import { DEFAULT_COMMIT_GROUPS } from "#shared/options";
 import { describe, expect, it, vi } from "vitest";
-
-function createCommit(overrides: Partial<GitCommit>): GitCommit {
-  return {
-    hash: "abc1234567890",
-    shortHash: "abc1234",
-    message: "feat: add feature",
-    description: "feat: add feature",
-    type: "feat",
-    scope: undefined,
-    isConventional: true,
-    isBreaking: false,
-    references: [],
-    authors: [
-      { name: "Test Author", email: "author@example.com" },
-    ],
-    ...overrides,
-  } as GitCommit;
-}
+import { createCommit } from "../_shared";
 
 describe("generateChangelogEntry author rendering", () => {
   it("includes resolved GitHub handles for commit authors", async () => {

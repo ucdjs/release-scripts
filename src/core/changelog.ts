@@ -298,7 +298,7 @@ function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOpti
   return line;
 }
 
-function parseChangelog(content: string) {
+export function parseChangelog(content: string) {
   const lines = content.split("\n");
 
   let packageName: string | null = null;

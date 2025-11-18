@@ -4,6 +4,7 @@ import {
   getAvailableBranches,
   getCurrentBranch,
   getDefaultBranch,
+  getMostRecentPackageTag,
   isWorkingDirectoryClean,
 } from "#core/git";
 import { logger } from "#shared/utils";
@@ -254,6 +255,57 @@ describe("git utilities", () => {
           createBranch("new-feature", "main", "/workspace"),
         ).rejects.toThrow("Some git error");
       });
+    });
+  });
+
+  describe("package tags", () => {
+    it("should return the last tag for a package", async () => {
+      const mockExec = vi.mocked(tinyexec.exec);
+      mockExec.mockResolvedValue({
+        stdout: "other-package@1.0.0\nmy-package@1.2.0\nmy-package@1.1.0\n",
+        stderr: "",
+        exitCode: 0,
+      } as any);
+
+      const result = await getMostRecentPackageTag("/workspace", "my-package");
+
+      expect(mockExec).toHaveBeenCalledWith(
+        "git",
+        ["tag", "--list", "my-package@*"],
+        expect.objectContaining({
+          nodeOptions: expect.objectContaining({
+            cwd: "/workspace",
+            stdio: "pipe",
+          }),
+        }),
+      );
+      expect(result).toBe("my-package@1.1.0");
+    });
+
+    it("should return undefined if no tag exists for package", async () => {
+      const mockExec = vi.mocked(tinyexec.exec);
+      mockExec.mockResolvedValue({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+      } as any);
+
+      const result = await getMostRecentPackageTag("/workspace", "my-package");
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should return undefined if no tags exist", async () => {
+      const mockExec = vi.mocked(tinyexec.exec);
+      mockExec.mockResolvedValue({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+      } as any);
+
+      const result = await getMostRecentPackageTag("/workspace", "my-package");
+
+      expect(result).toBeUndefined();
     });
   });
 });

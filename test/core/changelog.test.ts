@@ -1,11 +1,16 @@
-import type { GitCommit } from "commit-parser";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { generateChangelogEntry, parseChangelog, updateChangelog } from "#core/changelog";
+import { DEFAULT_COMMIT_GROUPS } from "#shared/options";
 import { dedent } from "@luxass/utils";
 import * as tinyexec from "tinyexec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testdir } from "vitest-testdirs";
+import {
+  createChangelogTestContext,
+  createCommit,
+  createGitHubClientStub,
+} from "../_shared";
 
 vi.mock("tinyexec");
 const mockExec = vi.mocked(tinyexec.x);
@@ -18,53 +23,46 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-function createTestCommit(overrides: Partial<GitCommit>): GitCommit {
-  return {
-    hash: overrides.hash || "abc1234567890",
-    shortHash: overrides.shortHash || "abc1234",
-    message: overrides.message || "test commit",
-    type: overrides.type,
-    scope: overrides.scope,
-    isConventional: overrides.isConventional ?? (!!overrides.type),
-    isBreaking: overrides.isBreaking ?? false,
-    body: overrides.body,
-    ...overrides,
-  } as GitCommit;
-}
-
 describe("generateChangelogEntry", () => {
-  it("should generate a changelog entry with features", () => {
+  const baseEntryOptions = {
+    packageName: "@ucdjs/test",
+    owner: "ucdjs",
+    repo: "test-repo",
+  } as const;
+
+  it("should generate a changelog entry with features", async () => {
     const commits = [
-      createTestCommit({
+      createCommit({
         type: "feat",
         message: "feat: add new feature\n\nFixes #123",
         hash: "abc1234567890",
         shortHash: "abc1234",
+        references: [{ type: "issue", value: "#123" }],
       }),
     ];
 
-    const entry = generateChangelogEntry({
-      packageName: "@ucdjs/test",
+    const entry = await generateChangelogEntry({
+      ...baseEntryOptions,
       version: "0.2.0",
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
-      owner: "ucdjs",
-      repo: "test-repo",
+      groups: DEFAULT_COMMIT_GROUPS,
+      githubClient: createGitHubClientStub(),
     });
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.2.0](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.2.0) (2025-01-16)
 
-      ### Features
 
-      * feat: add new feature ([#123](https://github.com/ucdjs/test-repo/issues/123)) ([abc1234](https://github.com/ucdjs/test-repo/commit/abc1234567890))"
+      ### Features
+      * feat: add new feature ([Issue #123](https://github.com/ucdjs/test-repo/issues/123)) ([abc1234](https://github.com/ucdjs/test-repo/commit/abc1234567890)) (by Test Author)"
     `);
   });
 
-  it("should generate a changelog entry with bug fixes", () => {
+  it("should generate a changelog entry with bug fixes", async () => {
     const commits = [
-      createTestCommit({
+      createCommit({
         type: "fix",
         message: "fix: fix critical bug",
         hash: "def5678901234",
@@ -72,40 +70,41 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = generateChangelogEntry({
-      packageName: "@ucdjs/test",
+    const entry = await generateChangelogEntry({
+      ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
-      owner: "ucdjs",
-      repo: "test-repo",
+      groups: DEFAULT_COMMIT_GROUPS,
+      githubClient: createGitHubClientStub(),
     });
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
 
-      ### Bug Fixes
 
-      * fix: fix critical bug ([def5678](https://github.com/ucdjs/test-repo/commit/def5678901234))"
+      ### Bug Fixes
+      * fix: fix critical bug ([def5678](https://github.com/ucdjs/test-repo/commit/def5678901234)) (by Test Author)"
     `);
   });
 
-  it("should handle multiple commit types", () => {
+  it("should handle multiple commit types", async () => {
     const commits = [
-      createTestCommit({
+      createCommit({
         type: "feat",
         message: "feat: add feature A",
         hash: "aaa1111111111",
         shortHash: "aaa1111",
       }),
-      createTestCommit({
+      createCommit({
         type: "fix",
         message: "fix: fix bug B\n\nCloses #456",
         hash: "bbb2222222222",
         shortHash: "bbb2222",
+        references: [{ type: "issue", value: "#456" }],
       }),
-      createTestCommit({
+      createCommit({
         type: "chore",
         message: "chore: update dependencies",
         hash: "ccc3333333333",
@@ -113,36 +112,31 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = generateChangelogEntry({
-      packageName: "@ucdjs/test",
+    const entry = await generateChangelogEntry({
+      ...baseEntryOptions,
       version: "0.3.0",
       previousVersion: "0.2.0",
       date: "2025-01-16",
       commits,
-      owner: "ucdjs",
-      repo: "test-repo",
+      groups: DEFAULT_COMMIT_GROUPS,
+      githubClient: createGitHubClientStub(),
     });
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.3.0](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.2.0...@ucdjs/test@0.3.0) (2025-01-16)
 
-      ### Features
 
-      * feat: add feature A ([aaa1111](https://github.com/ucdjs/test-repo/commit/aaa1111111111))
+      ### Features
+      * feat: add feature A ([aaa1111](https://github.com/ucdjs/test-repo/commit/aaa1111111111)) (by Test Author)
 
       ### Bug Fixes
-
-      * fix: fix bug B ([#456](https://github.com/ucdjs/test-repo/issues/456)) ([bbb2222](https://github.com/ucdjs/test-repo/commit/bbb2222222222))
-
-      ### Miscellaneous
-
-      * chore: update dependencies ([ccc3333](https://github.com/ucdjs/test-repo/commit/ccc3333333333))"
+      * fix: fix bug B ([Issue #456](https://github.com/ucdjs/test-repo/issues/456)) ([bbb2222](https://github.com/ucdjs/test-repo/commit/bbb2222222222)) (by Test Author)"
     `);
   });
 
-  it("should handle first release without previous version", () => {
+  it("should handle first release without previous version", async () => {
     const commits = [
-      createTestCommit({
+      createCommit({
         type: "feat",
         message: "feat: initial release",
         hash: "initial123",
@@ -150,27 +144,27 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = generateChangelogEntry({
-      packageName: "@ucdjs/test",
+    const entry = await generateChangelogEntry({
+      ...baseEntryOptions,
       version: "0.1.0",
       date: "2025-01-16",
       commits,
-      owner: "ucdjs",
-      repo: "test-repo",
+      groups: DEFAULT_COMMIT_GROUPS,
+      githubClient: createGitHubClientStub(),
     });
 
     expect(entry).toMatchInlineSnapshot(`
       "## 0.1.0 (2025-01-16)
 
-      ### Features
 
-      * feat: initial release ([initial](https://github.com/ucdjs/test-repo/commit/initial123))"
+      ### Features
+      * feat: initial release ([initial](https://github.com/ucdjs/test-repo/commit/initial123)) (by Test Author)"
     `);
   });
 
-  it("should group perf commits with bug fixes", () => {
+  it("should group perf commits with bug fixes", async () => {
     const commits = [
-      createTestCommit({
+      createCommit({
         type: "perf",
         message: "perf: improve performance",
         hash: "perf123456789",
@@ -178,28 +172,28 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = generateChangelogEntry({
-      packageName: "@ucdjs/test",
+    const entry = await generateChangelogEntry({
+      ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
-      owner: "ucdjs",
-      repo: "test-repo",
+      groups: DEFAULT_COMMIT_GROUPS,
+      githubClient: createGitHubClientStub(),
     });
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
 
-      ### Bug Fixes
 
-      * perf: improve performance ([perf123](https://github.com/ucdjs/test-repo/commit/perf123456789))"
+      ### Bug Fixes
+      * perf: improve performance ([perf123](https://github.com/ucdjs/test-repo/commit/perf123456789)) (by Test Author)"
     `);
   });
 
-  it("should handle non-conventional commits", () => {
+  it("should handle non-conventional commits", async () => {
     const commits = [
-      createTestCommit({
+      createCommit({
         message: "some random commit",
         hash: "random12345678",
         shortHash: "random1",
@@ -207,23 +201,17 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = generateChangelogEntry({
-      packageName: "@ucdjs/test",
+    const entry = await generateChangelogEntry({
+      ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
-      owner: "ucdjs",
-      repo: "test-repo",
+      groups: DEFAULT_COMMIT_GROUPS,
+      githubClient: createGitHubClientStub(),
     });
 
-    expect(entry).toMatchInlineSnapshot(`
-      "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
-
-      ### Miscellaneous
-
-      * some random commit ([random1](https://github.com/ucdjs/test-repo/commit/random12345678))"
-    `);
+    expect(entry).toMatchInlineSnapshot(`"## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)"`);
   });
 });
 
@@ -358,12 +346,12 @@ describe("parseChangelog", () => {
 describe("updateChangelog", () => {
   it("should create a new changelog file", async () => {
     const testdirPath = await testdir({});
+    const { normalizedOptions, workspacePackage, githubClient } = createChangelogTestContext(testdirPath);
 
-    // Mock git show to return empty (file doesn't exist on default branch)
     mockExec.mockRejectedValue(new Error("fatal: path 'CHANGELOG.md' does not exist"));
 
     const commits = [
-      createTestCommit({
+      createCommit({
         type: "feat",
         message: "feat: add new feature",
         hash: "abc123",
@@ -372,15 +360,12 @@ describe("updateChangelog", () => {
     ];
 
     await updateChangelog({
-      packageName: "@ucdjs/test",
-      packagePath: testdirPath,
+      normalizedOptions,
+      workspacePackage,
       version: "0.1.0",
       commits,
-      owner: "ucdjs",
-      repo: "test-repo",
       date: "2025-01-16",
-      defaultBranch: "main",
-      workspaceRoot: testdirPath,
+      githubClient,
     });
 
     const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
@@ -390,18 +375,19 @@ describe("updateChangelog", () => {
 
       ## 0.1.0 (2025-01-16)
 
-      ### Features
 
-      * feat: add new feature ([abc123](https://github.com/ucdjs/test-repo/commit/abc123))
+      ### Features
+      * feat: add new feature ([abc123](https://github.com/ucdjs/test-repo/commit/abc123)) (by Test Author)
       "
     `);
   });
 
   it("should insert new version above existing entries", async () => {
     const testdirPath = await testdir({});
+    const context = createChangelogTestContext(testdirPath);
 
     const commits = [
-      createTestCommit({
+      createCommit({
         type: "feat",
         message: "feat: add feature B",
         hash: "def456",
@@ -409,47 +395,36 @@ describe("updateChangelog", () => {
       }),
     ];
 
-    // First call: git show returns empty (no changelog on default branch yet)
     mockExec.mockRejectedValueOnce(new Error("fatal: path 'CHANGELOG.md' does not exist"));
 
-    // Create initial changelog
     await updateChangelog({
-      packageName: "@ucdjs/test",
-      packagePath: testdirPath,
+      normalizedOptions: context.normalizedOptions,
+      workspacePackage: context.workspacePackage,
       version: "0.1.0",
       commits: [
-        createTestCommit({
+        createCommit({
           type: "feat",
           message: "feat: initial release",
           hash: "abc123",
           shortHash: "abc123",
         }),
       ],
-      owner: "ucdjs",
-      repo: "test-repo",
       date: "2025-01-15",
-      defaultBranch: "main",
-      workspaceRoot: testdirPath,
+      githubClient: context.githubClient,
     });
 
-    // Read the created changelog to simulate what's on the default branch
     const existingChangelog = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
 
-    // Second call: git show returns the existing changelog from "main"
-    mockExec.mockResolvedValueOnce({ stdout: existingChangelog, stderr: "" });
+    mockExec.mockResolvedValueOnce({ stdout: existingChangelog, stderr: "", exitCode: 0 });
 
-    // Add new version
     await updateChangelog({
-      packageName: "@ucdjs/test",
-      packagePath: testdirPath,
+      normalizedOptions: context.normalizedOptions,
+      workspacePackage: context.workspacePackage,
       version: "0.2.0",
       previousVersion: "0.1.0",
       commits,
-      owner: "ucdjs",
-      repo: "test-repo",
       date: "2025-01-16",
-      defaultBranch: "main",
-      workspaceRoot: testdirPath,
+      githubClient: context.githubClient,
     });
 
     const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
@@ -459,84 +434,71 @@ describe("updateChangelog", () => {
 
       ## [0.2.0](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.2.0) (2025-01-16)
 
-      ### Features
 
-      * feat: add feature B ([def456](https://github.com/ucdjs/test-repo/commit/def456))
+      ### Features
+      * feat: add feature B ([def456](https://github.com/ucdjs/test-repo/commit/def456)) (by Test Author)
 
 
       ## 0.1.0 (2025-01-15)
 
-      ### Features
 
-      * feat: initial release ([abc123](https://github.com/ucdjs/test-repo/commit/abc123))
+      ### Features
+      * feat: initial release ([abc123](https://github.com/ucdjs/test-repo/commit/abc123)) (by Test Author)
       "
     `);
   });
 
   it("should replace existing version entry (PR update)", async () => {
     const testdirPath = await testdir({});
+    const context = createChangelogTestContext(testdirPath);
 
-    // First call: git show returns empty (no changelog on default branch - this is a release PR)
     mockExec.mockRejectedValueOnce(new Error("fatal: path 'CHANGELOG.md' does not exist"));
 
-    // Create initial version
     await updateChangelog({
-      packageName: "@ucdjs/test",
-      packagePath: testdirPath,
+      normalizedOptions: context.normalizedOptions,
+      workspacePackage: context.workspacePackage,
       version: "0.2.0",
       commits: [
-        createTestCommit({
+        createCommit({
           type: "feat",
           message: "feat: add feature A",
           hash: "abc123",
           shortHash: "abc123",
         }),
       ],
-      owner: "ucdjs",
-      repo: "test-repo",
       date: "2025-01-16",
-      defaultBranch: "main",
-      workspaceRoot: testdirPath,
+      githubClient: context.githubClient,
     });
 
-    // Second call: git show still returns empty (main branch doesn't have 0.2.0 yet)
-    // This simulates a PR update where we add more commits to the same release
     mockExec.mockRejectedValueOnce(new Error("fatal: path 'CHANGELOG.md' does not exist"));
 
-    // Update same version with more commits
     await updateChangelog({
-      packageName: "@ucdjs/test",
-      packagePath: testdirPath,
+      normalizedOptions: context.normalizedOptions,
+      workspacePackage: context.workspacePackage,
       version: "0.2.0",
       commits: [
-        createTestCommit({
+        createCommit({
           type: "feat",
           message: "feat: add feature A",
           hash: "abc123",
           shortHash: "abc123",
         }),
-        createTestCommit({
+        createCommit({
           type: "feat",
           message: "feat: add feature B",
           hash: "def456",
           shortHash: "def456",
         }),
       ],
-      owner: "ucdjs",
-      repo: "test-repo",
       date: "2025-01-16",
-      defaultBranch: "main",
-      workspaceRoot: testdirPath,
+      githubClient: context.githubClient,
     });
 
     const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
     const parsed = parseChangelog(content);
 
-    // Should still have only one version entry
     expect(parsed.versions).toHaveLength(1);
     expect(parsed.versions[0]!.version).toBe("0.2.0");
-
-    // Should contain both features
     expect(content).toContain("add feature A");
     expect(content).toContain("add feature B");
   });
