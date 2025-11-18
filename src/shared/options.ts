@@ -1,6 +1,7 @@
 import type { ReleaseOptions } from "#release";
 import type { CommitGroup, SharedOptions } from "./types";
 import process from "node:process";
+import { DEFAULT_CHANGELOG_TEMPLATE } from "#core/changelog";
 import { getAvailableBranches, getDefaultBranch } from "#core/git";
 import { DEFAULT_PR_BODY_TEMPLATE } from "#core/github";
 import farver from "farver";
@@ -136,6 +137,7 @@ export async function normalizeReleaseOptions(options: ReleaseOptions): Promise<
     },
     changelog: {
       enabled: options.changelog?.enabled ?? true,
+      template: options.changelog?.template ?? DEFAULT_CHANGELOG_TEMPLATE,
     },
   };
 }

@@ -11,7 +11,7 @@ import { groupByType } from "commit-parser";
 import { Eta } from "eta";
 import { readFileFromGit } from "./git";
 
-const DEFAULT_CHANGELOG_TEMPLATE = dedent`
+export const DEFAULT_CHANGELOG_TEMPLATE = dedent`
   <% if (it.previousVersion) { -%>
   ## [<%= it.version %>](<%= it.compareUrl %>) (<%= it.date %>)
   <% } else { -%>
