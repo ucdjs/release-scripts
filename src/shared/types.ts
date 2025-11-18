@@ -1,4 +1,5 @@
 import type { WorkspacePackage } from "#core/workspace";
+import type { GitCommit } from "commit-parser";
 
 export type BumpKind = "none" | "patch" | "minor" | "major";
 export type GlobalCommitMode = false | "dependencies" | "all";
@@ -126,4 +127,11 @@ export interface PackageRelease {
    * Whether this package has direct changes (vs being updated due to dependency changes)
    */
   hasDirectChanges: boolean;
+}
+
+export interface AuthorInfo {
+  commits: string[];
+  login?: string;
+  email: string;
+  name: string;
 }

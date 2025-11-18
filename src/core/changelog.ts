@@ -1,5 +1,5 @@
 import type { NormalizedReleaseOptions } from "#shared/options";
-import type { CommitGroup } from "#shared/types";
+import type { AuthorInfo, CommitGroup } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import type { GitHubClient } from "./github";
 import type { WorkspacePackage } from "./workspace";
@@ -12,22 +12,23 @@ import { Eta } from "eta";
 import { readFileFromGit } from "./git";
 
 const DEFAULT_CHANGELOG_TEMPLATE = dedent`
-  <% if (it.previousVersion) { %>
+  <% if (it.previousVersion) { -%>
   ## [<%= it.version %>](<%= it.compareUrl %>) (<%= it.date %>)
-  <% } else { %>
+  <% } else { -%>
   ## <%= it.version %> (<%= it.date %>)
   <% } %>
 
   <% it.groups.forEach((group) => { %>
   <% if (group.commits.length > 0) { %>
-  ### <%= group.title %>
 
+  ### <%= group.title %>
   <% group.commits.forEach((commit) => { %>
+
   * <%= commit.line %>
-  <% }) %>
+  <% }); %>
 
   <% } %>
-  <% }) %>
+  <% }); %>
 `;
 
 export async function generateChangelogEntry(options: {
@@ -68,69 +69,25 @@ export async function generateChangelogEntry(options: {
     ) as Record<string, string[]>,
   });
 
-  // Append resolved authors to each commit
-  for (const commit of commits) {
-    if (commit.authors.length === 0) {
-      continue;
-    }
-
-    const resolvedAuthors = await Promise.all(commit.authors.map(async (author) => {
-      const username = await githubClient.resolveAuthorInfo(author.email);
-      return {
-        ...author,
-        username,
-      };
-    }));
-
-    // @ts-expect-error -- adding resolvedAuthors property
-    commit.resolvedAuthors = resolvedAuthors;
-  }
+  const commitAuthors = await resolveCommitAuthors(commits, githubClient);
 
   // Format commits for each group
   const templateGroups = groups.map((group) => {
-    const commitsInGroup: GitCommit[] = grouped.get(group.name) ?? [];
+    const commitsInGroup = grouped.get(group.name) ?? [];
 
     if (commitsInGroup.length > 0) {
       logger.verbose(`Found ${commitsInGroup.length} commits for group "${group.name}".`);
     }
 
     // Format each commit
-    const formattedCommits = commitsInGroup.map((commit) => {
-      const commitUrl = `https://github.com/${owner}/${repo}/commit/${commit.hash}`;
-      let line = `${commit.description}`;
-
-      if (commit.references.length > 0) {
-        logger.verbose("Located references in commit", commit.references.length);
-      }
-
-      // Append references (PRs, issues)
-      for (const ref of commit.references) {
-        if (!ref.value) continue;
-
-        const number = Number.parseInt(ref.value.replace(/^#/, ""), 10);
-        if (Number.isNaN(number)) continue;
-
-        if (ref.type === "issue") {
-          line += ` ([Issue ${ref.value}](https://github.com/${owner}/${repo}/issues/${number}))`;
-          continue;
-        }
-
-        // Assume it's a PR
-        line += ` ([PR ${ref.value}](https://github.com/${owner}/${repo}/pull/${number}))`;
-      }
-
-      line += ` ([${commit.shortHash}](${commitUrl}))`;
-
-      // Append authors if available
-      if (commit.authors.length > 0) {
-        // @ts-expect-error -- accessing resolvedAuthors property
-        // eslint-disable-next-line no-console
-        console.log(commit.resolvedAuthors);
-        line += ` (by ${commit.authors.map((a) => a.name).join(", ")})`;
-      }
-
-      return { line };
-    });
+    const formattedCommits = commitsInGroup.map((commit) => ({
+      line: formatCommitLine({
+        commit,
+        owner,
+        repo,
+        authors: commitAuthors.get(commit.hash) ?? [],
+      }),
+    }));
 
     return {
       name: group.name,
@@ -172,6 +129,7 @@ export async function updateChangelog(options: {
     date,
     normalizedOptions,
     workspacePackage,
+    githubClient,
   } = options;
 
   const changelogPath = join(workspacePackage.path, "CHANGELOG.md");
@@ -202,7 +160,7 @@ export async function updateChangelog(options: {
     repo: normalizedOptions.repo!,
     groups: normalizedOptions.groups,
     template: normalizedOptions.changelog?.template,
-    githubClient: options.githubClient,
+    githubClient,
   });
 
   let updatedContent: string;
@@ -247,6 +205,97 @@ export async function updateChangelog(options: {
 
   // Write updated content back
   await writeFile(changelogPath, updatedContent, "utf-8");
+}
+
+async function resolveCommitAuthors(
+  commits: GitCommit[],
+  githubClient: GitHubClient,
+): Promise<Map<string, AuthorInfo[]>> {
+  const authorsByEmail = new Map<string, AuthorInfo>();
+  const commitAuthors = new Map<string, AuthorInfo[]>();
+
+  for (const commit of commits) {
+    const authorsForCommit: AuthorInfo[] = [];
+
+    commit.authors.forEach((author, idx) => {
+      if (!author.email || !author.name) {
+        return;
+      }
+
+      if (!authorsByEmail.has(author.email)) {
+        authorsByEmail.set(author.email, {
+          commits: [],
+          name: author.name,
+          email: author.email,
+        });
+      }
+
+      const info = authorsByEmail.get(author.email)!;
+
+      if (idx === 0) {
+        info.commits.push(commit.shortHash);
+      }
+
+      authorsForCommit.push(info);
+    });
+
+    commitAuthors.set(commit.hash, authorsForCommit);
+  }
+
+  await Promise.all(
+    Array.from(authorsByEmail.values()).map((info) => githubClient.resolveAuthorInfo(info)),
+  );
+
+  return commitAuthors;
+}
+
+interface FormatCommitLineOptions {
+  commit: GitCommit;
+  owner: string;
+  repo: string;
+  authors: AuthorInfo[];
+}
+
+function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOptions): string {
+  const commitUrl = `https://github.com/${owner}/${repo}/commit/${commit.hash}`;
+  let line = `${commit.description}`;
+  const references = commit.references ?? [];
+
+  if (references.length > 0) {
+    logger.verbose("Located references in commit", references.length);
+  }
+
+  for (const ref of references) {
+    if (!ref.value) continue;
+
+    const number = Number.parseInt(ref.value.replace(/^#/, ""), 10);
+    if (Number.isNaN(number)) continue;
+
+    if (ref.type === "issue") {
+      line += ` ([Issue ${ref.value}](https://github.com/${owner}/${repo}/issues/${number}))`;
+      continue;
+    }
+
+    line += ` ([PR ${ref.value}](https://github.com/${owner}/${repo}/pull/${number}))`;
+  }
+
+  line += ` ([${commit.shortHash}](${commitUrl}))`;
+
+  if (authors.length > 0) {
+    const authorList = authors
+      .map((author) => {
+        if (author.login) {
+          return `[@${author.login}](https://github.com/${author.login})`;
+        }
+
+        return author.name;
+      })
+      .join(", ");
+
+    line += ` (by ${authorList})`;
+  }
+
+  return line;
 }
 
 function parseChangelog(content: string) {

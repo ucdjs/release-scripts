@@ -1,4 +1,4 @@
-import type { PackageRelease } from "#shared/types";
+import type { AuthorInfo, PackageRelease } from "#shared/types";
 import { logger } from "#shared/utils";
 import { dedent } from "@luxass/utils";
 import { Eta } from "eta";
@@ -199,17 +199,50 @@ export class GitHubClient {
     logger.info(`Commit status set to ${farver.cyan(state)} for ${farver.gray(sha.substring(0, 7))}`);
   }
 
-  async resolveAuthorInfo(email: string): Promise<string | null> {
-    const q = encodeURIComponent(`${email} type:user in:email`);
-    const data = await this.request<{
-      items?: Array<{ login: string }>;
-    }>(`/search/users?q=${q}`);
-
-    if (!data.items || data.items.length === 0) {
-      return null;
+  async resolveAuthorInfo(info: AuthorInfo): Promise<AuthorInfo> {
+    if (info.login) {
+      return info;
     }
 
-    return data.items[0]!.login;
+    try {
+      // https://docs.github.com/en/search-github/searching-on-github/searching-users#search-only-users-or-organizations
+      const q = encodeURIComponent(`${info.email} type:user in:email`);
+      const data = await this.request<{
+        items?: Array<{ login: string }>;
+      }>(`/search/users?q=${q}`);
+
+      if (!data.items || data.items.length === 0) {
+        return info;
+      }
+
+      info.login = data.items[0]!.login;
+    } catch (err) {
+      logger.warn(`Failed to resolve author info for email ${info.email}: ${(err as Error).message}`);
+    }
+
+    if (info.login) {
+      return info;
+    }
+
+    if (info.commits.length > 0) {
+      try {
+        const data = await this.request<{
+          author: {
+            login: string;
+          };
+        }>(
+          `/repos/${this.owner}/${this.repo}/commits/${info.commits[0]}`,
+        );
+
+        if (data.author && data.author.login) {
+          info.login = data.author.login;
+        }
+      } catch (err) {
+        logger.warn(`Failed to resolve author info from commits for email ${info.email}: ${(err as Error).message}`);
+      }
+    }
+
+    return info;
   }
 }
 
