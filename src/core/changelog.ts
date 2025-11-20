@@ -11,6 +11,8 @@ import { groupByType } from "commit-parser";
 import { Eta } from "eta";
 import { readFileFromGit } from "./git";
 
+const globalAuthorCache = new Map<string, AuthorInfo>();
+
 export const DEFAULT_CHANGELOG_TEMPLATE = dedent`
   <% if (it.previousVersion) { -%>
   ## [<%= it.version %>](<%= it.compareUrl %>) (<%= it.date %>)
@@ -211,7 +213,7 @@ async function resolveCommitAuthors(
   commits: GitCommit[],
   githubClient: GitHubClient,
 ): Promise<Map<string, AuthorInfo[]>> {
-  const authorsByEmail = new Map<string, AuthorInfo>();
+  const authorsToResolve = new Set<AuthorInfo>();
   const commitAuthors = new Map<string, AuthorInfo[]>();
 
   for (const commit of commits) {
@@ -222,28 +224,30 @@ async function resolveCommitAuthors(
         return;
       }
 
-      if (!authorsByEmail.has(author.email)) {
-        authorsByEmail.set(author.email, {
+      let info = globalAuthorCache.get(author.email);
+
+      if (!info) {
+        info = {
           commits: [],
           name: author.name,
           email: author.email,
-        });
+        };
+        globalAuthorCache.set(author.email, info);
       }
-
-      const info = authorsByEmail.get(author.email)!;
 
       if (idx === 0) {
         info.commits.push(commit.shortHash);
       }
 
       authorsForCommit.push(info);
+      authorsToResolve.add(info);
     });
 
     commitAuthors.set(commit.hash, authorsForCommit);
   }
 
   await Promise.all(
-    Array.from(authorsByEmail.values()).map((info) => githubClient.resolveAuthorInfo(info)),
+    Array.from(authorsToResolve).map((info) => githubClient.resolveAuthorInfo(info)),
   );
 
   return commitAuthors;
