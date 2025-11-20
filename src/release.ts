@@ -4,6 +4,9 @@ import type {
   PackageRelease,
   SharedOptions,
 } from "#shared/types";
+import type { VersionOverrides } from "#versioning/version";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { updateChangelog } from "#core/changelog";
 import {
   checkoutBranch,
@@ -152,26 +155,6 @@ export async function release(
     normalizedOptions.globalCommitMode,
   );
 
-  // Calculate version updates and prepare apply function
-  const { allUpdates, applyUpdates } = await calculateAndPrepareVersionUpdates({
-    workspacePackages,
-    packageCommits: groupedPackageCommits,
-    workspaceRoot,
-    showPrompt: options.prompts?.versions !== false,
-    globalCommitsPerPackage,
-  });
-
-  if (allUpdates.filter((u) => u.hasDirectChanges).length === 0) {
-    logger.warn("No packages have changes requiring a release");
-  }
-
-  logger.section("🔄 Version Updates");
-  logger.item(`Updating ${allUpdates.length} packages (including dependents)`);
-
-  for (const update of allUpdates) {
-    logger.item(`${update.package.name}: ${update.currentVersion} → ${update.newVersion}`);
-  }
-
   const githubClient = createGitHubClient({
     owner: normalizedOptions.owner,
     repo: normalizedOptions.repo,
@@ -186,6 +169,51 @@ export async function release(
     pullRequestTitle: options.pullRequest?.title,
     pullRequestBody: options.pullRequest?.body,
   });
+
+  // Prepare the release branch (checkout, rebase, etc.)
+  await prOps.prepareBranch();
+
+  const overridesPath = join(workspaceRoot, ".github", "ucdjs.release.overrides.json");
+  let existingOverrides: VersionOverrides = {};
+  try {
+    const overridesContent = await readFile(overridesPath, "utf-8");
+    existingOverrides = JSON.parse(overridesContent);
+    logger.info("Found existing version overrides file.");
+  } catch {
+    logger.info("No existing version overrides file found. Continuing...");
+  }
+
+  // Calculate version updates and prepare apply function
+  const { allUpdates, applyUpdates, overrides: newOverrides } = await calculateAndPrepareVersionUpdates({
+    workspacePackages,
+    packageCommits: groupedPackageCommits,
+    workspaceRoot,
+    showPrompt: options.prompts?.versions !== false,
+    globalCommitsPerPackage,
+    overrides: existingOverrides,
+  });
+
+  if (Object.keys(newOverrides).length > 0) {
+    logger.info("Writing version overrides file...");
+    try {
+      await mkdir(join(workspaceRoot, ".github"), { recursive: true });
+      await writeFile(overridesPath, JSON.stringify(newOverrides, null, 2), "utf-8");
+      logger.success("Successfully wrote version overrides file.");
+    } catch (e) {
+      logger.error("Failed to write version overrides file:", e);
+    }
+  }
+
+  if (allUpdates.filter((u) => u.hasDirectChanges).length === 0) {
+    logger.warn("No packages have changes requiring a release");
+  }
+
+  logger.section("🔄 Version Updates");
+  logger.item(`Updating ${allUpdates.length} packages (including dependents)`);
+
+  for (const update of allUpdates) {
+    logger.item(`${update.package.name}: ${update.currentVersion} → ${update.newVersion}`);
+  }
 
   // Prepare the release branch
   await prOps.prepareBranch();

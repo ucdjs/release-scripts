@@ -159,12 +159,15 @@ function formatCommitsForDisplay(commits: GitCommit[]): string {
   return formattedCommits;
 }
 
+export type VersionOverrides = Record<string, BumpKind>;
+
 interface CalculateVersionUpdatesOptions {
   workspacePackages: WorkspacePackage[];
   packageCommits: Map<string, GitCommit[]>;
   workspaceRoot: string;
   showPrompt?: boolean;
   globalCommitsPerPackage: Map<string, GitCommit[]>;
+  overrides?: VersionOverrides;
 }
 
 /**
@@ -176,9 +179,16 @@ async function calculateVersionUpdates({
   workspaceRoot,
   showPrompt,
   globalCommitsPerPackage,
-}: CalculateVersionUpdatesOptions): Promise<PackageRelease[]> {
+  overrides: initialOverrides = {},
+}: CalculateVersionUpdatesOptions): Promise<{
+  updates: PackageRelease[];
+  overrides: VersionOverrides;
+}> {
   const versionUpdates: PackageRelease[] = [];
   const processedPackages = new Set<string>();
+  const newOverrides: VersionOverrides = { ...initialOverrides };
+
+  const bumpRanks: Record<BumpKind, number> = { major: 3, minor: 2, patch: 1, none: 0 };
 
   logger.verbose(`Starting version inference for ${packageCommits.size} packages with commits`);
 
@@ -192,28 +202,21 @@ async function calculateVersionUpdates({
 
     processedPackages.add(pkgName);
 
-    // Get this package's global commits
     const globalCommits = globalCommitsPerPackage.get(pkgName) || [];
-
-    if (globalCommits.length > 0) {
-      logger.verbose(`  - Global commits for this package: ${globalCommits.length}`);
-    }
-
-    // Combine package-specific commits with its global commits
     const allCommitsForPackage = [...pkgCommits, ...globalCommits];
 
-    const bump = determineHighestBump(allCommitsForPackage);
+    const determinedBump = determineHighestBump(allCommitsForPackage);
+    const effectiveBump = newOverrides[pkgName] || determinedBump;
 
-    if (bump === "none") {
+    if (effectiveBump === "none") {
       continue;
     }
 
-    let newVersion = getNextVersion(pkg.version, bump);
+    let newVersion = getNextVersion(pkg.version, effectiveBump);
 
     if (!isCI && showPrompt) {
       logger.clearScreen();
-      // Display commits that are causing the version bump
-      logger.section("📝 Commits affecting this package");
+      logger.section(`📝 Commits for ${farver.cyan(pkg.name)}`);
       const commitDisplay = formatCommitsForDisplay(allCommitsForPackage);
       const commitLines = commitDisplay.split("\n");
       commitLines.forEach((line) => logger.item(line));
@@ -226,52 +229,46 @@ async function calculateVersionUpdates({
         newVersion,
       );
 
-      // User cancelled or skipped
-      if (selectedVersion === null) {
-        continue;
+      if (selectedVersion === null) continue;
+
+      const userBump = _calculateBumpType(pkg.version, selectedVersion);
+
+      if (bumpRanks[userBump] < bumpRanks[determinedBump]) {
+        newOverrides[pkgName] = userBump;
+        logger.info(`Version override recorded for ${pkgName}: ${determinedBump} → ${userBump}`);
+      } else if (newOverrides[pkgName] && bumpRanks[userBump] >= bumpRanks[determinedBump]) {
+        // If the user manually selects a version that's NOT a downgrade,
+        // remove any existing override for that package.
+        delete newOverrides[pkgName];
+        logger.info(`Version override removed for ${pkgName}.`);
       }
 
       newVersion = selectedVersion;
     }
 
-    logger.verbose(`Version update: ${pkg.version} → ${newVersion}`);
-
     versionUpdates.push({
       package: pkg,
       currentVersion: pkg.version,
       newVersion,
-      bumpType: bump,
-      hasDirectChanges: true,
+      bumpType: effectiveBump,
+      hasDirectChanges: allCommitsForPackage.length > 0,
     });
   }
 
-  // Second pass: if prompts enabled and not in CI, allow manual bumps for packages without commits
+  // Second pass for manual bumps (if not in verify mode)
   if (!isCI && showPrompt) {
     for (const pkg of workspacePackages) {
-      // Skip packages we already processed
       if (processedPackages.has(pkg.name)) continue;
 
       logger.clearScreen();
       logger.section(`📦 Package: ${pkg.name}`);
       logger.item("No direct commits found");
 
-      // Prompt for manual version bump (suggested version is current = no change suggested)
-      const newVersion = await selectVersionPrompt(
-        workspaceRoot,
-        pkg,
-        pkg.version,
-        pkg.version,
-      );
+      const newVersion = await selectVersionPrompt(workspaceRoot, pkg, pkg.version, pkg.version);
+      if (newVersion === null) break;
 
-      // User cancelled - stop prompting remaining packages
-      if (newVersion === null) {
-        break;
-      }
-
-      // Only add if user changed the version
       if (newVersion !== pkg.version) {
         const bumpType = _calculateBumpType(pkg.version, newVersion);
-
         versionUpdates.push({
           package: pkg,
           currentVersion: pkg.version,
@@ -279,11 +276,12 @@ async function calculateVersionUpdates({
           bumpType,
           hasDirectChanges: false,
         });
+        // We don't record an override here as there was no automatic bump to override.
       }
     }
   }
 
-  return versionUpdates;
+  return { updates: versionUpdates, overrides: newOverrides };
 }
 
 /**
@@ -296,17 +294,20 @@ export async function calculateAndPrepareVersionUpdates({
   workspaceRoot,
   showPrompt,
   globalCommitsPerPackage,
+  overrides,
 }: CalculateVersionUpdatesOptions): Promise<{
   allUpdates: PackageRelease[];
   applyUpdates: () => Promise<void>;
+  overrides: VersionOverrides;
 }> {
   // Calculate direct version updates
-  const directUpdates = await calculateVersionUpdates({
+  const { updates: directUpdates, overrides: newOverrides } = await calculateVersionUpdates({
     workspacePackages,
     packageCommits,
     workspaceRoot,
     showPrompt,
     globalCommitsPerPackage,
+    overrides,
   });
 
   // Build dependency graph and calculate dependent updates
@@ -330,6 +331,7 @@ export async function calculateAndPrepareVersionUpdates({
   return {
     allUpdates,
     applyUpdates,
+    overrides: newOverrides,
   };
 }
 

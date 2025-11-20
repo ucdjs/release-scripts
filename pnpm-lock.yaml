@@ -23,6 +23,9 @@ importers:
       prompts:
         specifier: 2.4.2
         version: 2.4.2
+      semver:
+        specifier: 7.7.3
+        version: 7.7.3
       tinyexec:
         specifier: 1.0.2
         version: 1.0.2
@@ -36,6 +39,9 @@ importers:
       '@types/prompts':
         specifier: 2.4.9
         version: 2.4.9
+      '@types/semver':
+        specifier: 7.7.1
+        version: 7.7.1
       eslint:
         specifier: 9.39.1
         version: 9.39.1(jiti@2.6.1)
@@ -659,6 +665,9 @@ packages:
 
   '@types/prompts@2.4.9':
     resolution: {integrity: sha512-qTxFi6Buiu8+50/+3DGIWLHM6QuWsEKugJnnP6iv2Mc4ncxE4A/OJkjuVOA+5X0X1S/nq5VJRa8Lu+nwcvbrKA==}
+
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
@@ -2607,6 +2616,8 @@ snapshots:
     dependencies:
       '@types/node': 22.18.12
       kleur: 3.0.3
+
+  '@types/semver@7.7.1': {}
 
   '@types/unist@3.0.3': {}
 
