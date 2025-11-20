@@ -215,9 +215,6 @@ export async function release(
     logger.item(`${update.package.name}: ${update.currentVersion} → ${update.newVersion}`);
   }
 
-  // Prepare the release branch
-  await prOps.prepareBranch();
-
   // Apply version updates to package.json files
   await applyUpdates();
 
