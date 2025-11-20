@@ -3,6 +3,7 @@ import type {
   Result as TinyExecResult,
 } from "tinyexec";
 import process from "node:process";
+import readline from "node:readline";
 import farver from "farver";
 import mri from "mri";
 import { exec } from "tinyexec";
@@ -76,6 +77,15 @@ export const logger = {
   success: (message: string) => {
     // eslint-disable-next-line no-console
     console.log(`  ${farver.green("✓")} ${message}`);
+  },
+
+  clearScreen: () => {
+    const repeatCount = process.stdout.rows - 2;
+    const blank = repeatCount > 0 ? "\n".repeat(repeatCount) : "";
+    // eslint-disable-next-line no-console
+    console.log(blank);
+    readline.cursorTo(process.stdout, 0, 0);
+    readline.clearScreenDown(process.stdout);
   },
 };
 

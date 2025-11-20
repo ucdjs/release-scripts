@@ -211,6 +211,7 @@ async function calculateVersionUpdates({
     let newVersion = getNextVersion(pkg.version, bump);
 
     if (!isCI && showPrompt) {
+      logger.clearScreen();
       // Display commits that are causing the version bump
       logger.section("📝 Commits affecting this package");
       const commitDisplay = formatCommitsForDisplay(allCommitsForPackage);
@@ -250,6 +251,7 @@ async function calculateVersionUpdates({
       // Skip packages we already processed
       if (processedPackages.has(pkg.name)) continue;
 
+      logger.clearScreen();
       logger.section(`📦 Package: ${pkg.name}`);
       logger.item("No direct commits found");
 
