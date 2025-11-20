@@ -240,7 +240,10 @@ async function resolveCommitAuthors(
       }
 
       authorsForCommit.push(info);
-      authorsToResolve.add(info);
+
+      if (!info.login) {
+        authorsToResolve.add(info);
+      }
     });
 
     commitAuthors.set(commit.hash, authorsForCommit);
