@@ -14,6 +14,8 @@ const isDryRun = !!args.dry;
 const isVerbose = !!args.verbose;
 const isForce = !!args.force;
 
+export const ucdjsReleaseOverridesPath = ".github/ucdjs-release.overrides.json";
+
 export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
 
 export const logger = {

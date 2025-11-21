@@ -29,6 +29,7 @@ import { normalizeReleaseOptions } from "#shared/options";
 import {
   exitWithError,
   logger,
+  ucdjsReleaseOverridesPath,
 } from "#shared/utils";
 import {
   getGlobalCommitsPerPackage,
@@ -174,7 +175,7 @@ export async function release(
   // Prepare the release branch (checkout, rebase, etc.)
   await prOps.prepareBranch();
 
-  const overridesPath = join(workspaceRoot, ".github", "ucdjs-release.overrides.json");
+  const overridesPath = join(workspaceRoot, ucdjsReleaseOverridesPath);
   let existingOverrides: VersionOverrides = {};
   try {
     const overridesContent = await readFile(overridesPath, "utf-8");

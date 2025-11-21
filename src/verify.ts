@@ -7,7 +7,7 @@ import {
   discoverWorkspacePackages,
 } from "#core/workspace";
 import { normalizeReleaseOptions } from "#shared/options";
-import { exitWithError, logger } from "#shared/utils";
+import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import {
   calculateAndPrepareVersionUpdates,
@@ -57,7 +57,7 @@ export async function verify(options: VerifyOptions): Promise<void> {
   }
 
   // Read overrides file from the release branch
-  const overridesPath = join(".github", "ucdjs.release.overrides.json");
+  const overridesPath = join(workspaceRoot, ucdjsReleaseOverridesPath);
   let existingOverrides: VersionOverrides = {};
   try {
     const overridesContent = await readFileFromGit(workspaceRoot, releasePr.head.sha, overridesPath);

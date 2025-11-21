@@ -57,8 +57,9 @@ export class GitHubClient {
       ...init,
       headers: {
         ...init.headers,
-        Accept: "application/vnd.github.v3+json",
-        Authorization: `token ${this.githubToken}`,
+        "Accept": "application/vnd.github.v3+json",
+        "Authorization": `token ${this.githubToken}`,
+        "User-Agent": "ucdjs-release-scripts (+https://github.com/ucdjs/ucdjs-release-scripts)",
       },
     });
 
