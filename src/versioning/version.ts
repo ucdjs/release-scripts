@@ -56,9 +56,6 @@ export function getNextVersion(currentVersion: string, bump: BumpKind): string {
   return `${newMajor}.${newMinor}.${newPatch}`;
 }
 
-/**
- * Create a version update object
- */
 export function createVersionUpdate(
   pkg: WorkspacePackage,
   bump: BumpKind,
@@ -159,7 +156,12 @@ function formatCommitsForDisplay(commits: GitCommit[]): string {
   return formattedCommits;
 }
 
-export type VersionOverrides = Record<string, BumpKind>;
+export interface VersionOverride {
+  type: BumpKind;
+  version: string;
+}
+
+export type VersionOverrides = Record<string, VersionOverride>;
 
 interface CalculateVersionUpdatesOptions {
   workspacePackages: WorkspacePackage[];
@@ -170,9 +172,6 @@ interface CalculateVersionUpdatesOptions {
   overrides?: VersionOverrides;
 }
 
-/**
- * Calculate version updates for packages based on their commits
- */
 async function calculateVersionUpdates({
   workspacePackages,
   packageCommits,
@@ -206,13 +205,15 @@ async function calculateVersionUpdates({
     const allCommitsForPackage = [...pkgCommits, ...globalCommits];
 
     const determinedBump = determineHighestBump(allCommitsForPackage);
-    const effectiveBump = newOverrides[pkgName] || determinedBump;
+    const override = newOverrides[pkgName];
+    const effectiveBump = override?.type || determinedBump;
 
     if (effectiveBump === "none") {
       continue;
     }
 
-    let newVersion = getNextVersion(pkg.version, effectiveBump);
+    let newVersion = override?.version || getNextVersion(pkg.version, effectiveBump);
+    let finalBumpType: BumpKind = effectiveBump;
 
     if (!isCI && showPrompt) {
       logger.clearScreen();
@@ -232,9 +233,10 @@ async function calculateVersionUpdates({
       if (selectedVersion === null) continue;
 
       const userBump = _calculateBumpType(pkg.version, selectedVersion);
+      finalBumpType = userBump;
 
       if (bumpRanks[userBump] < bumpRanks[determinedBump]) {
-        newOverrides[pkgName] = userBump;
+        newOverrides[pkgName] = { type: userBump, version: selectedVersion };
         logger.info(`Version override recorded for ${pkgName}: ${determinedBump} → ${userBump}`);
       } else if (newOverrides[pkgName] && bumpRanks[userBump] >= bumpRanks[determinedBump]) {
         // If the user manually selects a version that's NOT a downgrade,
@@ -250,7 +252,7 @@ async function calculateVersionUpdates({
       package: pkg,
       currentVersion: pkg.version,
       newVersion,
-      bumpType: effectiveBump,
+      bumpType: finalBumpType,
       hasDirectChanges: allCommitsForPackage.length > 0,
     });
   }

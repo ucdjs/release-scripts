@@ -5,7 +5,7 @@ import type {
   SharedOptions,
 } from "#shared/types";
 import type { VersionOverrides } from "#versioning/version";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { updateChangelog } from "#core/changelog";
 import {
@@ -36,6 +36,7 @@ import {
 } from "#versioning/commits";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 import farver from "farver";
+import { compare } from "semver";
 
 export interface ReleaseOptions extends SharedOptions {
   branch?: {
@@ -193,6 +194,7 @@ export async function release(
     overrides: existingOverrides,
   });
 
+  // If there are any overrides, write them to the overrides file.
   if (Object.keys(newOverrides).length > 0) {
     logger.info("Writing version overrides file...");
     try {
@@ -201,6 +203,31 @@ export async function release(
       logger.success("Successfully wrote version overrides file.");
     } catch (e) {
       logger.error("Failed to write version overrides file:", e);
+    }
+  }
+
+  // But if there is no overrides, ensure that the past overrides doesn't conflict with the new calculation.
+  // If the new calculation results is greater than what the overrides dictated, we should remove the overrides file.
+  if (Object.keys(newOverrides).length === 0 && Object.keys(existingOverrides).length > 0) {
+    let shouldRemoveOverrides = false;
+    for (const update of allUpdates) {
+      const overriddenVersion = existingOverrides[update.package.name];
+      if (overriddenVersion) {
+        if (compare(update.newVersion, overriddenVersion.version) > 0) {
+          shouldRemoveOverrides = true;
+          break;
+        }
+      }
+    }
+
+    if (shouldRemoveOverrides) {
+      logger.info("Removing obsolete version overrides file...");
+      try {
+        await rm(overridesPath);
+        logger.success("Successfully removed obsolete version overrides file.");
+      } catch (e) {
+        logger.error("Failed to remove obsolete version overrides file:", e);
+      }
     }
   }
 
