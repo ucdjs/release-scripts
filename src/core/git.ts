@@ -146,7 +146,7 @@ export async function createBranch(
 ): Promise<void> {
   try {
     logger.info(`Creating branch: ${farver.green(branch)} from ${farver.cyan(base)}`);
-    await runIfNotDry("git", ["checkout", "-b", branch, base], {
+    await runIfNotDry("git", ["branch", branch, base], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
