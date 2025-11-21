@@ -174,7 +174,7 @@ export async function release(
   // Prepare the release branch (checkout, rebase, etc.)
   await prOps.prepareBranch();
 
-  const overridesPath = join(workspaceRoot, ".github", "ucdjs.release.overrides.json");
+  const overridesPath = join(workspaceRoot, ".github", "ucdjs-release.overrides.json");
   let existingOverrides: VersionOverrides = {};
   try {
     const overridesContent = await readFile(overridesPath, "utf-8");
