@@ -46,6 +46,7 @@ export async function selectVersionPrompt(
         { value: "patch", title: `patch ${farver.bold(getNextVersion(pkg.version, "patch"))}` },
 
         { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}` },
+        { value: "as-is", title: `as-is ${farver.dim("(keep current version)")}` },
 
         { value: "custom", title: "custom" },
       ],
@@ -81,6 +82,8 @@ export async function selectVersionPrompt(
     }
 
     return answers.custom;
+  } else if (answers.version === "as-is") {
+    return currentVersion;
   } else {
     // It's a bump type
     return getNextVersion(pkg.version, answers.version as BumpKind);
