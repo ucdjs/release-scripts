@@ -2,7 +2,7 @@ import type { ReleaseOptions } from "#release";
 import type { CommitGroup, SharedOptions } from "./types";
 import process from "node:process";
 import { DEFAULT_CHANGELOG_TEMPLATE } from "#core/changelog";
-import { getAvailableBranches, getDefaultBranch } from "#core/git";
+import { doesBranchExist, getAvailableBranches, getDefaultBranch } from "#core/git";
 import { DEFAULT_PR_BODY_TEMPLATE } from "#core/github";
 import farver from "farver";
 import { exitWithError, logger } from "./utils";
@@ -113,11 +113,14 @@ export async function normalizeReleaseOptions(options: ReleaseOptions): Promise<
     );
   }
 
-  const availableBranches = await getAvailableBranches(normalized.workspaceRoot);
-  if (!availableBranches.includes(defaultBranch)) {
+  const localBranchExists = await doesBranchExist(defaultBranch, normalized.workspaceRoot);
+  const remoteBranchExists = await doesBranchExist(`origin/${defaultBranch}`, normalized.workspaceRoot);
+
+  if (!localBranchExists && !remoteBranchExists) {
+    const availableBranches = await getAvailableBranches(normalized.workspaceRoot);
     exitWithError(
       `Default branch "${defaultBranch}" does not exist in the repository`,
-      `Available branches: ${availableBranches.join(", ")}`,
+      `Couldn't find it locally or on the remote 'origin'.\nAvailable local branches: ${availableBranches.join(", ")}`,
     );
   }
 
