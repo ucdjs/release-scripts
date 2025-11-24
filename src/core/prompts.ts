@@ -83,6 +83,7 @@ export async function selectVersionPrompt(
 
     return answers.custom;
   } else if (answers.version === "as-is") {
+    // TODO: verify that there isn't any tags already existing for this version?
     return currentVersion;
   } else {
     // It's a bump type
