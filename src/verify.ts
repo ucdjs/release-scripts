@@ -1,6 +1,6 @@
 import type { SharedOptions } from "#shared/types";
 import type { VersionOverrides } from "#versioning/version";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { checkoutBranch, getCurrentBranch, isWorkingDirectoryClean, readFileFromGit } from "#core/git";
 import { createGitHubClient } from "#core/github";
 import {
@@ -57,7 +57,7 @@ export async function verify(options: VerifyOptions): Promise<void> {
   }
 
   // Read overrides file from the release branch
-  const overridesPath = join(workspaceRoot, ucdjsReleaseOverridesPath);
+  const overridesPath = ucdjsReleaseOverridesPath;
   let existingOverrides: VersionOverrides = {};
   try {
     const overridesContent = await readFileFromGit(workspaceRoot, releasePr.head.sha, overridesPath);
@@ -95,7 +95,7 @@ export async function verify(options: VerifyOptions): Promise<void> {
   // Read package.json versions from the release branch without checking it out
   const prVersionMap = new Map<string, string>();
   for (const pkg of mainPackages) {
-    const pkgJsonPath = join(pkg.path.replace(workspaceRoot, ""), "package.json").substring(1);
+    const pkgJsonPath = relative(workspaceRoot, join(pkg.path, "package.json"));
     const pkgJsonContent = await readFileFromGit(workspaceRoot, releasePr.head.sha, pkgJsonPath);
     if (pkgJsonContent) {
       const pkgJson = JSON.parse(pkgJsonContent);
@@ -139,6 +139,7 @@ export async function verify(options: VerifyOptions): Promise<void> {
       state: "success",
       context: statusContext,
       description: "Release PR is up to date.",
+      targetUrl: `https://github.com/${normalizedOptions.owner}/${normalizedOptions.repo}/pull/${releasePr.number}`,
     });
     logger.success("Verification successful. Commit status set to 'success'.");
   }
