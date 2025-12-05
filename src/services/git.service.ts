@@ -1,14 +1,18 @@
 import { Command, CommandExecutor } from "@effect/platform";
 import { NodeCommandExecutor } from "@effect/platform-node";
 import { Effect } from "effect";
-import { GitCommandError, GitError } from "../errors";
+import { GitCommandError, GitError } from "../errors.js";
+import { ConfigService } from "./config.service.js";
 
 export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scripts/GitService", {
   effect: Effect.gen(function* () {
     const executor = yield* CommandExecutor.CommandExecutor;
+    const config = yield* ConfigService;
 
     const execGitCommand = (args: readonly string[]): Effect.Effect<string, GitCommandError> =>
-      executor.string(Command.make("git", ...args)).pipe(
+      executor.string(Command.make("git", ...args).pipe(
+        Command.workingDirectory(config.workspaceRoot),
+      )).pipe(
         Effect.mapError((error: any) =>
           new GitCommandError({
             command: `git ${args.join(" ")}`,

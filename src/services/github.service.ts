@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
-import process from "node:process";
 import { Effect, Schema } from "effect";
+import { ConfigService } from "./config.service.js";
 import { GitService } from "./git.service.js";
 
 // Schema definitions for GitHub API types
@@ -59,6 +59,7 @@ export type RepositoryInfo = Schema.Schema.Type<typeof RepositoryInfoSchema>;
 export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/release-scripts/GitHubService", {
   effect: Effect.gen(function* () {
     const git = yield* GitService;
+    const config = yield* ConfigService;
 
     const getRepositoryInfo = (): Effect.Effect<RepositoryInfo, Error> =>
       Effect.gen(function* () {
@@ -81,19 +82,13 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
       schema: Schema.Schema<A, I>,
       options: RequestInit = {},
     ): Effect.Effect<A, Error> => Effect.gen(function* () {
-      const token = process.env.GITHUB_TOKEN;
-      if (!token) {
-        return yield* Effect.fail(new Error("GITHUB_TOKEN environment variable is required"));
-      }
-
-      const repoInfo = yield* getRepositoryInfo();
-      const url = `https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/${endpoint}`;
+      const url = `https://api.github.com/repos/${config.owner}/${config.repo}/${endpoint}`;
 
       const response = yield* Effect.tryPromise(() =>
         fetch(url, {
           ...options,
           headers: {
-            "Authorization": `token ${token}`,
+            "Authorization": `token ${config.githubToken}`,
             "Accept": "application/vnd.github.v3+json",
             "Content-Type": "application/json",
             ...options.headers,
@@ -118,7 +113,7 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
 
       // Parse and validate the response using the schema
       return yield* Schema.decodeUnknown(schema)(data).pipe(
-        Effect.mapError((error) => new Error(`Schema validation failed: ${error}`))
+        Effect.mapError((error) => new Error(`Schema validation failed: ${error}`)),
       );
     });
 
@@ -158,7 +153,7 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
         // Validate input
         const validatedStatus = yield* Schema.decodeUnknown(CommitStatusSchema)(status);
 
-        const token = process.env.GITHUB_TOKEN;
+        const token = config.githubToken;
         if (!token) {
           return yield* Effect.fail(new Error("GITHUB_TOKEN environment variable is required"));
         }
@@ -195,7 +190,7 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
           `pulls?head=${repoInfo.owner}:${currentBranch}&state=open`,
           Schema.Array(PullRequestSchema),
         ).pipe(
-          Effect.catchAll(() => Effect.succeed([]))
+          Effect.catchAll(() => Effect.succeed([])),
         );
 
         return pulls.length > 0 ? pulls[0]! : null;
