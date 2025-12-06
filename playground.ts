@@ -8,9 +8,12 @@ const program = Effect.gen(function* () {
 
   yield* git.commit.stage(["."]);
   yield* git.commit.write("refactor: change git & github services");
-  yield* git.commit.push("effect-rewrite");
+  yield* git.commit.push("release-scripts-testing");
 
-  yield* git.branches.checkout("main");
+  yield* git.branches.checkout("main").pipe(Effect.catchAll((err) => {
+    console.error(`Error checking out main branch: ${err.message}`);
+    return Effect.fail(err);
+  }));
 
   return void 0;
 });
