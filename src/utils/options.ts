@@ -2,6 +2,11 @@ import process from "node:process";
 
 export interface Options {
   /**
+   * Enable dry run mode (no changes will be pushed or PRs created)
+   */
+  dryRun?: boolean;
+
+  /**
    * Repository identifier (e.g., "owner/repo")
    */
   repo: `${string}/${string}`;
@@ -150,6 +155,7 @@ export function normalizeOptions(options: Options): NormalizedOptions {
     : packages;
 
   return {
+    dryRun: options.dryRun ?? false,
     workspaceRoot,
     githubToken,
     owner,

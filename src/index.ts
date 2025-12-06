@@ -2,7 +2,7 @@ import type { WorkspacePackage } from "./services/workspace.service.js";
 import type { NormalizedOptions, Options } from "./utils/options.js";
 import { NodeCommandExecutor, NodeFileSystem } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
-import { ConfigService } from "./services/config.service.js";
+import { ConfigOptions } from "./services/config.service.js";
 import { GitService } from "./services/git.service.js";
 import { GitHubService } from "./services/github.service.js";
 import { WorkspaceService } from "./services/workspace.service.js";
@@ -27,7 +27,7 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
     WorkspaceService.Default,
     GitHubService.Default,
   ).pipe(
-    Layer.provide(ConfigService.layer(config)),
+    Layer.provide(ConfigOptions.layer(config)),
     Layer.provide(NodeCommandExecutor.layer),
     Layer.provide(NodeFileSystem.layer),
   );
@@ -38,13 +38,13 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
   const initProgram = Effect.gen(function* () {
     const git = yield* GitService;
 
-    const isRepository = yield* git.isRepository;
-    if (!isRepository) {
+    const isWithinRepository = yield* git.isWithinRepository;
+    if (!isWithinRepository) {
       return yield* Effect.fail(new Error(`The directory ${cwd} is not a git repository.`));
     }
 
-    const hasChanges = yield* git.hasChanges;
-    if (hasChanges) {
+    const isWorkingDirectoryClean = yield* git.isWorkingDirectoryClean;
+    if (!isWorkingDirectoryClean) {
       return yield* Effect.fail(new Error("The git repository has uncommitted changes."));
     }
 

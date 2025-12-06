@@ -1,121 +1,121 @@
 import { Command, CommandExecutor } from "@effect/platform";
 import { NodeCommandExecutor } from "@effect/platform-node";
-import { Effect } from "effect";
-import { GitCommandError, GitError } from "../errors.js";
-import { ConfigService } from "./config.service.js";
+import { Effect, Layer } from "effect";
+import { GitCommandError } from "../errors";
+import { ConfigOptions } from "./config.service";
 
 export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scripts/GitService", {
   effect: Effect.gen(function* () {
     const executor = yield* CommandExecutor.CommandExecutor;
-    const config = yield* ConfigService;
+    const config = yield* ConfigOptions;
 
-    const execGitCommand = (args: readonly string[]): Effect.Effect<string, GitCommandError> =>
+    const execGitCommand = (args: readonly string[]) =>
       executor.string(Command.make("git", ...args).pipe(
         Command.workingDirectory(config.workspaceRoot),
       )).pipe(
-        Effect.mapError((error: any) =>
-          new GitCommandError({
+        Effect.mapError((err) => {
+          return new GitCommandError({
             command: `git ${args.join(" ")}`,
-            exitCode: error.exitCode || 1,
-            stderr: error.stderr || error.message || "Unknown error",
-          }),
-        ),
+            stderr: err.message,
+          });
+        }),
       );
 
-    const getCurrentBranch: Effect.Effect<string, GitError | GitCommandError> = Effect.gen(function* () {
-      const output = yield* execGitCommand(["rev-parse", "--abbrev-ref", "HEAD"]);
-      const branch = output.trim();
+    // This should only be used by functions that need to respect dry-run mode
+    // e.g. createBranch, deleteBranch.
+    // Functions that just modify git behavior (checkoutBranch, etc.) should use execGitCommand directly.
+    // Since it doesn't really change external state.
+    const execGitCommandIfNotDry = config.dryRun
+      ? (args: readonly string[]) =>
+          Effect.succeed(
+            `Dry run mode: skipping git command "git ${args.join(" ")}"`,
+          )
+      : execGitCommand;
 
-      if (branch === "HEAD") {
-        return yield* Effect.fail(
-          new GitError({ message: "Repository is in detached HEAD state" }),
-        );
-      }
-
-      return branch;
+    const isWithinRepository = Effect.gen(function* () {
+      const result = yield* execGitCommand(["rev-parse", "--is-inside-work-tree"]).pipe(
+        Effect.catchAll(() => Effect.succeed("false")),
+      );
+      return result.trim() === "true";
     });
 
-    const listBranches: Effect.Effect<readonly string[], GitCommandError> = Effect.gen(function* () {
-      const output = yield* execGitCommand(["branch", "--format=%(refname:short)"]);
+    const listBranches = Effect.gen(function* () {
+      const output = yield* execGitCommand(["branch", "--list"]);
       return output
         .trim()
         .split("\n")
-        .filter((branch: string) => branch.length > 0)
-        .map((branch: string) => branch.trim());
+        .filter((line) => line.length > 0)
+        .map((line) => line.replace(/^\* /, "").trim())
+        .map((line) => line.trim());
     });
 
-    const isRepository: Effect.Effect<boolean, never> = execGitCommand(["rev-parse", "--git-dir"]).pipe(
-      Effect.map(() => true),
-      Effect.catchAll(() => Effect.succeed(false)),
-    );
-
-    const getRemoteUrl: Effect.Effect<string | undefined, never> = execGitCommand(["config", "--get", "remote.origin.url"]).pipe(
-      Effect.map((output) => {
-        const url = output.trim();
-        return url.length > 0 ? url : undefined;
-      }),
-      Effect.catchAll(() => Effect.succeed(undefined)),
-    );
-
-    const hasChanges: Effect.Effect<boolean, GitCommandError> = Effect.gen(function* () {
-      const output = yield* execGitCommand(["status", "--porcelain"]);
-      return output.trim().length > 0;
+    const isWorkingDirectoryClean = Effect.gen(function* () {
+      const status = yield* execGitCommand(["status", "--porcelain"]);
+      return status.trim().length === 0;
     });
 
-    const hasStagedChanges: Effect.Effect<boolean, GitCommandError> = Effect.gen(function* () {
-      const output = yield* execGitCommand(["diff", "--cached", "--name-only"]);
-      return output.trim().length > 0;
-    });
-
-    const getLastCommitHash: Effect.Effect<string, GitCommandError> = Effect.gen(function* () {
-      const output = yield* execGitCommand(["rev-parse", "HEAD"]);
-      return output.trim();
-    });
-
-    const branchExists = (branchName: string): Effect.Effect<boolean, never> =>
-      execGitCommand(["rev-parse", "--verify", `refs/heads/${branchName}`]).pipe(
-        Effect.map(() => true),
-        Effect.catchAll(() => Effect.succeed(false)),
+    function doesBranchExist(branch: string) {
+      return listBranches.pipe(
+        Effect.map((branches) => branches.includes(branch)),
       );
+    }
 
-    const addFiles = (files: readonly string[]): Effect.Effect<void, GitCommandError> =>
-      execGitCommand(["add", ...files]).pipe(Effect.asVoid);
+    function createBranch(branch: string, base: string = config.branch.default) {
+      return execGitCommandIfNotDry(["branch", branch, base]);
+    }
 
-    const commit = (message: string): Effect.Effect<void, GitCommandError> =>
-      execGitCommand(["commit", "-m", message]).pipe(Effect.asVoid);
+    function checkoutBranch(branch: string) {
+      return Effect.gen(function* () {
+        const result = yield* execGitCommand(["checkout", branch]);
 
-    const createTag = (tagName: string, message?: string): Effect.Effect<void, GitCommandError> => {
-      const args = message
-        ? ["tag", "-a", tagName, "-m", message]
-        : ["tag", tagName];
-      return execGitCommand(args).pipe(Effect.asVoid);
-    };
+        console.log(result);
+      });
+    }
 
-    const push = (remote = "origin", branch?: string): Effect.Effect<void, GitCommandError> => {
-      const args = branch ? ["push", remote, branch] : ["push", remote];
-      return execGitCommand(args).pipe(Effect.asVoid);
-    };
+    function stageChanges(files: readonly string[]) {
+      return Effect.gen(function* () {
+        if (files.length === 0) {
+          return yield* Effect.fail(new Error("No files to stage."));
+        }
 
-    const pushTags = (remote = "origin"): Effect.Effect<void, GitCommandError> =>
-      execGitCommand(["push", remote, "--tags"]).pipe(Effect.asVoid);
+        return yield* execGitCommand(["add", ...files]);
+      });
+    }
+
+    function writeCommit(message: string) {
+      return Effect.gen(function* () {
+        return yield* execGitCommandIfNotDry(["commit", "-m", message]);
+      });
+    }
+
+    function pushChanges(branch: string, remote: string = "origin") {
+      return Effect.gen(function* () {
+        const result = yield* execGitCommandIfNotDry(["push", remote, branch]);
+        return result;
+      });
+    }
 
     return {
-      getCurrentBranch,
-      listBranches,
-      isRepository,
-      getRemoteUrl,
-      hasChanges,
-      hasStagedChanges,
-      getLastCommitHash,
-      branchExists,
-      addFiles,
-      commit,
-      createTag,
-      push,
-      pushTags,
+      branches: {
+        list: listBranches,
+        exists: doesBranchExist,
+        create: createBranch,
+        checkout: checkoutBranch,
+      },
+      commit: {
+        stage: stageChanges,
+        write: writeCommit,
+        push: pushChanges,
+      },
+      isWithinRepository,
+      isWorkingDirectoryClean,
     } as const;
   }),
   dependencies: [
     NodeCommandExecutor.layer,
   ],
-}) {}
+}) {
+  static mockLayer(mockExecutor: CommandExecutor.CommandExecutor) {
+    return Layer.succeed(CommandExecutor.CommandExecutor, mockExecutor);
+  }
+}
