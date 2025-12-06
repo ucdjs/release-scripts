@@ -10,8 +10,8 @@ const program = Effect.gen(function* () {
   yield* git.commit.write("refactor: change git & github services");
   yield* git.commit.push("release-scripts-testing");
 
-  yield* git.branches.checkout("main").pipe(Effect.catchAll((err) => {
-    console.error(`Error checking out main branch: ${err.message}`);
+  yield* git.branches.checkout("release-scripts-testing").pipe(Effect.catchAll((err) => {
+    console.error(`Error checking out release-scripts-testing branch: ${err.message}`);
     return Effect.fail(err);
   }));
 

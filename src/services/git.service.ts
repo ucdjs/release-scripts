@@ -67,8 +67,7 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
     function checkoutBranch(branch: string) {
       return Effect.gen(function* () {
         const result = yield* execGitCommand(["checkout", branch]);
-
-        console.log(result);
+        return result;
       });
     }
 
