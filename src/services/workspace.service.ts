@@ -4,7 +4,7 @@ import path from "node:path";
 import { Command, CommandExecutor } from "@effect/platform";
 import { Effect, Schema } from "effect";
 import { WorkspaceError } from "../errors";
-import { ConfigOptions } from "../utils/options";
+import { ConfigOptions } from "../options";
 
 export const DependencyObjectSchema = Schema.Record({
   key: Schema.String,

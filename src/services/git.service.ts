@@ -3,12 +3,12 @@ import { NodeCommandExecutor } from "@effect/platform-node";
 import * as CommitParser from "commit-parser";
 import { Effect, Layer } from "effect";
 import { ExternalCommitParserError, GitCommandError } from "../errors";
-import { ConfigOptions } from "../utils/options";
+import { ReleaseScriptsOptions } from "../options";
 
 export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scripts/GitService", {
   effect: Effect.gen(function* () {
     const executor = yield* CommandExecutor.CommandExecutor;
-    const config = yield* ConfigOptions;
+    const config = yield* ReleaseScriptsOptions;
 
     const execGitCommand = (args: readonly string[]) =>
       executor.string(Command.make("git", ...args).pipe(
@@ -97,7 +97,7 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       });
     }
 
-    function readFileFromGit(filePath: string, ref: string = "HEAD") {
+    function readFile(filePath: string, ref: string = "HEAD") {
       return execGitCommand(["show", `${ref}:${filePath}`]);
     }
 
@@ -173,6 +173,20 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       );
     }
 
+    const assertWorkspaceReady = Effect.gen(function* () {
+      const withinRepo = yield* isWithinRepository;
+      if (!withinRepo) {
+        return yield* Effect.fail(new Error("Not within a Git repository."));
+      }
+
+      const clean = yield* isWorkingDirectoryClean;
+      if (!clean) {
+        return yield* Effect.fail(new Error("Working directory is not clean."));
+      }
+
+      return true;
+    });
+
     return {
       branches: {
         list: listBranches,
@@ -191,16 +205,15 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       tags: {
         mostRecentForPackage: getMostRecentPackageTag,
       },
-      readFileFromGit,
-      isWithinRepository,
-      isWorkingDirectoryClean,
+      workspace: {
+        readFile,
+        isWithinRepository,
+        isWorkingDirectoryClean,
+        assertWorkspaceReady,
+      },
     } as const;
   }),
   dependencies: [
     NodeCommandExecutor.layer,
   ],
-}) {
-  static mockLayer(mockExecutor: CommandExecutor.CommandExecutor) {
-    return Layer.succeed(CommandExecutor.CommandExecutor, mockExecutor);
-  }
-}
+}) {}

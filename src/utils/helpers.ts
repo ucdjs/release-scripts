@@ -18,7 +18,7 @@ export function loadOverrides(options: LoadOverridesOptions) {
   return Effect.gen(function* () {
     const git = yield* GitService;
 
-    return yield* git.readFileFromGit(options.overridesPath, "utf8").pipe(
+    return yield* git.workspace.readFile(options.overridesPath, "utf8").pipe(
       Effect.map((content) => ({
         content,
         readError: null as unknown,
@@ -213,7 +213,7 @@ export function mergeCommitsAffectingGloballyIntoPackage(
       result.set(pkg.name, globalCommits);
     }
 
-    return Effect.succeed(packages.map((pkg) => ({
+    return yield* Effect.succeed(packages.map((pkg) => ({
       ...pkg,
       globalCommits: result.get(pkg.name) || [],
     })));

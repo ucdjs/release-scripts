@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 import { GitHubError } from "../errors.js";
-import { ConfigOptions } from "../utils/options.js";
+import { ConfigOptions } from "../options.js";
 import { GitService } from "./git.service.js";
 
 // Schema definitions for GitHub API types

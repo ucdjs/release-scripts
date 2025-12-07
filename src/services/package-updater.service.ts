@@ -3,7 +3,7 @@ import type { WorkspacePackage } from "./workspace.service";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Effect } from "effect";
-import { ConfigOptions } from "../utils/options";
+import { ConfigOptions } from "../options";
 
 function nextRange(oldRange: string, newVersion: string): string {
   const workspacePrefix = oldRange.startsWith("workspace:") ? "workspace:" : "";
