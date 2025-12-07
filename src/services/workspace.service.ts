@@ -186,7 +186,11 @@ export class WorkspaceService extends Effect.Service<WorkspaceService>()("@ucdjs
                     ),
                   );
                 }),
-                Effect.catchAll(() => Effect.succeed(null)),
+                Effect.catchAll(() => {
+                  return Effect.logWarning(`Skipping invalid package ${rawProject.name}`).pipe(
+                    Effect.as(null),
+                  );
+                }),
               ),
             ),
           ).pipe(
