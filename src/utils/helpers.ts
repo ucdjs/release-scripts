@@ -18,7 +18,7 @@ export function loadOverrides(options: LoadOverridesOptions) {
   return Effect.gen(function* () {
     const git = yield* GitService;
 
-    return yield* git.workspace.readFile(options.overridesPath, "utf8").pipe(
+    return yield* git.workspace.readFile(options.overridesPath, options.sha).pipe(
       Effect.map((content) => ({
         content,
         readError: null as unknown,
