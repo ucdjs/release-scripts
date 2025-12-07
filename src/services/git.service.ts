@@ -102,7 +102,7 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
     }
 
     function getMostRecentPackageTag(packageName: string) {
-      return execGitCommand(["tag", "--list", `${packageName}@*`]).pipe(
+      return execGitCommand(["tag", "--list", "--sort=-version:refname", `${packageName}@*`]).pipe(
         Effect.map((tags) => {
           const tagList = tags
             .trim()
