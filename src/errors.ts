@@ -35,6 +35,12 @@ export class GitHubError extends Data.TaggedError("GitHubError")<{
   cause?: unknown;
 }> { }
 
+export class VersionCalculationError extends Data.TaggedError("VersionCalculationError")<{
+  message: string;
+  packageName?: string;
+  cause?: unknown;
+}> { }
+
 export class OverridesLoadError extends Data.TaggedError("OverridesLoadError")<{
   message: string;
   cause?: unknown;

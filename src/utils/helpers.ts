@@ -1,9 +1,9 @@
+import type { WorkspacePackage } from "#services/workspace";
 import type * as CommitParser from "commit-parser";
-import type { WorkspacePackage } from "../services/workspace.service";
+import { GitService } from "#services/git";
+import { WorkspacePackageSchema } from "#services/workspace";
 import { Effect, Schema } from "effect";
 import { OverridesLoadError } from "../errors";
-import { GitService } from "../services/git.service";
-import { WorkspacePackageSchema } from "../services/workspace.service";
 
 export interface VersionOverrides {
   [packageName: string]: string;

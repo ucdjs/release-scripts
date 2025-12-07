@@ -1,15 +1,21 @@
-import type { WorkspacePackage } from "./services/workspace.service.js";
-import type { NormalizedOptions, Options } from "./utils/options.js";
+import type { WorkspacePackage } from "./services/workspace.service";
+import type { Options } from "./utils/options";
+import { DependencyGraphService } from "#services/dependency-graph";
+import { GitService } from "#services/git";
+import { GitHubService } from "#services/github";
+import { PackageUpdaterService } from "#services/package-updater";
+import { VersionCalculatorService } from "#services/version-calculator";
+import { WorkspaceService } from "#services/workspace";
 import { NodeCommandExecutor, NodeFileSystem } from "@effect/platform-node";
 import { Console, Effect, Layer } from "effect";
-import { GitService } from "./services/git.service.js";
-import { GitHubService } from "./services/github.service.js";
-import { VersionUpdaterService } from "./services/version-updater.service.js";
-import { WorkspaceService } from "./services/workspace.service.js";
-import { loadOverrides, mergeCommitsAffectingGloballyIntoPackage, mergePackageCommitsIntoPackages } from "./utils/helpers.js";
-import { ConfigOptions, normalizeOptions } from "./utils/options.js";
+import {
+  loadOverrides,
+  mergeCommitsAffectingGloballyIntoPackage,
+  mergePackageCommitsIntoPackages,
+} from "./utils/helpers";
+import { ConfigOptions, normalizeOptions } from "./utils/options";
 
-export type { Options } from "./utils/options.js";
+export type { Options } from "./utils/options";
 
 export interface ReleaseScriptsAPI {
   verify: () => Promise<void>;
@@ -29,7 +35,9 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
     GitService.Default,
     WorkspaceService.Default,
     GitHubService.Default,
-    VersionUpdaterService.Default,
+    DependencyGraphService.Default,
+    PackageUpdaterService.Default,
+    VersionCalculatorService.Default,
   ).pipe(
     Layer.provide(ConfigOptions.layer(config)),
     Layer.provide(NodeCommandExecutor.layer),
@@ -67,6 +75,8 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
       const program = Effect.gen(function* () {
         const git = yield* GitService;
         const github = yield* GitHubService;
+        const dependencyGraph = yield* DependencyGraphService;
+        const versionCalculator = yield* VersionCalculatorService;
         const workspace = yield* WorkspaceService;
 
         yield* safeguardProgram;
@@ -89,14 +99,20 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
           overridesPath: ".github/ucdjs-release.overrides.json",
         });
 
-        console.log("Loaded overrides:", overrides);
+        yield* Console.log("Loaded overrides:", overrides);
 
         const packages = yield* workspace.discoverWorkspacePackages.pipe(
           Effect.flatMap(mergePackageCommitsIntoPackages),
           Effect.flatMap((pkgs) => mergeCommitsAffectingGloballyIntoPackage(pkgs, config.globalCommitMode)),
         );
 
-        console.log("Discovered packages with commits and global commits:", packages);
+        yield* Console.log("Discovered packages with commits and global commits:", packages);
+
+        const releases = yield* versionCalculator.calculateBumps(packages, overrides);
+        const ordered = yield* dependencyGraph.topologicalOrder(packages);
+
+        yield* Console.log("Calculated releases:", releases);
+        yield* Console.log("Release order:", ordered);
 
         // STEP 4: Calculate the updates
         // STEP 5: Read package.jsons from release branch (without checkout)
@@ -110,6 +126,9 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
       const program = Effect.gen(function* () {
         const git = yield* GitService;
         const github = yield* GitHubService;
+        const dependencyGraph = yield* DependencyGraphService;
+        const packageUpdater = yield* PackageUpdaterService;
+        const versionCalculator = yield* VersionCalculatorService;
         const workspace = yield* WorkspaceService;
 
         yield* safeguardProgram;
@@ -140,6 +159,14 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
         );
 
         console.log("Discovered packages with commits and global commits:", packages);
+
+        const releases = yield* versionCalculator.calculateBumps(packages, overrides);
+        const ordered = yield* dependencyGraph.topologicalOrder(packages);
+
+        console.log("Calculated releases:", releases);
+        console.log("Release order:", ordered);
+
+        yield* packageUpdater.applyReleases(packages, releases);
       });
 
       return runProgram(program);
