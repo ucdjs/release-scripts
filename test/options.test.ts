@@ -26,8 +26,8 @@ describe("normalizeReleaseScriptsOptions - global", () => {
   });
 
   it("throws if repo is missing or invalid", () => {
-    expect(() => normalizeReleaseScriptsOptions({ githubToken: "token", repo: "invalid/" as any })).toThrow();
-    expect(() => normalizeReleaseScriptsOptions({ githubToken: "token", repo: "/invalid" as any })).toThrow();
+    expect(() => normalizeReleaseScriptsOptions({ githubToken: "token", repo: "invalid/" })).toThrow();
+    expect(() => normalizeReleaseScriptsOptions({ githubToken: "token", repo: "/invalid" })).toThrow();
   });
 
   it("throws if githubToken is missing", () => {

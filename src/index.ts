@@ -100,8 +100,8 @@ export async function createReleaseScripts(options: ReleaseScriptsOptionsInput):
 
         yield* Console.log("Discovered packages with commits and global commits:", packages);
 
-        const releases = yield* versionCalculator.calculateBumps(packages as any, overrides);
-        const ordered = yield* dependencyGraph.topologicalOrder(packages as any);
+        const releases = yield* versionCalculator.calculateBumps(packages, overrides);
+        const ordered = yield* dependencyGraph.topologicalOrder(packages);
 
         yield* Console.log("Calculated releases:", releases);
         yield* Console.log("Release order:", ordered);
