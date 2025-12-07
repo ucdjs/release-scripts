@@ -105,8 +105,7 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
 
     function getPullRequestByBranch(branch: string) {
       const head = branch.includes(":") ? branch : `${config.owner}:${branch}`;
-      const url = `/repos/${config.owner}/${config.repo}/pulls?state=open&head=${encodeURIComponent(head)}`;
-      return makeRequest(url, Schema.Array(PullRequestSchema)).pipe(
+      return makeRequest(`pulls?state=open&head=${encodeURIComponent(head)}`, Schema.Array(PullRequestSchema)).pipe(
         Effect.map((pulls) => (pulls.length > 0 ? pulls[0] : null)),
         Effect.mapError((e) => new GitHubError({
           message: e.message,
