@@ -19,33 +19,16 @@ export function loadOverrides(options: LoadOverridesOptions) {
     const git = yield* GitService;
 
     return yield* git.workspace.readFile(options.overridesPath, options.sha).pipe(
-      Effect.map((content) => ({
-        content,
-        readError: null as unknown,
-      })),
-      Effect.catchAll((err) =>
-        Effect.succeed({
-          content: "",
-          readError: err,
+      Effect.flatMap((content) =>
+        Effect.try({
+          try: () => JSON.parse(content) as VersionOverrides,
+          catch: (err) => new OverridesLoadError({
+            message: "Failed to parse overrides file.",
+            cause: err,
+          }),
         }),
       ),
-      Effect.flatMap(({ content, readError }) => {
-        if (!content) {
-          return Effect.succeed({} as VersionOverrides);
-        }
-
-        return Effect.try({
-          try: () => JSON.parse(content) as VersionOverrides,
-          catch: (err) => {
-            return new OverridesLoadError({
-              message: "Failed to parse overrides file.",
-              cause: readError || err,
-            });
-          },
-        }).pipe(
-          Effect.catchAll(() => Effect.succeed({} as VersionOverrides)),
-        );
-      }),
+      Effect.catchAll(() => Effect.succeed({} as VersionOverrides)),
     );
   });
 }
