@@ -43,6 +43,14 @@ export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOp
 
 const DEFAULT_PR_BODY_TEMPLATE = `## Summary\n\nThis PR contains the following changes:\n\n- Updated package versions\n- Updated changelogs\n\n## Packages\n\nThe following packages will be released:\n\n{{packages}}`;
 const DEFAULT_CHANGELOG_TEMPLATE = `# Changelog\n\n{{releases}}`;
+const DEFAULT_TYPES = {
+  feat: { title: "🚀 Features" },
+  fix: { title: "🐞 Bug Fixes" },
+  refactor: { title: "🔧 Code Refactoring" },
+  perf: { title: "🏎 Performance" },
+  docs: { title: "📚 Documentation" },
+  style: { title: "🎨 Styles" },
+};
 
 export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInput): NormalizedReleaseScriptsOptions {
   const {
@@ -54,6 +62,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     globalCommitMode = "dependencies",
     pullRequest = {},
     changelog = {},
+    types = {},
     dryRun = false,
   } = options;
 
@@ -100,14 +109,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
       template: changelog.template ?? DEFAULT_CHANGELOG_TEMPLATE,
       emojis: changelog.emojis ?? true,
     },
-    types: {
-      feat: { title: "🚀 Features" },
-      fix: { title: "🐞 Bug Fixes" },
-      refactor: { title: "🔧 Code Refactoring" },
-      perf: { title: "🏎 Performance" },
-      docs: { title: "📚 Documentation" },
-      style: { title: "🎨 Styles" },
-    },
+    types: options.types ? { ...DEFAULT_TYPES, ...types } : DEFAULT_TYPES,
   };
 }
 
