@@ -112,6 +112,17 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
 
           return tagList.reverse()[0] || null;
         }),
+        Effect.flatMap((tag) => {
+          if (tag === null) {
+            return Effect.succeed(null);
+          }
+          return execGitCommand(["rev-parse", tag]).pipe(
+            Effect.map((sha) => ({
+              name: tag,
+              sha: sha.trim(),
+            })),
+          );
+        }),
       );
     }
 
