@@ -227,7 +227,7 @@ export function mergeCommitsAffectingGloballyIntoPackage(
  * @param packagePaths - Set of package directory paths
  * @returns true if at least one file is outside all package directories
  */
-function isGlobalCommit(files: readonly string[], packagePaths: Set<string>): boolean {
+export function isGlobalCommit(files: readonly string[], packagePaths: Set<string>): boolean {
   return files.some((file) => {
     const normalized = file.startsWith("./") ? file.slice(2) : file;
 
@@ -259,7 +259,7 @@ const DEPENDENCY_FILES = new Set([
  * @param file - File path to check
  * @returns true if the file is a dependency file (package.json, lock files, etc.)
  */
-function isDependencyFile(file: string): boolean {
+export function isDependencyFile(file: string): boolean {
   const normalized = file.startsWith("./") ? file.slice(2) : file;
 
   // Check if it's a root-level dependency file
@@ -277,9 +277,9 @@ function isDependencyFile(file: string): boolean {
  * @param packages - Array of packages with their commits
  * @returns Tuple of [oldestCommitSha, newestCommitSha], or [null, null] if no commits found
  */
-function findCommitRange(packages: readonly WorkspacePackageWithCommits[]): [oldestCommit: string | null, newestCommit: string | null] {
-  let oldestCommit: CommitParser.GitCommit | null = null;
-  let newestCommit: CommitParser.GitCommit | null = null;
+export function findCommitRange(packages: readonly WorkspacePackageWithCommits[]): [oldestCommit: string | null, newestCommit: string | null] {
+  let oldestCommit: WorkspacePackageWithCommits["commits"][number] | null = null;
+  let newestCommit: WorkspacePackageWithCommits["commits"][number] | null = null;
 
   for (const pkg of packages) {
     if (pkg.commits.length === 0) {
