@@ -1,7 +1,7 @@
 import { Command, CommandExecutor } from "@effect/platform";
 import { NodeCommandExecutor } from "@effect/platform-node";
 import * as CommitParser from "commit-parser";
-import { Effect, Layer } from "effect";
+import { Effect } from "effect";
 import { ExternalCommitParserError, GitCommandError } from "../errors";
 import { ReleaseScriptsOptions } from "../options";
 

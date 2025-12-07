@@ -1,5 +1,4 @@
 import type { NormalizedReleaseScriptsOptions } from "./options";
-import type { WorkspacePackage } from "./services/workspace.service";
 import { DependencyGraphService } from "#services/dependency-graph";
 import { GitService } from "#services/git";
 import { GitHubService } from "#services/github";
