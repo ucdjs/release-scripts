@@ -1,11 +1,11 @@
 import type { GitCommit } from "commit-parser";
-import type { WorkspacePackageWithCommits } from "./helpers";
+import type { WorkspacePackageWithCommits } from "../src/utils/helpers";
 import { describe, expect, it } from "vitest";
 import {
   findCommitRange,
   isDependencyFile,
   isGlobalCommit,
-} from "./helpers";
+} from "../src/utils/helpers";
 
 function makeCommit(shortHash: string, date: string): GitCommit {
   return {
