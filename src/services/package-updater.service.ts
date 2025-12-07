@@ -1,9 +1,8 @@
-import type { PackageRelease } from "../shared/types";
 import type { WorkspacePackage } from "./workspace.service";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Effect } from "effect";
-import { ConfigOptions } from "../options";
+import { ReleaseScriptsOptions } from "../options";
 
 function nextRange(oldRange: string, newVersion: string): string {
   const workspacePrefix = oldRange.startsWith("workspace:") ? "workspace:" : "";
@@ -40,11 +39,39 @@ function updateDependencyRecord(
   return { updated: changed, next: changed ? next : record };
 }
 
+export type BumpKind = "none" | "patch" | "minor" | "major";
+export interface PackageRelease {
+  /**
+   * The package being updated
+   */
+  package: WorkspacePackage;
+
+  /**
+   * Current version
+   */
+  currentVersion: string;
+
+  /**
+   * New version to release
+   */
+  newVersion: string;
+
+  /**
+   * Type of version bump
+   */
+  bumpType: BumpKind;
+
+  /**
+   * Whether this package has direct changes (vs being updated due to dependency changes)
+   */
+  hasDirectChanges: boolean;
+}
+
 export class PackageUpdaterService extends Effect.Service<PackageUpdaterService>()(
   "@ucdjs/release-scripts/PackageUpdaterService",
   {
     effect: Effect.gen(function* () {
-      const config = yield* ConfigOptions;
+      const config = yield* ReleaseScriptsOptions;
 
       function writePackageJson(pkgPath: string, json: unknown) {
         const fullPath = path.join(pkgPath, "package.json");

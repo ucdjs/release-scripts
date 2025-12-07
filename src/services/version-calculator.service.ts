@@ -1,5 +1,5 @@
-import type { BumpKind, PackageRelease } from "../shared/types";
 import type { WorkspacePackageWithCommits } from "../utils/helpers";
+import type { BumpKind, PackageRelease } from "./package-updater.service";
 import { Effect } from "effect";
 import semver from "semver";
 import { VersionCalculationError } from "../errors";

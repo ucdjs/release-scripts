@@ -1,10 +1,10 @@
-import type { FindWorkspacePackagesOptions } from "#shared/types";
+import type { FindWorkspacePackagesOptions } from "../options";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Command, CommandExecutor } from "@effect/platform";
 import { Effect, Schema } from "effect";
 import { WorkspaceError } from "../errors";
-import { ConfigOptions } from "../options";
+import { ReleaseScriptsOptions } from "../options";
 
 export const DependencyObjectSchema = Schema.Record({
   key: Schema.String,
@@ -46,7 +46,7 @@ const WorkspaceListSchema = Schema.Array(Schema.Struct({
 export class WorkspaceService extends Effect.Service<WorkspaceService>()("@ucdjs/release-scripts/WorkspaceService", {
   effect: Effect.gen(function* () {
     const executor = yield* CommandExecutor.CommandExecutor;
-    const config = yield* ConfigOptions;
+    const config = yield* ReleaseScriptsOptions;
 
     const workspacePackageListOutput = yield* executor.string(Command.make("pnpm", "-r", "ls", "--json").pipe(
       Command.workingDirectory(config.workspaceRoot),

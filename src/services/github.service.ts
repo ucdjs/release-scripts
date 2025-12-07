@@ -1,9 +1,8 @@
 import { Effect, Schema } from "effect";
 import { GitHubError } from "../errors.js";
-import { ConfigOptions } from "../options.js";
+import { ReleaseScriptsOptions } from "../options.js";
 import { GitService } from "./git.service.js";
 
-// Schema definitions for GitHub API types
 export const PullRequestSchema = Schema.Struct({
   number: Schema.Number,
   title: Schema.String,
@@ -57,7 +56,7 @@ export type RepositoryInfo = Schema.Schema.Type<typeof RepositoryInfoSchema>;
 
 export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/release-scripts/GitHubService", {
   effect: Effect.gen(function* () {
-    const config = yield* ConfigOptions;
+    const config = yield* ReleaseScriptsOptions;
 
     function makeRequest<A, I>(endpoint: string, schema: Schema.Schema<A, I>, options: RequestInit = {}) {
       const url = `https://api.github.com/repos/${config.owner}/${config.repo}/${endpoint}`;

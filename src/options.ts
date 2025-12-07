@@ -5,15 +5,17 @@ type DeepRequired<T> = Required<{
   [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>
 }>;
 
+export interface FindWorkspacePackagesOptions {
+  exclude?: string[];
+  include?: string[];
+  excludePrivate?: boolean;
+}
+
 export interface ReleaseScriptsOptionsInput {
   dryRun?: boolean;
   repo: `${string}/${string}`;
   workspaceRoot?: string;
-  packages?: true | {
-    exclude?: string[];
-    include?: string[];
-    excludePrivate?: boolean;
-  } | string[];
+  packages?: true | FindWorkspacePackagesOptions | string[];
   githubToken: string;
   branch?: {
     release?: string;

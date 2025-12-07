@@ -1,6 +1,10 @@
-import type { PackageUpdateOrder } from "../shared/types";
 import type { WorkspacePackage } from "./workspace.service";
 import { Effect } from "effect";
+
+export interface PackageUpdateOrder {
+  package: WorkspacePackage;
+  level: number;
+}
 
 export class DependencyGraphService extends Effect.Service<DependencyGraphService>()(
   "@ucdjs/release-scripts/DependencyGraphService",
