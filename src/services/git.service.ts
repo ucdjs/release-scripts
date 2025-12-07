@@ -1,8 +1,9 @@
 import { Command, CommandExecutor } from "@effect/platform";
 import { NodeCommandExecutor } from "@effect/platform-node";
+import * as CommitParser from "commit-parser";
 import { Effect, Layer } from "effect";
-import { GitCommandError } from "../errors";
-import { ConfigOptions } from "./config.service";
+import { ExternalCommitParserError, GitCommandError } from "../errors";
+import { ConfigOptions } from "../utils/options";
 
 export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scripts/GitService", {
   effect: Effect.gen(function* () {
@@ -64,12 +65,13 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       return execGitCommandIfNotDry(["branch", branch, base]);
     }
 
-    function checkoutBranch(branch: string) {
-      return Effect.gen(function* () {
-        const result = yield* execGitCommand(["checkout", branch]);
+    const getBranch = Effect.gen(function* () {
+      const output = yield* execGitCommand(["rev-parse", "--abbrev-ref", "HEAD"]);
+      return output.trim();
+    });
 
-        console.log(result);
-      });
+    function checkoutBranch(branch: string) {
+      return execGitCommand(["checkout", branch]);
     }
 
     function stageChanges(files: readonly string[]) {
@@ -95,18 +97,101 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       });
     }
 
+    function readFileFromGit(filePath: string, ref: string = "HEAD") {
+      return execGitCommand(["show", `${ref}:${filePath}`]);
+    }
+
+    function getMostRecentPackageTag(packageName: string) {
+      return execGitCommand(["tag", "--list", `${packageName}@*`]).pipe(
+        Effect.map((tags) => {
+          const tagList = tags
+            .trim()
+            .split("\n")
+            .map((tag) => tag.trim())
+            .filter((tag) => tag.length > 0);
+
+          return tagList.reverse()[0] || null;
+        }),
+      );
+    }
+
+    function getCommits(options?: {
+      from?: string;
+      to?: string;
+      folder?: string;
+    }) {
+      return Effect.tryPromise({
+        try: async () => CommitParser.getCommits({
+          from: options?.from,
+          to: options?.to,
+          folder: options?.folder,
+          cwd: config.workspaceRoot,
+        }),
+        catch: (e) => new ExternalCommitParserError({
+          message: `commit-parser getCommits`,
+          cause: e instanceof Error ? e.message : String(e),
+        }),
+      });
+    }
+
+    function filesChangesBetweenRefs(from: string, to: string) {
+      const commitsMap = new Map<string, string[]>();
+
+      return execGitCommand(["log", "--name-only", "--format=%H", `${from}^..${to}`]).pipe(
+        Effect.map((output) => {
+          const lines = output.trim().split("\n").filter((line) => line.trim() !== "");
+
+          let currentSha: string | null = null;
+          const HASH_REGEX = /^[0-9a-f]{40}$/i;
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+
+            // Found a new commit hash
+            if (HASH_REGEX.test(trimmedLine)) {
+              currentSha = trimmedLine;
+              commitsMap.set(currentSha, []);
+
+              continue;
+            }
+
+            if (currentSha === null) {
+              // Malformed output: file path found before any commit hash
+              continue;
+            }
+
+            // Found a file path, and we have a current hash to assign it to
+            // Note: In case of merge commits, an empty line might appear which is already filtered.
+            // If the line is NOT a hash, it must be a file path.
+
+            // The file path is added to the array associated with the most recent hash.
+            commitsMap.get(currentSha)!.push(trimmedLine);
+          }
+
+          return commitsMap;
+        }),
+      );
+    }
+
     return {
       branches: {
         list: listBranches,
         exists: doesBranchExist,
         create: createBranch,
         checkout: checkoutBranch,
+        get: getBranch,
       },
-      commit: {
+      commits: {
         stage: stageChanges,
         write: writeCommit,
         push: pushChanges,
+        get: getCommits,
+        filesChangesBetweenRefs,
       },
+      tags: {
+        mostRecentForPackage: getMostRecentPackageTag,
+      },
+      readFileFromGit,
       isWithinRepository,
       isWorkingDirectoryClean,
     } as const;

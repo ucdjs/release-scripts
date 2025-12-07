@@ -10,6 +10,11 @@ export class GitCommandError extends Data.TaggedError("GitCommandError")<{
   readonly stderr: string;
 }> {}
 
+export class ExternalCommitParserError extends Data.TaggedError("ExternalCommitParserError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}
+
 export class GitNotRepositoryError extends Data.TaggedError("GitNotRepositoryError")<{
   readonly path: string;
 }> {}
@@ -29,3 +34,8 @@ export class GitHubError extends Data.TaggedError("GitHubError")<{
   operation?: "getPullRequestByBranch" | "createPullRequest" | "updatePullRequest" | "setCommitStatus" | "request";
   cause?: unknown;
 }> { }
+
+export class OverridesLoadError extends Data.TaggedError("OverridesLoadError")<{
+  message: string;
+  cause?: unknown;
+}> {}

@@ -1,17 +1,20 @@
 import type { WorkspacePackage } from "./services/workspace.service.js";
 import type { NormalizedOptions, Options } from "./utils/options.js";
 import { NodeCommandExecutor, NodeFileSystem } from "@effect/platform-node";
-import { Effect, Layer } from "effect";
-import { ConfigOptions } from "./services/config.service.js";
+import { Console, Effect, Layer } from "effect";
 import { GitService } from "./services/git.service.js";
 import { GitHubService } from "./services/github.service.js";
+import { VersionUpdaterService } from "./services/version-updater.service.js";
 import { WorkspaceService } from "./services/workspace.service.js";
-import { normalizeOptions } from "./utils/options.js";
+import { loadOverrides, mergeCommitsAffectingGloballyIntoPackage, mergePackageCommitsIntoPackages } from "./utils/helpers.js";
+import { ConfigOptions, normalizeOptions } from "./utils/options.js";
 
 export type { Options } from "./utils/options.js";
 
 export interface ReleaseScriptsAPI {
   verify: () => Promise<void>;
+  prepare: () => Promise<void>;
+  publish: () => Promise<void>;
   packages: {
     list: () => Promise<readonly WorkspacePackage[]>;
     get: (packageName: string) => Promise<WorkspacePackage | null>;
@@ -26,6 +29,7 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
     GitService.Default,
     WorkspaceService.Default,
     GitHubService.Default,
+    VersionUpdaterService.Default,
   ).pipe(
     Layer.provide(ConfigOptions.layer(config)),
     Layer.provide(NodeCommandExecutor.layer),
@@ -35,7 +39,7 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
   const runProgram = <A, E, R>(program: Effect.Effect<A, E, R>): Promise<A> =>
     Effect.runPromise(Effect.provide(program, MainLayer) as Effect.Effect<A, E>);
 
-  const initProgram = Effect.gen(function* () {
+  const safeguardProgram = Effect.gen(function* () {
     const git = yield* GitService;
 
     const isWithinRepository = yield* git.isWithinRepository;
@@ -51,7 +55,7 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
     return yield* Effect.succeed(void 0);
   });
 
-  await Effect.runPromise(Effect.provide(initProgram, MainLayer).pipe(
+  await Effect.runPromise(Effect.provide(safeguardProgram, MainLayer).pipe(
     Effect.catchAll((err) => {
       console.error(`❌ Initialization failed: ${err.message}`);
       return Effect.exit(Effect.fail(err));
@@ -65,128 +69,93 @@ export async function createReleaseScripts(options: Options): Promise<ReleaseScr
         const github = yield* GitHubService;
         const workspace = yield* WorkspaceService;
 
-        yield* Effect.log("🔍 Starting basic repository verification...");
+        yield* safeguardProgram;
 
-        // === Repository State Verification ===
-        const isRepository = yield* git.isRepository;
-        if (!isRepository) {
-          console.error("❌ Not a git repository");
-          return yield* Effect.fail(new Error(`Directory ${cwd} is not a git repository`));
-        }
-        yield* Effect.log("✓ Valid git repository");
-
-        // Check for uncommitted changes if safeguards enabled
-        if (config.safeguards) {
-          const hasChanges = yield* git.hasChanges;
-          if (hasChanges) {
-            console.error("❌ Working directory is not clean");
-            return yield* Effect.fail(new Error("Working directory is not clean. Please commit or stash your changes before proceeding."));
-          }
-          yield* Effect.log("✓ Working directory is clean");
+        const releasePullRequest = yield* github.getPullRequestByBranch(config.branch.release);
+        if (!releasePullRequest || !releasePullRequest.head) {
+          return yield* Effect.fail(new Error(`Release pull request for branch "${config.branch.release}" does not exist.`));
         }
 
-        const originalBranch = yield* git.getCurrentBranch;
-        yield* Effect.log(`✓ Current branch: ${originalBranch}`);
+        yield* Console.log(`✅ Release pull request #${releasePullRequest.number} exists.`);
 
-        // === GitHub Release PR Verification ===
-        yield* Effect.log("\n🔍 Checking for release pull request...");
-
-        const repoInfo = yield* github.getRepositoryInfo();
-        yield* Effect.log(`✓ Repository: ${repoInfo.owner}/${repoInfo.repo}`);
-
-        const releasePr = yield* github.getCurrentPullRequest();
-
-        if (!releasePr) {
-          yield* Effect.log(`⚠️ No open pull request found for branch "${originalBranch}".`);
-          yield* basicVerification();
-          return;
+        const currentBranch = yield* git.branches.get;
+        if (currentBranch !== config.branch.default) {
+          yield* git.branches.checkout(config.branch.default);
+          yield* Console.log(`✅ Checked out to default branch "${config.branch.default}".`);
         }
 
-        yield* Effect.log(`✓ Found release PR #${releasePr.number}: ${releasePr.title}`);
-        yield* Effect.log(`✓ PR state: ${releasePr.state} | Draft: ${releasePr.draft}`);
+        const overrides = yield* loadOverrides({
+          sha: releasePullRequest.head.sha,
+          overridesPath: ".github/ucdjs-release.overrides.json",
+        });
 
-        // === Workspace Package Verification ===
-        yield* Effect.log("\n📦 Verifying workspace packages...");
+        console.log("Loaded overrides:", overrides);
 
-        const packages = yield* workspace.listPackages;
-        const publicPackages = packages.filter((pkg) => !("private" in pkg) || !pkg.private);
+        const packages = yield* workspace.discoverWorkspacePackages.pipe(
+          Effect.flatMap(mergePackageCommitsIntoPackages),
+          Effect.flatMap((pkgs) => mergeCommitsAffectingGloballyIntoPackage(pkgs, config.globalCommitMode)),
+        );
 
-        yield* Effect.log(`✓ Found ${packages.length} packages (${publicPackages.length} public)`);
+        console.log("Discovered packages with commits and global commits:", packages);
 
-        if (publicPackages.length > 0) {
-          yield* Effect.log("📋 Public packages in release:");
-
-          for (const pkg of publicPackages) {
-            const version = pkg.version || "0.0.0";
-
-            yield* Effect.log(`  • ${pkg.name}@${version}`);
-          }
-        }
-
-        // === Version Sync Verification ===
-        yield* Effect.log("\n🔄 Verifying version synchronization...");
-
-        // For now, assume packages are in sync - add actual version comparison logic here
-        const isOutOfSync = false;
-
-        // TODO: Add version comparison logic:
-        // 1. Calculate expected versions based on commits since last release
-        // 2. Compare with current package.json versions in the PR
-        // 3. Check if versions need to be bumped
-
-        yield* Effect.log("✓ Package versions appear to be in sync");
-
-        // === Set Commit Status ===
-        const statusContext = "ucdjs/release-verify";
-        const commitHash = yield* git.getLastCommitHash;
-
-        if (isOutOfSync) {
-          yield* github.createCommitStatus(commitHash, {
-            state: "failure",
-            context: statusContext,
-            description: "Release PR is out of sync with expected versions",
-          });
-          yield* Effect.log("❌ Verification failed - set commit status to 'failure'");
-          return yield* Effect.fail(new Error("Release verification failed"));
-        } else {
-          yield* github.createCommitStatus(commitHash, {
-            state: "success",
-            context: statusContext,
-            description: "Release PR verification passed",
-            target_url: releasePr.html_url,
-          });
-          yield* Effect.log("✅ Verification passed - set commit status to 'success'");
-        }
-
-        yield* Effect.log("\n✅ Comprehensive verification completed successfully");
-
-        // Helper function for basic verification when no PR exists
-        function* basicVerification() {
-          yield* Effect.log("\n📦 Basic workspace verification...");
-
-          const remoteUrl = yield* git.getRemoteUrl;
-          if (remoteUrl) {
-            yield* Effect.log(`✓ Remote configured: ${remoteUrl}`);
-          } else {
-            yield* Effect.log("⚠️ No remote repository configured");
-          }
-
-          const branches = yield* git.listBranches;
-          yield* Effect.log(`✓ Available branches: ${branches.join(", ")}`);
-
-          yield* Effect.log(`✓ Workspace with ${packages.length} packages`);
-          yield* Effect.log("\n✅ Basic verification completed");
-        }
+        // STEP 4: Calculate the updates
+        // STEP 5: Read package.jsons from release branch (without checkout)
+        // STEP 6: Detect if Release PR is out of sync
+        // STEP 7: Set Commit Status
       });
 
       return runProgram(program);
     },
+    async prepare(): Promise<void> {
+      const program = Effect.gen(function* () {
+        const git = yield* GitService;
+        const github = yield* GitHubService;
+        const workspace = yield* WorkspaceService;
 
+        yield* safeguardProgram;
+
+        const releasePullRequest = yield* github.getPullRequestByBranch(config.branch.release);
+        if (!releasePullRequest || !releasePullRequest.head) {
+          return yield* Effect.fail(new Error(`Release pull request for branch "${config.branch.release}" does not exist.`));
+        }
+
+        yield* Console.log(`✅ Release pull request #${releasePullRequest.number} exists.`);
+
+        const currentBranch = yield* git.branches.get;
+        if (currentBranch !== config.branch.default) {
+          yield* git.branches.checkout(config.branch.default);
+          yield* Console.log(`✅ Checked out to default branch "${config.branch.default}".`);
+        }
+
+        const overrides = yield* loadOverrides({
+          sha: releasePullRequest.head.sha,
+          overridesPath: ".github/ucdjs-release.overrides.json",
+        });
+
+        console.log("Loaded overrides:", overrides);
+
+        const packages = yield* workspace.discoverWorkspacePackages.pipe(
+          Effect.flatMap(mergePackageCommitsIntoPackages),
+          Effect.flatMap((pkgs) => mergeCommitsAffectingGloballyIntoPackage(pkgs, config.globalCommitMode)),
+        );
+
+        console.log("Discovered packages with commits and global commits:", packages);
+      });
+
+      return runProgram(program);
+    },
+    async publish(): Promise<void> {
+      const program = Effect.gen(function* () {
+        return yield* Effect.fail(new Error("Not implemented yet."));
+      });
+
+      return runProgram(program);
+    },
     packages: {
       async list(): Promise<readonly WorkspacePackage[]> {
         const program = Effect.gen(function* () {
           const workspace = yield* WorkspaceService;
-          return yield* workspace.listPackages;
+          return yield* workspace.discoverWorkspacePackages;
         });
 
         return runProgram(program);
