@@ -80,7 +80,7 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
           return yield* Effect.fail(new Error("No files to stage."));
         }
 
-        return yield* execGitCommand(["add", ...files]);
+        return yield* execGitCommandIfNotDry(["add", ...files]);
       });
     }
 
