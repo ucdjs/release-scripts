@@ -89,7 +89,7 @@ export class VersionCalculatorService extends Effect.Service<VersionCalculatorSe
               } satisfies PackageRelease;
             }),
           ),
-          { concurrency: "unbounded" },
+          { concurrency: 10 },
         );
       }
 
