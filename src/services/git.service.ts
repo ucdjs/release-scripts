@@ -85,16 +85,11 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
     }
 
     function writeCommit(message: string) {
-      return Effect.gen(function* () {
-        return yield* execGitCommandIfNotDry(["commit", "-m", message]);
-      });
+      return execGitCommandIfNotDry(["commit", "-m", message]);
     }
 
     function pushChanges(branch: string, remote: string = "origin") {
-      return Effect.gen(function* () {
-        const result = yield* execGitCommandIfNotDry(["push", remote, branch]);
-        return result;
-      });
+      return execGitCommandIfNotDry(["push", remote, branch]);
     }
 
     function readFile(filePath: string, ref: string = "HEAD") {
