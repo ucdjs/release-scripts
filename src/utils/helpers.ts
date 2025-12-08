@@ -165,7 +165,7 @@ export function mergeCommitsAffectingGloballyIntoPackage(
     for (const pkg of packages) {
       // Get the package's last release tag timestamp
       const lastTag = yield* git.tags.mostRecentForPackage(pkg.name);
-      const cutoffTimestamp = lastTag ? commitTimestamps.get(lastTag.sha.slice(0, 7)) ?? 0 : 0;
+      const cutoffTimestamp = lastTag ? commitTimestamps.get(lastTag.sha) ?? 0 : 0;
 
       const globalCommits: CommitParser.GitCommit[] = [];
 
