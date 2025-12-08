@@ -54,10 +54,11 @@ export class DependencyGraphService extends Effect.Service<DependencyGraphServic
             }
           }
 
+          let queueIndex = 0;
           const ordered: PackageUpdateOrder[] = [];
 
-          while (queue.length > 0) {
-            const current = queue.shift()!;
+          while (queueIndex < queue.length) {
+            const current = queue[queueIndex++]!;
             const currentLevel = levels.get(current) ?? 0;
 
             const pkg = nameToPackage.get(current);
@@ -81,7 +82,9 @@ export class DependencyGraphService extends Effect.Service<DependencyGraphServic
           }
 
           if (ordered.length !== packages.length) {
-            return yield* Effect.fail(new Error("Cycle detected in workspace dependencies"));
+            const processed = new Set(ordered.map((o) => o.package.name));
+            const unprocessed = packages.filter((p) => !processed.has(p.name)).map((p) => p.name);
+            return yield* Effect.fail(new Error(`Cycle detected in workspace dependencies. Packages involved: ${unprocessed.join(", ")}`));
           }
 
           return ordered;
