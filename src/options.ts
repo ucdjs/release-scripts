@@ -28,6 +28,7 @@ export interface ReleaseScriptsOptionsInput {
   };
   types?: Record<string, {
     title: string;
+    color?: string;
   }>;
   changelog?: {
     enabled?: boolean;
@@ -44,12 +45,12 @@ export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOp
 const DEFAULT_PR_BODY_TEMPLATE = `## Summary\n\nThis PR contains the following changes:\n\n- Updated package versions\n- Updated changelogs\n\n## Packages\n\nThe following packages will be released:\n\n{{packages}}`;
 const DEFAULT_CHANGELOG_TEMPLATE = `# Changelog\n\n{{releases}}`;
 const DEFAULT_TYPES = {
-  feat: { title: "🚀 Features" },
-  fix: { title: "🐞 Bug Fixes" },
-  refactor: { title: "🔧 Code Refactoring" },
-  perf: { title: "🏎 Performance" },
-  docs: { title: "📚 Documentation" },
-  style: { title: "🎨 Styles" },
+  feat: { title: "🚀 Features", color: "green" },
+  fix: { title: "🐞 Bug Fixes", color: "red" },
+  refactor: { title: "🔧 Code Refactoring", color: "blue" },
+  perf: { title: "🏎 Performance", color: "orange" },
+  docs: { title: "📚 Documentation", color: "purple" },
+  style: { title: "🎨 Styles", color: "pink" },
 };
 
 export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInput): NormalizedReleaseScriptsOptions {
