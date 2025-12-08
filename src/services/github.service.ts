@@ -1,7 +1,6 @@
 import { Effect, Schema } from "effect";
-import { GitHubError } from "../errors.js";
-import { ReleaseScriptsOptions } from "../options.js";
-import { GitService } from "./git.service.js";
+import { GitHubError } from "../errors";
+import { ReleaseScriptsOptions } from "../options";
 
 export const PullRequestSchema = Schema.Struct({
   number: Schema.Number,
@@ -119,7 +118,5 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
       getPullRequestByBranch,
     } as const;
   }),
-  dependencies: [
-    GitService.Default,
-  ],
+  dependencies: [],
 }) { }
