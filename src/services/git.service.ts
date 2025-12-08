@@ -105,7 +105,7 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
             .map((tag) => tag.trim())
             .filter((tag) => tag.length > 0);
 
-          return tagList.reverse()[0] || null;
+          return tagList[0] || null;
         }),
         Effect.flatMap((tag) => {
           if (tag === null) {
