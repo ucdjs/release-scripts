@@ -171,12 +171,12 @@ export function mergeCommitsAffectingGloballyIntoPackage(
 
       // Filter commits that occurred after this package's last release
       for (const commit of allCommits) {
-        const commitTimestamp = commitTimestamps.get(commit.shortHash);
+        const commitTimestamp = commitTimestamps.get(commit.hash);
         if (commitTimestamp == null || commitTimestamp <= cutoffTimestamp) {
           continue; // Skip commits at or before the package's last release
         }
 
-        const files = affectedFilesPerCommit.get(commit.shortHash);
+        const files = affectedFilesPerCommit.get(commit.hash);
         if (!files) continue;
 
         // Check if this commit is a global commit
@@ -294,5 +294,5 @@ export function findCommitRange(packages: readonly WorkspacePackageWithCommits[]
     return [null, null];
   }
 
-  return [oldestCommit.shortHash, newestCommit.shortHash];
+  return [oldestCommit.hash, newestCommit.hash];
 }
