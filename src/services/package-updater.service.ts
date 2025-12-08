@@ -2,7 +2,11 @@ import type { WorkspacePackage } from "./workspace.service";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Effect } from "effect";
+import semver from "semver";
 import { ReleaseScriptsOptions } from "../options";
+
+const DASH_RE = / - /;
+const RANGE_OPERATION_RE = /^(?:>=|<=|[><=])/;
 
 function nextRange(oldRange: string, newVersion: string): string {
   const workspacePrefix = oldRange.startsWith("workspace:") ? "workspace:" : "";
@@ -12,6 +16,26 @@ function nextRange(oldRange: string, newVersion: string): string {
     return `${workspacePrefix}${raw}`;
   }
 
+  // Check if this is a complex range (contains operators/spaces beyond simple ^ or ~)
+  const isComplexRange = raw.includes("||") || DASH_RE.test(raw) || RANGE_OPERATION_RE.test(raw) || (raw.includes(" ") && !DASH_RE.test(raw));
+
+  if (isComplexRange) {
+    // For complex ranges, check if the new version satisfies the existing range
+    if (semver.satisfies(newVersion, raw)) {
+      // New version is within range, keep the range as-is
+      return `${workspacePrefix}${raw}`;
+    }
+
+    // TODO: Implement range updating logic for when new version is outside the existing range
+    // For now, we fail/error to avoid silently breaking dependency constraints
+    throw new Error(
+      `Cannot update range "${oldRange}" to version ${newVersion}: `
+      + `new version is outside the existing range. `
+      + `Complex range updating is not yet implemented.`,
+    );
+  }
+
+  // Handle simple ^ and ~ prefixes
   const prefix = raw.startsWith("^") || raw.startsWith("~") ? raw[0] : "";
   return `${workspacePrefix}${prefix}${newVersion}`;
 }
