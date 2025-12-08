@@ -156,7 +156,7 @@ export function mergeCommitsAffectingGloballyIntoPackage(
 
     // Used for quick lookup of commit timestamps/cutoffs
     const commitTimestamps = new Map(
-      allCommits.map((c) => [c.shortHash, new Date(c.date).getTime()]),
+      allCommits.map((c) => [c.hash, new Date(c.date).getTime()]),
     );
 
     const packagePaths = new Set(packages.map((p) => p.path));
