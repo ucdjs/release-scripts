@@ -152,14 +152,12 @@ export class WorkspaceService extends Effect.Service<WorkspaceService>()("@ucdjs
       return workspacePackageListOutput.pipe(
         Effect.flatMap((rawProjects) => {
           const allPackageNames = new Set<string>(rawProjects.map((p) => p.name));
-          const excludedPackages = new Set<string>();
 
           return Effect.all(
             rawProjects.map((rawProject) =>
               readPackageJson(rawProject.path).pipe(
                 Effect.flatMap((packageJson) => {
                   if (!shouldIncludePackage(packageJson, options)) {
-                    excludedPackages.add(rawProject.name);
                     return Effect.succeed(null);
                   }
 
