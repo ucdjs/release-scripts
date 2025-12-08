@@ -24,7 +24,7 @@ export const PullRequestSchema = Schema.Struct({
 
 export const CreatePullRequestOptionsSchema = Schema.Struct({
   title: Schema.String,
-  body: Schema.String,
+  body: Schema.NullOr(Schema.String),
   head: Schema.String,
   base: Schema.String,
   draft: Schema.optional(Schema.Boolean),
