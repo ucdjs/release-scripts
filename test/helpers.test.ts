@@ -172,8 +172,8 @@ describe("findCommitRange", () => {
     ];
 
     const [oldest, newest] = findCommitRange(packages);
-    expect(oldest).toBe("aaa");
-    expect(newest).toBe("ddd");
+    expect(oldest).toBe("aaa0000000000000000000000000000000000000");
+    expect(newest).toBe("ddd0000000000000000000000000000000000000");
   });
 
   it("handles single package with multiple commits", () => {
@@ -186,8 +186,8 @@ describe("findCommitRange", () => {
     ];
 
     const [oldest, newest] = findCommitRange(packages);
-    expect(oldest).toBe("first");
-    expect(newest).toBe("third");
+    expect(oldest).toBe("first00000000000000000000000000000000000");
+    expect(newest).toBe("third00000000000000000000000000000000000");
   });
 
   it("handles single package with single commit", () => {
@@ -198,8 +198,8 @@ describe("findCommitRange", () => {
     ];
 
     const [oldest, newest] = findCommitRange(packages);
-    expect(oldest).toBe("only");
-    expect(newest).toBe("only");
+    expect(oldest).toBe("only000000000000000000000000000000000000");
+    expect(newest).toBe("only000000000000000000000000000000000000");
   });
 
   it("returns [null, null] when all packages have no commits", () => {
@@ -230,8 +230,8 @@ describe("findCommitRange", () => {
     ];
 
     const [oldest, newest] = findCommitRange(packages);
-    expect(oldest).toBe("aaa");
-    expect(newest).toBe("bbb");
+    expect(oldest).toBe("aaa0000000000000000000000000000000000000");
+    expect(newest).toBe("bbb0000000000000000000000000000000000000");
   });
 
   it("correctly identifies oldest when packages are out of order", () => {
@@ -246,8 +246,8 @@ describe("findCommitRange", () => {
     ];
 
     const [oldest, newest] = findCommitRange(packages);
-    expect(oldest).toBe("older");
-    expect(newest).toBe("newer");
+    expect(oldest).toBe("older00000000000000000000000000000000000");
+    expect(newest).toBe("newer00000000000000000000000000000000000");
   });
 
   it("handles commits with same timestamp", () => {

@@ -45,3 +45,9 @@ export class OverridesLoadError extends Data.TaggedError("OverridesLoadError")<{
   message: string;
   cause?: unknown;
 }> {}
+
+export class NPMError extends Data.TaggedError("NPMError")<{
+  message: string;
+  operation?: string;
+  cause?: unknown;
+}> {}
