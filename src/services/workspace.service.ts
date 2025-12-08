@@ -100,6 +100,24 @@ export class WorkspaceService extends Effect.Service<WorkspaceService>()("@ucdjs
       );
     }
 
+    function writePackageJson(pkgPath: string, json: unknown) {
+      const fullPath = path.join(pkgPath, "package.json");
+      const content = `${JSON.stringify(json, null, 2)}\n`;
+
+      if (config.dryRun) {
+        return Effect.succeed(`Dry run: skip writing ${fullPath}`);
+      }
+
+      return Effect.tryPromise({
+        try: async () => await fs.writeFile(fullPath, content, "utf8"),
+        catch: (e) => new WorkspaceError({
+          message: `Failed to write package.json for ${pkgPath}`,
+          cause: e,
+          operation: "writePackageJson",
+        }),
+      });
+    }
+
     const discoverWorkspacePackages = Effect.gen(function* () {
       let workspaceOptions: FindWorkspacePackagesOptions;
       let explicitPackages: string[] | undefined;
@@ -237,6 +255,7 @@ export class WorkspaceService extends Effect.Service<WorkspaceService>()("@ucdjs
 
     return {
       readPackageJson,
+      writePackageJson,
       findWorkspacePackages,
       discoverWorkspacePackages,
       findPackageByName,

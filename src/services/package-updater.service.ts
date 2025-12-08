@@ -1,9 +1,7 @@
 import type { WorkspacePackage } from "./workspace.service";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { Effect } from "effect";
 import semver from "semver";
-import { ReleaseScriptsOptions } from "../options";
+import { WorkspaceService } from "./workspace.service";
 
 const DASH_RE = / - /;
 const RANGE_OPERATION_RE = /^(?:>=|<=|[><=])/;
@@ -95,23 +93,7 @@ export class PackageUpdaterService extends Effect.Service<PackageUpdaterService>
   "@ucdjs/release-scripts/PackageUpdaterService",
   {
     effect: Effect.gen(function* () {
-      const config = yield* ReleaseScriptsOptions;
-
-      function writePackageJson(pkgPath: string, json: unknown) {
-        const fullPath = path.join(pkgPath, "package.json");
-        const content = `${JSON.stringify(json, null, 2)}\n`;
-
-        if (config.dryRun) {
-          return Effect.succeed(`Dry run: skip writing ${fullPath}`);
-        }
-
-        return Effect.tryPromise({
-          try: async () => {
-            await fs.writeFile(fullPath, content, "utf8");
-          },
-          catch: (e) => e as Error,
-        });
-      }
+      const workspace = yield* WorkspaceService;
 
       function applyReleases(
         allPackages: readonly WorkspacePackage[],
@@ -157,7 +139,7 @@ export class PackageUpdaterService extends Effect.Service<PackageUpdaterService>
                 return "skipped" as const;
               }
 
-              return yield* writePackageJson(pkg.path, nextJson).pipe(
+              return yield* workspace.writePackageJson(pkg.path, nextJson).pipe(
                 Effect.map(() => "written" as const),
               );
             }),
@@ -169,6 +151,8 @@ export class PackageUpdaterService extends Effect.Service<PackageUpdaterService>
         applyReleases,
       } as const;
     }),
-    dependencies: [],
+    dependencies: [
+      WorkspaceService.Default,
+    ],
   },
 ) {}
