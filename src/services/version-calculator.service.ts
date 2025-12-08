@@ -12,7 +12,9 @@ const BUMP_PRIORITY: Record<BumpKind, number> = {
 };
 
 function maxBump(current: BumpKind, incoming: BumpKind): BumpKind {
-  return BUMP_PRIORITY[incoming] > BUMP_PRIORITY[current] ? incoming : current;
+  const incomingPriority = BUMP_PRIORITY[incoming] ?? 0;
+  const currentPriority = BUMP_PRIORITY[current] ?? 0;
+  return incomingPriority > currentPriority ? incoming : current;
 }
 
 function bumpFromCommit(commit: { type?: string; isBreaking?: boolean }): BumpKind {
