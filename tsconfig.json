@@ -13,7 +13,12 @@
     "noEmit": true,
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service"
+      }
+    ]
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
