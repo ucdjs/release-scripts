@@ -114,8 +114,31 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
       );
     }
 
+    function setCommitStatus(sha: string, status: CommitStatus) {
+      return makeRequest(
+        `statuses/${sha}`,
+        Schema.Unknown,
+        {
+          method: "POST",
+          body: JSON.stringify(status),
+        },
+      ).pipe(
+        Effect.map(() => status),
+        Effect.catchAll((e) =>
+          Effect.fail(
+            new GitHubError({
+              message: e.message,
+              operation: "setCommitStatus",
+              cause: e.cause,
+            }),
+          ),
+        ),
+      );
+    }
+
     return {
       getPullRequestByBranch,
+      setCommitStatus,
     } as const;
   }),
   dependencies: [],

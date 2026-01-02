@@ -1,0 +1,43 @@
+flowchart TD
+    Start([Start publish]) --> DiscoverPkgs[Discover workspace packages]
+    DiscoverPkgs --> FilterPrivate[Filter out private packages]
+
+    FilterPrivate --> BuildDepGraph[Build dependency graph]
+    BuildDepGraph --> TopoSort[Compute topological order<br/>with levels]
+
+    TopoSort --> GroupByLevel[Group packages by level<br/>for parallel publishing]
+
+    GroupByLevel --> LoopLevels{More levels<br/>to publish?}
+    LoopLevels -->|Yes| NextLevel[Get next level]
+
+    NextLevel --> ParallelPub[Publish packages in parallel<br/>within level]
+
+    ParallelPub --> LoopPkgsInLevel{More packages<br/>in level?}
+    LoopPkgsInLevel -->|Yes| NextPkg[Get next package]
+
+    NextPkg --> CheckNPM[Check if version exists on NPM<br/>NPMService.getPackument]
+    CheckNPM --> Exists{Version<br/>exists?}
+
+    Exists -->|Yes| SkipPkg[Skip: Already published]
+    Exists -->|No| BuildPkg[Build package<br/>pnpm build --filter]
+
+    BuildPkg --> PublishPkg[Publish to NPM<br/>pnpm publish --provenance]
+    PublishPkg --> CreateTag[Create git tag<br/>@package/name@version]
+    CreateTag --> PushTag[Push tag to remote]
+
+    PushTag --> LoopPkgsInLevel
+    SkipPkg --> LoopPkgsInLevel
+
+    LoopPkgsInLevel -->|No| WaitLevel[Wait for all packages<br/>in level to complete]
+    WaitLevel --> LoopLevels
+
+    LoopLevels -->|No| UpdatePR[Update Release PR<br/>with publish results]
+    UpdatePR --> Success([Success])
+
+    style Start fill:#e1f5e1
+    style Success fill:#e1f5e1
+    style ParallelPub fill:#fff4e1
+    style PublishPkg fill:#d4edda
+    style SkipPkg fill:#f0f0f0
+    style Start stroke:#4a90e2,stroke-width:3px,stroke-dasharray: 5 5
+    style Success stroke:#4a90e2,stroke-width:3px,stroke-dasharray: 5 5

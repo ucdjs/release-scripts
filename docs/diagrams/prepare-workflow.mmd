@@ -1,0 +1,51 @@
+flowchart TD
+    Start([Start prepare]) --> FetchPR[Fetch/Prepare Release PR]
+    FetchPR --> LoadOverrides[Load version overrides<br/>.github/ucdjs-release.overrides.json]
+
+    LoadOverrides --> DiscoverPkgs[Discover workspace packages<br/>pnpm -r ls --json]
+    DiscoverPkgs --> FilterPkgs[Filter packages<br/>include/exclude/private]
+
+    FilterPkgs --> GetTags[Get most recent tag<br/>for each package]
+    GetTags --> FetchCommits[Fetch commits since tag<br/>for each package]
+
+    FetchCommits --> MergeCommits[Merge package-specific commits]
+    MergeCommits --> GlobalCommits{Global commit<br/>mode?}
+
+    GlobalCommits -->|none| CalcVersions[Calculate version bumps<br/>from commits]
+    GlobalCommits -->|all| MergeGlobalAll[Merge all global commits<br/>into all packages]
+    GlobalCommits -->|dependencies| MergeGlobalDeps[Merge dependency-related<br/>global commits]
+
+    MergeGlobalAll --> CalcVersions
+    MergeGlobalDeps --> CalcVersions
+
+    CalcVersions --> ApplyOverrides[Apply version overrides<br/>from config]
+    ApplyOverrides --> BuildDepGraph[Build dependency graph]
+    BuildDepGraph --> CheckCircular{Circular<br/>dependencies?}
+
+    CheckCircular -->|Yes| ErrorCircular[Error: Circular dependency]
+    CheckCircular -->|No| TopoSort[Compute topological order<br/>with levels]
+
+    TopoSort --> LoopPkgs{More packages<br/>to update?}
+    LoopPkgs -->|Yes| NextPkg[Get next package<br/>in topo order]
+
+    NextPkg --> ApplyVersion[Update package version<br/>in package.json]
+    ApplyVersion --> UpdateDeps[Update workspace dependencies<br/>preserve ranges & workspace: protocol]
+
+    UpdateDeps --> DryRun{Dry-run<br/>mode?}
+    DryRun -->|Yes| LogUpdate[Log: Would update package.json]
+    DryRun -->|No| WriteFile[Write package.json to disk]
+
+    LogUpdate --> LoopPkgs
+    WriteFile --> LoopPkgs
+
+    LoopPkgs -->|No| Future[Future: Create/Update PR<br/>Generate changelogs]
+    Future --> Success([Success])
+
+    ErrorCircular --> Exit1([Exit code 1])
+
+    style Start fill:#e1f5e1
+    style Success fill:#e1f5e1
+    style Exit1 fill:#ffe1e1
+    style ErrorCircular fill:#ffcccc
+    style DryRun fill:#fff4e1
+    style Future fill:#e1f0ff,stroke:#4a90e2,stroke-dasharray: 5 5

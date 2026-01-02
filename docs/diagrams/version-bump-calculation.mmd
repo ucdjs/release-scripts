@@ -1,0 +1,41 @@
+flowchart TD
+    Start([Package with commits]) --> HasOverride{Has version<br/>override?}
+
+    HasOverride -->|Yes| UseOverride[Use overridden version]
+    HasOverride -->|No| CheckCommits{Has commits?}
+
+    CheckCommits -->|No| NoBump[Bump type: none]
+    CheckCommits -->|Yes| AnalyzeCommits[Analyze each commit]
+
+    AnalyzeCommits --> LoopCommits{More commits?}
+    LoopCommits -->|Yes| NextCommit[Get next commit]
+
+    NextCommit --> CheckBreaking{Breaking change?<br/>BREAKING CHANGE:<br/>or !}
+    CheckBreaking -->|Yes| Major[Bump type: major]
+    CheckBreaking -->|No| CheckFeat{Feature?<br/>feat:}
+
+    CheckFeat -->|Yes| Minor[Bump type: minor]
+    CheckFeat -->|No| CheckFix{Fix or perf?<br/>fix: or perf:}
+
+    CheckFix -->|Yes| Patch[Bump type: patch]
+    CheckFix -->|No| Other[No bump for this commit]
+
+    Major --> UpdateMax[Update max bump type]
+    Minor --> UpdateMax
+    Patch --> UpdateMax
+    Other --> LoopCommits
+
+    UpdateMax --> LoopCommits
+    LoopCommits -->|No| ApplyBump[Apply highest bump type<br/>to current version]
+
+    ApplyBump --> Result([New version])
+    UseOverride --> Result
+    NoBump --> Result
+
+    style Start fill:#e1f5e1
+    style Result fill:#e1f5e1
+    style Major fill:#ffcccc
+    style Minor fill:#fff4cc
+    style Patch fill:#ccffcc
+    style NoBump fill:#f0f0f0
+    style UseOverride fill:#e1f0ff

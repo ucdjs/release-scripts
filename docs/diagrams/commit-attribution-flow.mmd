@@ -1,0 +1,27 @@
+flowchart TD
+    Start([Packages with commits]) --> HasGlobal{Global commit<br/>mode?}
+
+    HasGlobal -->|none| NoGlobal[No global commits added]
+    HasGlobal -->|all| GetAllGlobal[Get all global commits<br/>from main branch]
+    HasGlobal -->|dependencies| GetDepGlobal[Get dependency-related<br/>global commits]
+
+    GetAllGlobal --> FindRange[Find commit time range<br/>across all packages]
+    GetDepGlobal --> FindRange
+
+    FindRange --> FilterTime[Filter global commits<br/>by timestamp range]
+    FilterTime --> LoopPkgs{More packages?}
+
+    LoopPkgs -->|Yes| NextPkg[Get next package]
+    NextPkg --> GetLastRelease[Get last release timestamp<br/>from most recent tag]
+
+    GetLastRelease --> FilterCommits[Filter global commits:<br/>commit.time > lastRelease.time]
+    FilterCommits --> MergeInto[Merge filtered commits<br/>into package]
+
+    MergeInto --> LoopPkgs
+    LoopPkgs -->|No| Result([Packages with attributed commits])
+    NoGlobal --> Result
+
+    style Start fill:#e1f5e1
+    style Result fill:#e1f5e1
+    style HasGlobal fill:#fff4e1
+    style FilterCommits fill:#d4edda

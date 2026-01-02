@@ -1,0 +1,53 @@
+flowchart TD
+    Start([Start verify]) --> FetchPR[Fetch Release PR by branch]
+    FetchPR --> CheckPR{PR exists?}
+    CheckPR -->|No| ErrorNoPR[Error: No release PR found]
+    CheckPR -->|Yes| LoadOverrides[Load version overrides<br/>.github/ucdjs-release.overrides.json]
+
+    LoadOverrides --> DiscoverPkgs[Discover workspace packages<br/>pnpm -r ls --json]
+    DiscoverPkgs --> FilterPkgs[Filter packages<br/>include/exclude/private]
+
+    FilterPkgs --> GetTags[Get most recent tag<br/>for each package]
+    GetTags --> FetchCommits[Fetch commits since tag<br/>for each package]
+
+    FetchCommits --> MergeCommits[Merge package-specific commits]
+    MergeCommits --> GlobalCommits{Global commit<br/>mode?}
+
+    GlobalCommits -->|none| CalcVersions[Calculate expected versions<br/>from commits]
+    GlobalCommits -->|all| MergeGlobalAll[Merge all global commits<br/>into all packages]
+    GlobalCommits -->|dependencies| MergeGlobalDeps[Merge dependency-related<br/>global commits]
+
+    MergeGlobalAll --> CalcVersions
+    MergeGlobalDeps --> CalcVersions
+
+    CalcVersions --> ApplyOverrides[Apply version overrides<br/>from config]
+    ApplyOverrides --> BuildDepGraph[Build dependency graph]
+    BuildDepGraph --> CheckCircular{Circular<br/>dependencies?}
+
+    CheckCircular -->|Yes| ErrorCircular[Error: Circular dependency]
+    CheckCircular -->|No| TopoSort[Compute topological order]
+
+    TopoSort --> ReadActual[Read package.json files<br/>from release branch HEAD]
+    ReadActual --> Compare[Compare expected vs actual<br/>versions & dependencies]
+
+    Compare --> CheckDrift{Drift detected?}
+    CheckDrift -->|Yes| ReportDrift[Report drift details<br/>versions/dependencies]
+    CheckDrift -->|No| ReportSuccess[Report: All packages match]
+
+    ReportDrift --> SetStatusFail[Set GitHub commit status<br/>state: failure]
+    ReportSuccess --> SetStatusSuccess[Set GitHub commit status<br/>state: success]
+
+    SetStatusFail --> Exit1([Exit code 1])
+    SetStatusSuccess --> Exit0([Exit code 0])
+
+    ErrorNoPR --> Exit1
+    ErrorCircular --> Exit1
+
+    style Start fill:#e1f5e1
+    style Exit0 fill:#e1f5e1
+    style Exit1 fill:#ffe1e1
+    style ErrorNoPR fill:#ffcccc
+    style ErrorCircular fill:#ffcccc
+    style CheckDrift fill:#fff4e1
+    style SetStatusSuccess fill:#d4edda
+    style SetStatusFail fill:#f8d7da

@@ -353,7 +353,17 @@ interface ReleaseScriptsOptionsInput {
 
 ## Workflow Diagrams
 
+> **Note**: All diagrams are also available as separate Mermaid files in [`docs/diagrams/`](../docs/diagrams/) for reuse and image generation:
+> - [verify-workflow.mmd](../docs/diagrams/verify-workflow.mmd)
+> - [prepare-workflow.mmd](../docs/diagrams/prepare-workflow.mmd)
+> - [publish-workflow.mmd](../docs/diagrams/publish-workflow.mmd)
+> - [service-dependency-graph.mmd](../docs/diagrams/service-dependency-graph.mmd)
+> - [commit-attribution-flow.mmd](../docs/diagrams/commit-attribution-flow.mmd)
+> - [version-bump-calculation.mmd](../docs/diagrams/version-bump-calculation.mmd)
+
 ### verify() Workflow
+
+**Diagram**: [`docs/diagrams/verify-workflow.mmd`](../docs/diagrams/verify-workflow.mmd)
 
 ```mermaid
 flowchart TD
@@ -413,6 +423,8 @@ flowchart TD
 
 ### prepare() Workflow
 
+**Diagram**: [`docs/diagrams/prepare-workflow.mmd`](../docs/diagrams/prepare-workflow.mmd)
+
 ```mermaid
 flowchart TD
     Start([Start prepare]) --> FetchPR[Fetch/Prepare Release PR]
@@ -469,6 +481,8 @@ flowchart TD
 
 ### publish() Workflow (Planned)
 
+**Diagram**: [`docs/diagrams/publish-workflow.mmd`](../docs/diagrams/publish-workflow.mmd)
+
 ```mermaid
 flowchart TD
     Start([Start publish]) --> DiscoverPkgs[Discover workspace packages]
@@ -516,6 +530,8 @@ flowchart TD
 ```
 
 ### Service Dependency Graph
+
+**Diagram**: [`docs/diagrams/service-dependency-graph.mmd`](../docs/diagrams/service-dependency-graph.mmd)
 
 ```mermaid
 graph TD
@@ -584,6 +600,8 @@ graph TD
 
 ### Commit Attribution Flow
 
+**Diagram**: [`docs/diagrams/commit-attribution-flow.mmd`](../docs/diagrams/commit-attribution-flow.mmd)
+
 ```mermaid
 flowchart TD
     Start([Packages with commits]) --> HasGlobal{Global commit<br/>mode?}
@@ -615,6 +633,8 @@ flowchart TD
 ```
 
 ### Version Bump Calculation
+
+**Diagram**: [`docs/diagrams/version-bump-calculation.mmd`](../docs/diagrams/version-bump-calculation.mmd)
 
 ```mermaid
 flowchart TD
