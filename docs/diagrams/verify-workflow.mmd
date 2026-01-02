@@ -1,0 +1,108 @@
+sequenceDiagram
+    actor User
+    participant API as verify()
+    participant GH as GitHubService
+    participant WS as WorkspaceService
+    participant Git as GitService
+    participant Helpers as Helper Utils
+    participant VC as VersionCalculator
+    participant DG as DependencyGraph
+
+    User->>API: Start verification
+
+    Note over API,GH: 1. Fetch Release PR
+    API->>GH: getPullRequestByBranch(releaseBranch)
+    alt PR not found
+        GH-->>API: null
+        API-->>User: Error: No release PR found (exit 1)
+    else PR exists
+        GH-->>API: PR{number, title, head.sha}
+    end
+
+    Note over API,Helpers: 2. Load Configuration
+    API->>Helpers: loadOverrides()
+    Helpers->>Git: readFile(".github/ucdjs-release.overrides.json")
+    Git-->>Helpers: overrides JSON
+    Helpers-->>API: overrides{}
+
+    Note over API,WS: 3. Discover Packages
+    API->>WS: discoverPackages()
+    WS->>WS: pnpm -r ls --json
+    WS->>WS: Filter by include/exclude/private
+    WS-->>API: packages[]
+
+    Note over API,Git: 4. Fetch Commits for Each Package
+    loop For each package
+        API->>Git: getMostRecentPackageTag(pkg)
+        Git-->>API: tag (e.g., @pkg/name@1.0.0)
+        API->>Git: getCommitsSince(tag)
+        Git-->>API: commits[]
+        API->>API: Filter commits by package path
+    end
+
+    Note over API,Helpers: 5. Merge Global Commits
+    alt globalCommitMode = "none"
+        API->>API: Skip global commits
+    else globalCommitMode = "all"
+        API->>Helpers: mergeCommitsAffectingGloballyIntoPackage(packages, "all")
+        Helpers->>Git: getCommitsSince(oldestTag)
+        Git-->>Helpers: all commits
+        Helpers->>Helpers: Filter global commits
+        Helpers->>Helpers: Timestamp-based attribution
+        Helpers-->>API: packages with global commits
+    else globalCommitMode = "dependencies"
+        API->>Helpers: mergeCommitsAffectingGloballyIntoPackage(packages, "dependencies")
+        Helpers->>Git: getCommitsSince(oldestTag)
+        Git-->>Helpers: all commits
+        Helpers->>Helpers: Filter dependency-related commits
+        Helpers->>Helpers: Timestamp-based attribution
+        Helpers-->>API: packages with dependency commits
+    end
+
+    Note over API,VC: 6. Calculate Expected Versions
+    loop For each package
+        API->>VC: calculateBump(package.commits)
+        VC->>VC: Analyze conventional commits
+        VC-->>API: bumpType (major/minor/patch/none)
+        alt Has override
+            API->>API: Use override version
+        else No override
+            API->>VC: applyBump(currentVersion, bumpType)
+            VC-->>API: newVersion
+        end
+    end
+
+    Note over API,DG: 7. Build Dependency Graph
+    API->>DG: buildGraph(packages)
+    DG->>DG: Analyze workspace dependencies
+    alt Circular dependency
+        DG-->>API: CircularDependencyError
+        API-->>User: Error: Circular dependency (exit 1)
+    else No cycles
+        DG-->>API: graph
+        API->>DG: topologicalSort(graph)
+        DG-->>API: sortedPackages with levels
+    end
+
+    Note over API,Git: 8. Read Actual Versions from Release Branch
+    loop For each package
+        API->>Git: readFile(package.json, releaseBranch)
+        Git-->>API: package.json content
+        API->>API: Parse actual version & dependencies
+    end
+
+    Note over API: 9. Compare Expected vs Actual
+    API->>API: Compare versions
+    API->>API: Compare dependency ranges
+
+    alt Drift detected
+        API->>API: Collect drift details
+        Note over API: Version mismatches or<br/>dependency range issues
+        API->>GH: setCommitStatus(pr.head.sha, "failure", drift)
+        GH-->>API: Status updated
+        API-->>User: Drift detected (exit 1)
+    else No drift
+        API->>GH: setCommitStatus(pr.head.sha, "success")
+        GH-->>API: Status updated
+        API-->>User: All packages match (exit 0)
+    end

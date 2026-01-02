@@ -1,0 +1,82 @@
+sequenceDiagram
+    actor User
+    participant API as publish()
+    participant WS as WorkspaceService
+    participant DG as DependencyGraph
+    participant NPM as NPMService
+    participant Git as GitService
+    participant GH as GitHubService
+
+    User->>API: Start publishing
+
+    Note over API,WS: 1. Discover Packages
+    API->>WS: discoverPackages()
+    WS->>WS: pnpm -r ls --json
+    WS-->>API: packages[]
+
+    API->>API: Filter out private packages
+    Note over API: Private packages are skipped
+
+    Note over API,DG: 2. Build Dependency Graph
+    API->>DG: buildGraph(packages)
+    DG->>DG: Analyze workspace dependencies
+    DG-->>API: graph
+
+    API->>DG: topologicalSort(graph)
+    DG-->>API: sortedPackages with levels
+
+    API->>API: Group packages by level
+    Note over API: Level 0: No deps<br/>Level 1: Depends on Level 0<br/>etc.
+
+    Note over API,NPM: 3. Publish by Level (for safe ordering)
+    loop For each level
+        Note over API: Packages in same level can<br/>publish in parallel
+
+        par For each package in level
+            API->>NPM: getPackument(package.name)
+            alt Package not on NPM
+                NPM-->>API: 404 error
+                Note over API: First publish
+            else Package exists
+                NPM-->>API: {versions: {...}}
+                API->>NPM: Check if version exists
+                alt Version already published
+                    NPM-->>API: true
+                    Note over API: Skip: Already published
+                else New version
+                    NPM-->>API: false
+                end
+            end
+
+            opt Version not published yet
+                Note over API: Build package
+                API->>WS: Build package (pnpm build --filter)
+                WS-->>API: Build complete
+
+                Note over API: Publish to NPM
+                API->>NPM: Publish (pnpm publish --provenance)
+                NPM->>NPM: Validate package
+                NPM->>NPM: Upload to registry
+                NPM-->>API: Published successfully
+
+                Note over API: Create git tag
+                API->>Git: createTag(@package/name@version)
+                Git-->>API: Tag created
+
+                API->>Git: pushTag(tag)
+                Git-->>API: Tag pushed
+            end
+        end
+
+        Note over API: Wait for all packages<br/>in level to complete
+    end
+
+    Note over API,GH: 4. Update Release PR
+    API->>GH: updatePullRequest(pr.number, publishResults)
+    GH-->>API: PR updated with results
+
+    Note over API: 5. Summary
+    API->>API: Collect publish statistics
+    Note over API: - Packages published<br/>- Packages skipped<br/>- Tags created
+
+    API-->>User: Publishing complete

@@ -1,0 +1,113 @@
+sequenceDiagram
+    actor User
+    participant API as prepare()
+    participant GH as GitHubService
+    participant WS as WorkspaceService
+    participant Git as GitService
+    participant Helpers as Helper Utils
+    participant VC as VersionCalculator
+    participant DG as DependencyGraph
+    participant PU as PackageUpdater
+
+    User->>API: Start preparation
+
+    Note over API,GH: 1. Fetch/Prepare Release PR
+    API->>GH: getPullRequestByBranch(releaseBranch)
+    alt PR exists
+        GH-->>API: PR{number, title}
+        Note over API: Will update existing PR (future)
+    else No PR
+        GH-->>API: null
+        Note over API: Will create new PR (future)
+    end
+
+    Note over API,Helpers: 2. Load Configuration
+    API->>Helpers: loadOverrides()
+    Helpers->>Git: readFile(".github/ucdjs-release.overrides.json")
+    Git-->>Helpers: overrides JSON
+    Helpers-->>API: overrides{}
+
+    Note over API,WS: 3. Discover Packages
+    API->>WS: discoverPackages()
+    WS->>WS: pnpm -r ls --json
+    WS->>WS: Filter by include/exclude/private
+    WS-->>API: packages[]
+
+    Note over API,Git: 4. Fetch Commits for Each Package
+    loop For each package
+        API->>Git: getMostRecentPackageTag(pkg)
+        Git-->>API: tag
+        API->>Git: getCommitsSince(tag)
+        Git-->>API: commits[]
+        API->>API: Filter commits by package path
+    end
+
+    Note over API,Helpers: 5. Merge Global Commits
+    alt globalCommitMode != "none"
+        API->>Helpers: mergeCommitsAffectingGloballyIntoPackage()
+        Helpers->>Git: getCommitsSince(oldestTag)
+        Git-->>Helpers: all commits
+        Helpers->>Helpers: Filter & attribute commits
+        Helpers-->>API: packages with global commits
+    end
+
+    Note over API,VC: 6. Calculate Version Bumps
+    loop For each package
+        API->>VC: calculateBump(package.commits)
+        VC->>VC: Analyze conventional commits
+        VC-->>API: bumpType
+        alt Has override
+            API->>API: Use override version
+        else Calculate bump
+            API->>VC: applyBump(currentVersion, bumpType)
+            VC-->>API: newVersion
+        end
+    end
+
+    Note over API,DG: 7. Build Dependency Graph
+    API->>DG: buildGraph(packages)
+    DG->>DG: Analyze workspace dependencies
+    alt Circular dependency
+        DG-->>API: CircularDependencyError
+        API-->>User: Error (exit 1)
+    else Success
+        DG-->>API: graph
+        API->>DG: topologicalSort(graph)
+        DG-->>API: sortedPackages with levels
+    end
+
+    Note over API,PU: 8. Apply Releases in Topological Order
+    loop For each package (in topo order)
+        API->>PU: applyRelease(package, newVersion, allPackages)
+
+        Note over PU: Update package.json
+        PU->>WS: readPackageJson(package.path)
+        WS-->>PU: packageJson
+
+        PU->>PU: Set version to newVersion
+
+        Note over PU: Update workspace dependencies
+        loop For each workspace dependency
+            PU->>PU: Find dependency's new version
+            PU->>PU: Update range (preserve ^/~/workspace:)
+            PU->>PU: Validate range compatibility
+        end
+
+        alt Dry-run mode
+            PU-->>API: Log: Would update package.json
+            Note over API: No file written
+        else Normal mode
+            PU->>WS: writePackageJson(package.path, updatedJson)
+            WS->>WS: Write to disk
+            WS-->>PU: Success
+            PU-->>API: Package updated
+        end
+    end
+
+    Note over API,Git: 9. Future: Create/Update PR
+    Note over API: Stage changes (git add)
+    Note over API: Commit changes
+    Note over API: Push to release branch
+    Note over API: Create or update PR with changelog
+
+    API-->>User: Preparation complete
