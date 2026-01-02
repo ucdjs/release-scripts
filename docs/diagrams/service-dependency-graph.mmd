@@ -113,24 +113,13 @@ classDiagram
     ReleaseScriptsAPI --> HelperUtilities : helper functions
 
     %% Styling
-    class GitService,GitHubService,NPMService {
-        fill:#ffe1e1
-    }
-    class WorkspaceService {
-        fill:#e1ffe1
-    }
-    class VersionCalculatorService,DependencyGraphService {
-        fill:#fff4e1
-    }
-    class PackageUpdaterService {
-        fill:#f0e1ff
-    }
-    class HelperUtilities {
-        fill:#f0f0f0
-    }
-    class ReleaseScriptsOptions {
-        fill:#e1f0ff
-    }
-    class ReleaseScriptsAPI {
-        fill:#d4edda
-    }
+    style GitService fill:#ffe1e1
+    style GitHubService fill:#ffe1e1
+    style NPMService fill:#ffe1e1
+    style WorkspaceService fill:#e1ffe1
+    style VersionCalculatorService fill:#fff4e1
+    style DependencyGraphService fill:#fff4e1
+    style PackageUpdaterService fill:#f0e1ff
+    style HelperUtilities fill:#f0f0f0
+    style ReleaseScriptsOptions fill:#e1f0ff
+    style ReleaseScriptsAPI fill:#d4edda
