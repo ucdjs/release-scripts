@@ -173,7 +173,5 @@ export function constructVerifyProgram(
     if (drift.length > 0) {
       return yield* Effect.fail(new Error("Release branch is out of sync."));
     }
-
-    return true;
   });
 }

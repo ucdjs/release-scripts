@@ -74,6 +74,10 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       return execGitCommand(["checkout", branch]);
     }
 
+    function rebaseBranch(onto: string) {
+      return execGitCommandIfNotDry(["rebase", onto]);
+    }
+
     function stageChanges(files: readonly string[]) {
       return Effect.gen(function* () {
         if (files.length === 0) {
@@ -90,6 +94,10 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
 
     function pushChanges(branch: string, remote: string = "origin") {
       return execGitCommandIfNotDry(["push", remote, branch]);
+    }
+
+    function forcePushChanges(branch: string, remote: string = "origin") {
+      return execGitCommandIfNotDry(["push", "--force-with-lease", remote, branch]);
     }
 
     function readFile(filePath: string, ref: string = "HEAD") {
@@ -199,12 +207,14 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
         exists: doesBranchExist,
         create: createBranch,
         checkout: checkoutBranch,
+        rebase: rebaseBranch,
         get: getBranch,
       },
       commits: {
         stage: stageChanges,
         write: writeCommit,
         push: pushChanges,
+        forcePush: forcePushChanges,
         get: getCommits,
         filesChangesBetweenRefs,
       },

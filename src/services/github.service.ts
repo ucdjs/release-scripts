@@ -1,6 +1,9 @@
 import { Effect, Schema } from "effect";
+import { Eta } from "eta";
 import { GitHubError } from "../errors";
 import { ReleaseScriptsOptions } from "../options";
+
+const eta = new Eta();
 
 export const PullRequestSchema = Schema.Struct({
   number: Schema.Number,
@@ -136,9 +139,52 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
       );
     }
 
+    function updatePullRequest(number: number, options: UpdatePullRequestOptions) {
+      return makeRequest(
+        `pulls/${number}`,
+        PullRequestSchema,
+        {
+          method: "PATCH",
+          body: JSON.stringify(options),
+        },
+      ).pipe(
+        Effect.mapError((e) =>
+          new GitHubError({
+            message: e.message,
+            operation: "updatePullRequest",
+            cause: e.cause,
+          }),
+        ),
+      );
+    }
+
+    const prBodyTemplate = `## Release Summary
+
+This PR prepares the release of <%= it.count %> package<%= it.count === 1 ? "" : "s" %>:
+
+<% for (const release of it.releases) { %>
+- **<%= release.packageName %>**: \`<%= release.previousVersion %>\` → \`<%= release.version %>\`
+<% } %>
+
+## Changes
+
+See individual package changelogs for details.
+`;
+
+    function generateReleasePRBody(releases: readonly { packageName: string; version: string; previousVersion: string }[]) {
+      return Effect.gen(function* () {
+        return eta.renderString(prBodyTemplate, {
+          count: releases.length,
+          releases,
+        });
+      });
+    }
+
     return {
       getPullRequestByBranch,
       setCommitStatus,
+      updatePullRequest,
+      generateReleasePRBody,
     } as const;
   }),
   dependencies: [],
