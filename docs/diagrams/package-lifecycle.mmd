@@ -1,0 +1,80 @@
+stateDiagram-v2
+    [*] --> Discovered: Package found in workspace
+
+    Discovered --> Analyzing: Has commits since last tag
+    Discovered --> NoChanges: No commits since last tag
+
+    NoChanges --> [*]: Skip release
+
+    Analyzing --> ParsingCommits: Load commits
+    ParsingCommits --> GlobalCommitAttribution: Package commits parsed
+
+    GlobalCommitAttribution --> CalculatingBump: Global commits attributed
+
+    CalculatingBump --> CheckOverride: Analyze conventional commits
+    CheckOverride --> OverrideApplied: Override exists
+    CheckOverride --> BumpCalculated: No override
+
+    OverrideApplied --> PendingRelease: Version set from override
+    BumpCalculated --> NoBump: No significant changes
+    BumpCalculated --> PendingRelease: Bump type determined
+
+    NoBump --> [*]: Skip release
+
+    PendingRelease --> InDependencyGraph: Add to graph
+    InDependencyGraph --> CircularCheck: Analyze dependencies
+
+    CircularCheck --> Error: Circular dependency detected
+    CircularCheck --> TopoSorted: No cycles found
+
+    Error --> [*]: Release fails
+
+    TopoSorted --> WaitingForDeps: Assigned level in graph
+    WaitingForDeps --> ReadyToUpdate: Dependencies updated
+
+    note right of ReadyToUpdate
+        Packages at Level 0 skip this wait.
+        Others wait for lower levels.
+    end note
+
+    ReadyToUpdate --> UpdatingVersion: Turn in topological order
+    UpdatingVersion --> UpdatingDependencies: Version bumped in package.json
+    UpdatingDependencies --> ValidatingRanges: Workspace deps updated
+
+    ValidatingRanges --> RangeError: Invalid semver range
+    ValidatingRanges --> DryRunCheck: Ranges valid
+
+    RangeError --> [*]: Release fails
+
+    DryRunCheck --> LoggedUpdate: Dry-run mode
+    DryRunCheck --> WrittenToDisk: Normal mode
+
+    LoggedUpdate --> Updated: Simulated update
+    WrittenToDisk --> Updated: package.json written
+
+    Updated --> Verifying: verify() called
+
+    Verifying --> DriftDetected: Expected ≠ Actual
+    Verifying --> Verified: Expected = Actual
+
+    DriftDetected --> [*]: Verification fails
+
+    Verified --> AwaitingPublish: Ready for NPM
+    AwaitingPublish --> CheckingNPM: publish() called
+
+    CheckingNPM --> AlreadyPublished: Version exists on NPM
+    CheckingNPM --> Building: Version not on NPM
+
+    AlreadyPublished --> [*]: Skip publish
+
+    Building --> Publishing: Build successful
+    Publishing --> CreatingTag: Published to NPM
+    CreatingTag --> PushingTag: Git tag created
+    PushingTag --> Published: Tag pushed to remote
+
+    Published --> [*]: Release complete
+
+    note left of Published
+        Package is now available on NPM
+        with a corresponding git tag
+    end note

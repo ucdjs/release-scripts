@@ -1,62 +1,136 @@
-graph TD
-    Config[Configuration<br/>ReleaseScriptsOptions]
+classDiagram
+    class ReleaseScriptsOptions {
+        +string repo
+        +string githubToken
+        +string workspaceRoot
+        +PackagesConfig packages
+        +BranchConfig branch
+        +GlobalCommitMode globalCommitMode
+        +boolean dryRun
+    }
 
-    Git[GitService<br/>git commands]
-    GitHub[GitHubService<br/>GitHub API]
-    Workspace[WorkspaceService<br/>package discovery]
-    VersionCalc[VersionCalculatorService<br/>version bumps]
-    DepGraph[DependencyGraphService<br/>topological sort]
-    PkgUpdater[PackageUpdaterService<br/>package.json updates]
-    NPM[NPMService<br/>NPM registry]
+    class ReleaseScriptsAPI {
+        +verify() Promise~void~
+        +prepare() Promise~void~
+        +publish() Promise~void~
+        +packages.list() Promise~Package[]~
+        +packages.get(name) Promise~Package~
+    }
 
-    Helpers[Helper Utilities<br/>commit attribution]
+    class GitService {
+        <<Effect Service>>
+        +create(branch) Effect~void~
+        +checkout(branch) Effect~void~
+        +getCommitsSince(ref) Effect~Commit[]~
+        +getMostRecentPackageTag(pkg) Effect~string~
+        +readFile(path, ref) Effect~string~
+        +stage(files) Effect~void~
+        +write(message) Effect~void~
+        +push(branch) Effect~void~
+    }
 
-    Config --> Git
-    Config --> GitHub
-    Config --> Workspace
+    class GitHubService {
+        <<Effect Service>>
+        +getPullRequestByBranch(branch) Effect~PR | null~
+        +createPullRequest(data) Effect~PR~
+        +updatePullRequest(number, data) Effect~PR~
+        +setCommitStatus(sha, state, description) Effect~void~
+    }
 
-    Git --> Workspace
-    Workspace --> VersionCalc
-    Workspace --> DepGraph
+    class WorkspaceService {
+        <<Effect Service>>
+        +discoverPackages() Effect~Package[]~
+        +readPackageJson(path) Effect~PackageJson~
+        +writePackageJson(path, data) Effect~void~
+        +getWorkspaceDependencies(pkg) Effect~string[]~
+    }
 
-    Git --> Helpers
-    Workspace --> Helpers
+    class VersionCalculatorService {
+        <<Effect Service>>
+        +calculateBump(commits) Effect~BumpType~
+        +applyBump(version, bump) Effect~string~
+        +calculateVersions(packages) Effect~Map~
+    }
 
-    Helpers --> VersionCalc
-    VersionCalc --> PkgUpdater
-    DepGraph --> PkgUpdater
-    Workspace --> PkgUpdater
+    class DependencyGraphService {
+        <<Effect Service>>
+        +buildGraph(packages) Effect~Graph~
+        +topologicalSort(graph) Effect~Package[]~
+        +detectCycles(graph) Effect~void~
+        +assignLevels(sorted) Effect~Package[]~
+    }
 
-    Workspace --> NPM
+    class PackageUpdaterService {
+        <<Effect Service>>
+        +applyRelease(pkg, version, all) Effect~void~
+        +updateDependencies(pkg, all) Effect~PackageJson~
+        +validateRanges(pkg) Effect~void~
+    }
 
-    GitHub -.-> |used by verify|Verify[verify.ts]
-    Git -.-> |used by verify|Verify
-    Workspace -.-> |used by verify|Verify
-    VersionCalc -.-> |used by verify|Verify
-    DepGraph -.-> |used by verify|Verify
-    Helpers -.-> |used by verify|Verify
+    class NPMService {
+        <<Effect Service>>
+        +getPackument(name) Effect~Packument~
+        +versionExists(name, version) Effect~boolean~
+        +getLatestVersion(name) Effect~string~
+    }
 
-    Git -.-> |used by prepare|Prepare[prepare flow]
-    Workspace -.-> |used by prepare|Prepare
-    VersionCalc -.-> |used by prepare|Prepare
-    DepGraph -.-> |used by prepare|Prepare
-    PkgUpdater -.-> |used by prepare|Prepare
-    Helpers -.-> |used by prepare|Prepare
+    class HelperUtilities {
+        <<Static Functions>>
+        +loadOverrides() Effect~Overrides~
+        +mergePackageCommitsIntoPackages() Effect~Package[]~
+        +mergeCommitsAffectingGloballyIntoPackage() Effect~Package[]~
+        +isGlobalCommit(commit, packages) boolean
+        +isDependencyFile(path) boolean
+        +findCommitRange(packages) CommitRange
+    }
 
-    NPM -.-> |used by publish|Publish[publish flow<br/>planned]
-    Git -.-> |used by publish|Publish
-    Workspace -.-> |used by publish|Publish
-    DepGraph -.-> |used by publish|Publish
+    %% Configuration flows into services
+    ReleaseScriptsOptions ..> GitService : configures
+    ReleaseScriptsOptions ..> GitHubService : configures
+    ReleaseScriptsOptions ..> WorkspaceService : configures
 
-    style Config fill:#e1f0ff
-    style Git fill:#ffe1e1
-    style GitHub fill:#ffe1e1
-    style Workspace fill:#e1ffe1
-    style VersionCalc fill:#fff4e1
-    style DepGraph fill:#fff4e1
-    style PkgUpdater fill:#f0e1ff
-    style NPM fill:#ffe1e1
-    style Helpers fill:#f0f0f0
-    style Verify fill:#d4edda
-    style Prepare fill:#d4edda
-    style Publish fill:#e1f0ff,stroke:#4a90e2,stroke-dasharray: 5 5
+    %% Service dependencies
+    WorkspaceService --> GitService : uses for file ops
+    VersionCalculatorService --> WorkspaceService : reads packages
+    DependencyGraphService --> WorkspaceService : analyzes packages
+    PackageUpdaterService --> WorkspaceService : updates packages
+    PackageUpdaterService --> VersionCalculatorService : applies versions
+    PackageUpdaterService --> DependencyGraphService : uses topo order
+
+    %% Helper utilities
+    HelperUtilities --> GitService : reads overrides
+    HelperUtilities --> WorkspaceService : enriches packages
+    VersionCalculatorService --> HelperUtilities : uses for commits
+
+    %% API uses services
+    ReleaseScriptsAPI --> GitService : git operations
+    ReleaseScriptsAPI --> GitHubService : PR & status
+    ReleaseScriptsAPI --> WorkspaceService : package discovery
+    ReleaseScriptsAPI --> VersionCalculatorService : version bumps
+    ReleaseScriptsAPI --> DependencyGraphService : dependency ordering
+    ReleaseScriptsAPI --> PackageUpdaterService : apply updates
+    ReleaseScriptsAPI --> NPMService : check/publish
+    ReleaseScriptsAPI --> HelperUtilities : helper functions
+
+    %% Styling
+    class GitService,GitHubService,NPMService {
+        fill:#ffe1e1
+    }
+    class WorkspaceService {
+        fill:#e1ffe1
+    }
+    class VersionCalculatorService,DependencyGraphService {
+        fill:#fff4e1
+    }
+    class PackageUpdaterService {
+        fill:#f0e1ff
+    }
+    class HelperUtilities {
+        fill:#f0f0f0
+    }
+    class ReleaseScriptsOptions {
+        fill:#e1f0ff
+    }
+    class ReleaseScriptsAPI {
+        fill:#d4edda
+    }

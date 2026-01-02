@@ -1,43 +1,82 @@
-flowchart TD
-    Start([Start publish]) --> DiscoverPkgs[Discover workspace packages]
-    DiscoverPkgs --> FilterPrivate[Filter out private packages]
+sequenceDiagram
+    actor User
+    participant API as publish()
+    participant WS as WorkspaceService
+    participant DG as DependencyGraph
+    participant NPM as NPMService
+    participant Git as GitService
+    participant GH as GitHubService
 
-    FilterPrivate --> BuildDepGraph[Build dependency graph]
-    BuildDepGraph --> TopoSort[Compute topological order<br/>with levels]
+    User->>API: Start publishing
 
-    TopoSort --> GroupByLevel[Group packages by level<br/>for parallel publishing]
+    Note over API,WS: 1. Discover Packages
+    API->>WS: discoverPackages()
+    WS->>WS: pnpm -r ls --json
+    WS-->>API: packages[]
 
-    GroupByLevel --> LoopLevels{More levels<br/>to publish?}
-    LoopLevels -->|Yes| NextLevel[Get next level]
+    API->>API: Filter out private packages
+    Note over API: Private packages are skipped
 
-    NextLevel --> ParallelPub[Publish packages in parallel<br/>within level]
+    Note over API,DG: 2. Build Dependency Graph
+    API->>DG: buildGraph(packages)
+    DG->>DG: Analyze workspace dependencies
+    DG-->>API: graph
 
-    ParallelPub --> LoopPkgsInLevel{More packages<br/>in level?}
-    LoopPkgsInLevel -->|Yes| NextPkg[Get next package]
+    API->>DG: topologicalSort(graph)
+    DG-->>API: sortedPackages with levels
 
-    NextPkg --> CheckNPM[Check if version exists on NPM<br/>NPMService.getPackument]
-    CheckNPM --> Exists{Version<br/>exists?}
+    API->>API: Group packages by level
+    Note over API: Level 0: No deps<br/>Level 1: Depends on Level 0<br/>etc.
 
-    Exists -->|Yes| SkipPkg[Skip: Already published]
-    Exists -->|No| BuildPkg[Build package<br/>pnpm build --filter]
+    Note over API,NPM: 3. Publish by Level (for safe ordering)
+    loop For each level
+        Note over API: Packages in same level can<br/>publish in parallel
 
-    BuildPkg --> PublishPkg[Publish to NPM<br/>pnpm publish --provenance]
-    PublishPkg --> CreateTag[Create git tag<br/>@package/name@version]
-    CreateTag --> PushTag[Push tag to remote]
+        par For each package in level
+            API->>NPM: getPackument(package.name)
+            alt Package not on NPM
+                NPM-->>API: 404 error
+                Note over API: First publish
+            else Package exists
+                NPM-->>API: {versions: {...}}
+                API->>NPM: Check if version exists
+                alt Version already published
+                    NPM-->>API: true
+                    Note over API: Skip: Already published
+                else New version
+                    NPM-->>API: false
+                end
+            end
 
-    PushTag --> LoopPkgsInLevel
-    SkipPkg --> LoopPkgsInLevel
+            opt Version not published yet
+                Note over API: Build package
+                API->>WS: Build package (pnpm build --filter)
+                WS-->>API: Build complete
 
-    LoopPkgsInLevel -->|No| WaitLevel[Wait for all packages<br/>in level to complete]
-    WaitLevel --> LoopLevels
+                Note over API: Publish to NPM
+                API->>NPM: Publish (pnpm publish --provenance)
+                NPM->>NPM: Validate package
+                NPM->>NPM: Upload to registry
+                NPM-->>API: Published successfully
 
-    LoopLevels -->|No| UpdatePR[Update Release PR<br/>with publish results]
-    UpdatePR --> Success([Success])
+                Note over API: Create git tag
+                API->>Git: createTag(@package/name@version)
+                Git-->>API: Tag created
 
-    style Start fill:#e1f5e1
-    style Success fill:#e1f5e1
-    style ParallelPub fill:#fff4e1
-    style PublishPkg fill:#d4edda
-    style SkipPkg fill:#f0f0f0
-    style Start stroke:#4a90e2,stroke-width:3px,stroke-dasharray: 5 5
-    style Success stroke:#4a90e2,stroke-width:3px,stroke-dasharray: 5 5
+                API->>Git: pushTag(tag)
+                Git-->>API: Tag pushed
+            end
+        end
+
+        Note over API: Wait for all packages<br/>in level to complete
+    end
+
+    Note over API,GH: 4. Update Release PR
+    API->>GH: updatePullRequest(pr.number, publishResults)
+    GH-->>API: PR updated with results
+
+    Note over API: 5. Summary
+    API->>API: Collect publish statistics
+    Note over API: - Packages published<br/>- Packages skipped<br/>- Tags created
+
+    API-->>User: Publishing complete

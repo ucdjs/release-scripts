@@ -354,16 +354,18 @@ interface ReleaseScriptsOptionsInput {
 ## Workflow Diagrams
 
 > **Note**: All diagrams are also available as separate Mermaid files in [`docs/diagrams/`](../docs/diagrams/) for reuse and image generation:
-> - [verify-workflow.mmd](../docs/diagrams/verify-workflow.mmd)
-> - [prepare-workflow.mmd](../docs/diagrams/prepare-workflow.mmd)
-> - [publish-workflow.mmd](../docs/diagrams/publish-workflow.mmd)
-> - [service-dependency-graph.mmd](../docs/diagrams/service-dependency-graph.mmd)
-> - [commit-attribution-flow.mmd](../docs/diagrams/commit-attribution-flow.mmd)
-> - [version-bump-calculation.mmd](../docs/diagrams/version-bump-calculation.mmd)
+> - [verify-workflow.mmd](../docs/diagrams/verify-workflow.mmd) - Sequence diagram
+> - [prepare-workflow.mmd](../docs/diagrams/prepare-workflow.mmd) - Sequence diagram
+> - [publish-workflow.mmd](../docs/diagrams/publish-workflow.mmd) - Sequence diagram
+> - [service-dependency-graph.mmd](../docs/diagrams/service-dependency-graph.mmd) - Class diagram
+> - [commit-attribution-flow.mmd](../docs/diagrams/commit-attribution-flow.mmd) - Sequence diagram
+> - [version-bump-calculation.mmd](../docs/diagrams/version-bump-calculation.mmd) - Flowchart
+> - [package-lifecycle.mmd](../docs/diagrams/package-lifecycle.mmd) - State diagram
 
 ### verify() Workflow
 
-**Diagram**: [`docs/diagrams/verify-workflow.mmd`](../docs/diagrams/verify-workflow.mmd)
+**Diagram Type**: Sequence diagram showing service interactions
+**File**: [`docs/diagrams/verify-workflow.mmd`](../docs/diagrams/verify-workflow.mmd)
 
 ```mermaid
 flowchart TD
@@ -423,7 +425,8 @@ flowchart TD
 
 ### prepare() Workflow
 
-**Diagram**: [`docs/diagrams/prepare-workflow.mmd`](../docs/diagrams/prepare-workflow.mmd)
+**Diagram Type**: Sequence diagram showing service interactions
+**File**: [`docs/diagrams/prepare-workflow.mmd`](../docs/diagrams/prepare-workflow.mmd)
 
 ```mermaid
 flowchart TD
@@ -481,7 +484,8 @@ flowchart TD
 
 ### publish() Workflow (Planned)
 
-**Diagram**: [`docs/diagrams/publish-workflow.mmd`](../docs/diagrams/publish-workflow.mmd)
+**Diagram Type**: Sequence diagram showing service interactions
+**File**: [`docs/diagrams/publish-workflow.mmd`](../docs/diagrams/publish-workflow.mmd)
 
 ```mermaid
 flowchart TD
@@ -531,7 +535,8 @@ flowchart TD
 
 ### Service Dependency Graph
 
-**Diagram**: [`docs/diagrams/service-dependency-graph.mmd`](../docs/diagrams/service-dependency-graph.mmd)
+**Diagram Type**: Class diagram showing structure and relationships
+**File**: [`docs/diagrams/service-dependency-graph.mmd`](../docs/diagrams/service-dependency-graph.mmd)
 
 ```mermaid
 graph TD
@@ -600,7 +605,8 @@ graph TD
 
 ### Commit Attribution Flow
 
-**Diagram**: [`docs/diagrams/commit-attribution-flow.mmd`](../docs/diagrams/commit-attribution-flow.mmd)
+**Diagram Type**: Sequence diagram showing the attribution algorithm
+**File**: [`docs/diagrams/commit-attribution-flow.mmd`](../docs/diagrams/commit-attribution-flow.mmd)
 
 ```mermaid
 flowchart TD
@@ -634,7 +640,8 @@ flowchart TD
 
 ### Version Bump Calculation
 
-**Diagram**: [`docs/diagrams/version-bump-calculation.mmd`](../docs/diagrams/version-bump-calculation.mmd)
+**Diagram Type**: Flowchart showing decision logic
+**File**: [`docs/diagrams/version-bump-calculation.mmd`](../docs/diagrams/version-bump-calculation.mmd)
 
 ```mermaid
 flowchart TD

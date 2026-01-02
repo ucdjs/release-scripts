@@ -1,51 +1,113 @@
-flowchart TD
-    Start([Start prepare]) --> FetchPR[Fetch/Prepare Release PR]
-    FetchPR --> LoadOverrides[Load version overrides<br/>.github/ucdjs-release.overrides.json]
+sequenceDiagram
+    actor User
+    participant API as prepare()
+    participant GH as GitHubService
+    participant WS as WorkspaceService
+    participant Git as GitService
+    participant Helpers as Helper Utils
+    participant VC as VersionCalculator
+    participant DG as DependencyGraph
+    participant PU as PackageUpdater
 
-    LoadOverrides --> DiscoverPkgs[Discover workspace packages<br/>pnpm -r ls --json]
-    DiscoverPkgs --> FilterPkgs[Filter packages<br/>include/exclude/private]
+    User->>API: Start preparation
 
-    FilterPkgs --> GetTags[Get most recent tag<br/>for each package]
-    GetTags --> FetchCommits[Fetch commits since tag<br/>for each package]
+    Note over API,GH: 1. Fetch/Prepare Release PR
+    API->>GH: getPullRequestByBranch(releaseBranch)
+    alt PR exists
+        GH-->>API: PR{number, title}
+        Note over API: Will update existing PR (future)
+    else No PR
+        GH-->>API: null
+        Note over API: Will create new PR (future)
+    end
 
-    FetchCommits --> MergeCommits[Merge package-specific commits]
-    MergeCommits --> GlobalCommits{Global commit<br/>mode?}
+    Note over API,Helpers: 2. Load Configuration
+    API->>Helpers: loadOverrides()
+    Helpers->>Git: readFile(".github/ucdjs-release.overrides.json")
+    Git-->>Helpers: overrides JSON
+    Helpers-->>API: overrides{}
 
-    GlobalCommits -->|none| CalcVersions[Calculate version bumps<br/>from commits]
-    GlobalCommits -->|all| MergeGlobalAll[Merge all global commits<br/>into all packages]
-    GlobalCommits -->|dependencies| MergeGlobalDeps[Merge dependency-related<br/>global commits]
+    Note over API,WS: 3. Discover Packages
+    API->>WS: discoverPackages()
+    WS->>WS: pnpm -r ls --json
+    WS->>WS: Filter by include/exclude/private
+    WS-->>API: packages[]
 
-    MergeGlobalAll --> CalcVersions
-    MergeGlobalDeps --> CalcVersions
+    Note over API,Git: 4. Fetch Commits for Each Package
+    loop For each package
+        API->>Git: getMostRecentPackageTag(pkg)
+        Git-->>API: tag
+        API->>Git: getCommitsSince(tag)
+        Git-->>API: commits[]
+        API->>API: Filter commits by package path
+    end
 
-    CalcVersions --> ApplyOverrides[Apply version overrides<br/>from config]
-    ApplyOverrides --> BuildDepGraph[Build dependency graph]
-    BuildDepGraph --> CheckCircular{Circular<br/>dependencies?}
+    Note over API,Helpers: 5. Merge Global Commits
+    alt globalCommitMode != "none"
+        API->>Helpers: mergeCommitsAffectingGloballyIntoPackage()
+        Helpers->>Git: getCommitsSince(oldestTag)
+        Git-->>Helpers: all commits
+        Helpers->>Helpers: Filter & attribute commits
+        Helpers-->>API: packages with global commits
+    end
 
-    CheckCircular -->|Yes| ErrorCircular[Error: Circular dependency]
-    CheckCircular -->|No| TopoSort[Compute topological order<br/>with levels]
+    Note over API,VC: 6. Calculate Version Bumps
+    loop For each package
+        API->>VC: calculateBump(package.commits)
+        VC->>VC: Analyze conventional commits
+        VC-->>API: bumpType
+        alt Has override
+            API->>API: Use override version
+        else Calculate bump
+            API->>VC: applyBump(currentVersion, bumpType)
+            VC-->>API: newVersion
+        end
+    end
 
-    TopoSort --> LoopPkgs{More packages<br/>to update?}
-    LoopPkgs -->|Yes| NextPkg[Get next package<br/>in topo order]
+    Note over API,DG: 7. Build Dependency Graph
+    API->>DG: buildGraph(packages)
+    DG->>DG: Analyze workspace dependencies
+    alt Circular dependency
+        DG-->>API: CircularDependencyError
+        API-->>User: Error (exit 1)
+    else Success
+        DG-->>API: graph
+        API->>DG: topologicalSort(graph)
+        DG-->>API: sortedPackages with levels
+    end
 
-    NextPkg --> ApplyVersion[Update package version<br/>in package.json]
-    ApplyVersion --> UpdateDeps[Update workspace dependencies<br/>preserve ranges & workspace: protocol]
+    Note over API,PU: 8. Apply Releases in Topological Order
+    loop For each package (in topo order)
+        API->>PU: applyRelease(package, newVersion, allPackages)
 
-    UpdateDeps --> DryRun{Dry-run<br/>mode?}
-    DryRun -->|Yes| LogUpdate[Log: Would update package.json]
-    DryRun -->|No| WriteFile[Write package.json to disk]
+        Note over PU: Update package.json
+        PU->>WS: readPackageJson(package.path)
+        WS-->>PU: packageJson
 
-    LogUpdate --> LoopPkgs
-    WriteFile --> LoopPkgs
+        PU->>PU: Set version to newVersion
 
-    LoopPkgs -->|No| Future[Future: Create/Update PR<br/>Generate changelogs]
-    Future --> Success([Success])
+        Note over PU: Update workspace dependencies
+        loop For each workspace dependency
+            PU->>PU: Find dependency's new version
+            PU->>PU: Update range (preserve ^/~/workspace:)
+            PU->>PU: Validate range compatibility
+        end
 
-    ErrorCircular --> Exit1([Exit code 1])
+        alt Dry-run mode
+            PU-->>API: Log: Would update package.json
+            Note over API: No file written
+        else Normal mode
+            PU->>WS: writePackageJson(package.path, updatedJson)
+            WS->>WS: Write to disk
+            WS-->>PU: Success
+            PU-->>API: Package updated
+        end
+    end
 
-    style Start fill:#e1f5e1
-    style Success fill:#e1f5e1
-    style Exit1 fill:#ffe1e1
-    style ErrorCircular fill:#ffcccc
-    style DryRun fill:#fff4e1
-    style Future fill:#e1f0ff,stroke:#4a90e2,stroke-dasharray: 5 5
+    Note over API,Git: 9. Future: Create/Update PR
+    Note over API: Stage changes (git add)
+    Note over API: Commit changes
+    Note over API: Push to release branch
+    Note over API: Create or update PR with changelog
+
+    API-->>User: Preparation complete

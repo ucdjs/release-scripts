@@ -1,27 +1,65 @@
-flowchart TD
-    Start([Packages with commits]) --> HasGlobal{Global commit<br/>mode?}
+sequenceDiagram
+    participant API as Main Workflow
+    participant Helpers as Helper Utils
+    participant Git as GitService
+    participant Packages as Package List
 
-    HasGlobal -->|none| NoGlobal[No global commits added]
-    HasGlobal -->|all| GetAllGlobal[Get all global commits<br/>from main branch]
-    HasGlobal -->|dependencies| GetDepGlobal[Get dependency-related<br/>global commits]
+    Note over API,Packages: Input: Packages with package-specific commits already merged
 
-    GetAllGlobal --> FindRange[Find commit time range<br/>across all packages]
-    GetDepGlobal --> FindRange
+    API->>Helpers: mergeCommitsAffectingGloballyIntoPackage(packages, mode)
 
-    FindRange --> FilterTime[Filter global commits<br/>by timestamp range]
-    FilterTime --> LoopPkgs{More packages?}
+    alt mode = "none"
+        Helpers-->>API: Return packages unchanged
+        Note over API: No global commits added
+    else mode = "all" or "dependencies"
+        Note over Helpers,Git: 1. Get all commits from main branch
+        Helpers->>Packages: findCommitRange(packages)
+        Packages-->>Helpers: {oldest, newest} commit timestamps
 
-    LoopPkgs -->|Yes| NextPkg[Get next package]
-    NextPkg --> GetLastRelease[Get last release timestamp<br/>from most recent tag]
+        Helpers->>Git: getCommitsSince(oldestTag)
+        Git-->>Helpers: allCommits[]
 
-    GetLastRelease --> FilterCommits[Filter global commits:<br/>commit.time > lastRelease.time]
-    FilterCommits --> MergeInto[Merge filtered commits<br/>into package]
+        Note over Helpers: 2. Filter for global commits
+        loop For each commit
+            Helpers->>Helpers: isGlobalCommit(commit, packages)
+            alt Commit affects files outside package dirs
+                Helpers->>Helpers: Mark as global commit
+                alt mode = "dependencies"
+                    Helpers->>Helpers: isDependencyFile(commit.files)
+                    opt Is dependency file
+                        Helpers->>Helpers: Keep commit
+                    end
+                else mode = "all"
+                    Helpers->>Helpers: Keep commit
+                end
+            end
+        end
 
-    MergeInto --> LoopPkgs
-    LoopPkgs -->|No| Result([Packages with attributed commits])
-    NoGlobal --> Result
+        Note over Helpers: 3. Attribute commits to packages
+        loop For each package
+            Helpers->>Git: getMostRecentPackageTag(package)
+            Git-->>Helpers: lastReleaseTag
 
-    style Start fill:#e1f5e1
-    style Result fill:#e1f5e1
-    style HasGlobal fill:#fff4e1
-    style FilterCommits fill:#d4edda
+            Helpers->>Git: getCommitsSince(lastReleaseTag)
+            Git-->>Helpers: lastReleaseCommits[]
+
+            Helpers->>Helpers: Find newest commit timestamp
+            Note over Helpers: lastReleaseTime = newest commit time
+
+            Note over Helpers: 4. Filter global commits by timestamp
+            loop For each global commit
+                alt commit.time > lastReleaseTime
+                    Helpers->>Helpers: Attribute to package
+                    Note over Helpers: This prevents double-counting:<br/>commit happened AFTER this<br/>package was last released
+                else commit.time <= lastReleaseTime
+                    Helpers->>Helpers: Skip (already counted in previous release)
+                end
+            end
+
+            Helpers->>Packages: Merge attributed commits into package
+        end
+
+        Helpers-->>API: packages with global commits added
+    end
+
+    Note over API: Result: Packages with both package-specific<br/>and attributed global commits
