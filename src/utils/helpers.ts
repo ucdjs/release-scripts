@@ -55,6 +55,8 @@ export const GitCommitSchema = Schema.Struct({
   date: Schema.String,
 });
 
+export type GitCommit = Schema.Schema.Type<typeof GitCommitSchema>;
+
 export const WorkspacePackageWithCommitsSchema = Schema.Struct({
   ...WorkspacePackageSchema.fields,
   commits: Schema.Array(GitCommitSchema),
