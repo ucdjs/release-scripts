@@ -6,18 +6,30 @@ import { Effect, Schema } from "effect";
 import { WorkspaceError } from "../errors";
 import { ReleaseScriptsOptions } from "../options";
 
-export const DependencyObjectSchema = Schema.Record({
+export const DependencyRecordSchema = Schema.Record({
   key: Schema.String,
   value: Schema.String,
+});
+
+export type DependencyRecord = Schema.Schema.Type<typeof DependencyRecordSchema>;
+
+const PnpmDependencySchema = Schema.Record({
+  key: Schema.String,
+  value: Schema.Struct({
+    from: Schema.String,
+    version: Schema.String,
+    resolved: Schema.optional(Schema.String),
+    path: Schema.optional(Schema.String),
+  }),
 });
 
 export const PackageJsonSchema = Schema.Struct({
   name: Schema.String,
   private: Schema.optional(Schema.Boolean),
   version: Schema.optional(Schema.String),
-  dependencies: Schema.optional(DependencyObjectSchema),
-  devDependencies: Schema.optional(DependencyObjectSchema),
-  peerDependencies: Schema.optional(DependencyObjectSchema),
+  dependencies: Schema.optional(DependencyRecordSchema),
+  devDependencies: Schema.optional(DependencyRecordSchema),
+  peerDependencies: Schema.optional(DependencyRecordSchema),
 });
 
 export type PackageJson = Schema.Schema.Type<typeof PackageJsonSchema>;
@@ -38,9 +50,9 @@ const WorkspaceListSchema = Schema.Array(Schema.Struct({
   path: Schema.String,
   version: Schema.optional(Schema.String),
   private: Schema.optional(Schema.Boolean),
-  dependencies: Schema.optional(DependencyObjectSchema),
-  devDependencies: Schema.optional(DependencyObjectSchema),
-  peerDependencies: Schema.optional(DependencyObjectSchema),
+  dependencies: Schema.optional(PnpmDependencySchema),
+  devDependencies: Schema.optional(PnpmDependencySchema),
+  peerDependencies: Schema.optional(PnpmDependencySchema),
 }));
 
 export class WorkspaceService extends Effect.Service<WorkspaceService>()("@ucdjs/release-scripts/WorkspaceService", {
@@ -179,9 +191,17 @@ export class WorkspaceService extends Effect.Service<WorkspaceService>()("@ucdjs
                     return Effect.succeed(null);
                   }
 
+                  // Use packageJson version as primary source, fallback to pnpm output
+                  const version = packageJson.version ?? rawProject.version;
+                  if (!version) {
+                    return Effect.logWarning(`Skipping package ${rawProject.name} without version`).pipe(
+                      Effect.as(null),
+                    );
+                  }
+
                   const pkg = {
                     name: rawProject.name,
-                    version: rawProject.version,
+                    version,
                     path: rawProject.path,
                     packageJson,
                     workspaceDependencies: Object.keys(rawProject.dependencies || {}).filter((dep) =>
