@@ -39,14 +39,20 @@ export interface ReleaseScriptsOptionsInput {
     otp?: string;
     provenance?: boolean;
   };
+  prompts?: {
+    versions?: boolean;
+  };
 }
 
-export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOptionsInput, "repo" | "npm">> & {
+export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOptionsInput, "repo" | "npm" | "prompts">> & {
   owner: string;
   repo: string;
   npm: {
     otp?: string;
     provenance: boolean;
+  };
+  prompts: {
+    versions: boolean;
   };
 };
 
@@ -74,6 +80,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     types = {},
     dryRun = false,
     npm = {},
+    prompts = {},
   } = options;
 
   const token = githubToken.trim();
@@ -97,6 +104,8 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
         excludePrivate: packages.excludePrivate ?? false,
       }
     : packages;
+
+  const isCI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
 
   return {
     dryRun,
@@ -123,6 +132,9 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     npm: {
       otp: npm.otp,
       provenance: npm.provenance ?? true,
+    },
+    prompts: {
+      versions: prompts.versions ?? !isCI,
     },
   };
 }

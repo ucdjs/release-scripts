@@ -1,12 +1,15 @@
 import type { NormalizedReleaseScriptsOptions } from "./options";
+import type { PackageRelease } from "./services/package-updater.service";
 import { ChangelogService } from "#services/changelog";
 import { DependencyGraphService } from "#services/dependency-graph";
 import { GitService } from "#services/git";
 import { GitHubService } from "#services/github";
 import { PackageUpdaterService } from "#services/package-updater";
-import { VersionCalculatorService } from "#services/version-calculator";
+import { determineBump, VersionCalculatorService } from "#services/version-calculator";
+import { VersionPromptService } from "#services/version-prompt";
 import { WorkspaceService } from "#services/workspace";
 import { Console, Effect } from "effect";
+import semver from "semver";
 import {
   loadOverrides,
   mergeCommitsAffectingGloballyIntoPackage,
@@ -23,6 +26,7 @@ export function constructPrepareProgram(
     const dependencyGraph = yield* DependencyGraphService;
     const packageUpdater = yield* PackageUpdaterService;
     const versionCalculator = yield* VersionCalculatorService;
+    const versionPrompt = yield* VersionPromptService;
     const workspace = yield* WorkspaceService;
 
     yield* git.workspace.assertWorkspaceReady;
@@ -74,12 +78,67 @@ export function constructPrepareProgram(
 
     yield* Console.log(`📦 Discovered ${packages.length} packages with commits.`);
 
-    // Step 7: Calculate version bumps
-    const releases = yield* versionCalculator.calculateBumps(packages, overrides);
+    // Step 7: Calculate version bumps (with optional interactive prompts)
     yield* dependencyGraph.topologicalOrder(packages);
 
+    const releases: PackageRelease[] = [];
+
+    if (versionPrompt.isEnabled) {
+      yield* Console.log("\n🎯 Interactive version selection enabled.\n");
+      versionPrompt.resetApplyToAll();
+
+      for (let i = 0; i < packages.length; i++) {
+        const pkg = packages[i]!;
+        const allCommits = [...pkg.commits, ...pkg.globalCommits];
+        const conventionalBump = determineBump(allCommits);
+        const remainingCount = packages.length - i;
+
+        const override = overrides[pkg.name];
+        if (override) {
+          if (!semver.valid(override)) {
+            return yield* Effect.fail(new Error(`Invalid override version for ${pkg.name}: ${override}`));
+          }
+          releases.push({
+            package: {
+              name: pkg.name,
+              version: pkg.version,
+              path: pkg.path,
+              packageJson: pkg.packageJson,
+              workspaceDependencies: pkg.workspaceDependencies,
+              workspaceDevDependencies: pkg.workspaceDevDependencies,
+            },
+            currentVersion: pkg.version,
+            newVersion: override,
+            bumpType: "none",
+            hasDirectChanges: pkg.commits.length > 0,
+          });
+          continue;
+        }
+
+        const result = yield* versionPrompt.promptForVersion(pkg, conventionalBump, remainingCount);
+
+        releases.push({
+          package: {
+            name: pkg.name,
+            version: pkg.version,
+            path: pkg.path,
+            packageJson: pkg.packageJson,
+            workspaceDependencies: pkg.workspaceDependencies,
+            workspaceDevDependencies: pkg.workspaceDevDependencies,
+          },
+          currentVersion: pkg.version,
+          newVersion: result.newVersion,
+          bumpType: result.bumpType,
+          hasDirectChanges: pkg.commits.length > 0,
+        });
+      }
+    } else {
+      const calculatedReleases = yield* versionCalculator.calculateBumps(packages, overrides);
+      releases.push(...calculatedReleases);
+    }
+
     const releasesCount = releases.length;
-    yield* Console.log(`📊 ${releasesCount} package${releasesCount === 1 ? "" : "s"} will be released.`);
+    yield* Console.log(`\n📊 ${releasesCount} package${releasesCount === 1 ? "" : "s"} will be released.`);
 
     // Go back to release branch for updates
     yield* git.branches.checkout(originalBranch);
@@ -172,5 +231,9 @@ ${releases.map((r) => `  - ${r.package.name}@${r.newVersion}`).join("\n")}`;
     }
 
     yield* Console.log(`\n🎉 Release preparation complete! View PR: #${releasePullRequest!.number}`);
+
+    // Step 14: Switch back to default branch
+    yield* git.branches.checkout(config.branch.default);
+    yield* Console.log(`✅ Switched back to "${config.branch.default}".`);
   });
 }

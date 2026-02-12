@@ -24,7 +24,7 @@ function bumpFromCommit(commit: { type?: string; isBreaking?: boolean }): BumpKi
   return "none";
 }
 
-function determineBump(commits: ReadonlyArray<{ type?: string; isBreaking?: boolean }>): BumpKind {
+export function determineBump(commits: ReadonlyArray<{ type?: string; isBreaking?: boolean }>): BumpKind {
   return commits.reduce<BumpKind>((acc, commit) => maxBump(acc, bumpFromCommit(commit)), "none");
 }
 

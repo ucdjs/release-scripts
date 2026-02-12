@@ -7,6 +7,7 @@ import { GitHubService } from "#services/github";
 import { NPMService } from "#services/npm";
 import { PackageUpdaterService } from "#services/package-updater";
 import { VersionCalculatorService } from "#services/version-calculator";
+import { VersionPromptService } from "#services/version-prompt";
 import { WorkspaceService } from "#services/workspace";
 import { NodeCommandExecutor, NodeFileSystem } from "@effect/platform-node";
 import { Console, Effect, Layer } from "effect";
@@ -36,6 +37,7 @@ export async function createReleaseScripts(options: ReleaseScriptsOptionsInput):
     NPMService.Default,
     PackageUpdaterService.Default,
     VersionCalculatorService.Default,
+    VersionPromptService.Default,
     WorkspaceService.Default,
   );
 
