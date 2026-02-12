@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
 import type { GitCommit } from "../src/utils/helpers";
+import { describe, expect, it } from "vitest";
 import { createChangelog, formatChangelogMarkdown, groupByType, parseCommits } from "../src/utils/changelog-formatters";
 
+// eslint-disable-next-line test/prefer-lowercase-title
 describe("Changelog Formatters", () => {
   describe("parseCommits", () => {
     it("should filter out non-conventional commits", () => {

@@ -4,6 +4,7 @@ import { ChangelogService } from "#services/changelog";
 import { DependencyGraphService } from "#services/dependency-graph";
 import { GitService } from "#services/git";
 import { GitHubService } from "#services/github";
+import { NPMService } from "#services/npm";
 import { PackageUpdaterService } from "#services/package-updater";
 import { VersionCalculatorService } from "#services/version-calculator";
 import { WorkspaceService } from "#services/workspace";
@@ -11,6 +12,7 @@ import { NodeCommandExecutor, NodeFileSystem } from "@effect/platform-node";
 import { Console, Effect, Layer } from "effect";
 import { normalizeReleaseScriptsOptions, ReleaseScriptsOptions } from "./options";
 import { constructPrepareProgram } from "./prepare";
+import { constructPublishProgram } from "./publish";
 import { constructVerifyProgram } from "./verify";
 
 export interface ReleaseScripts {
@@ -33,6 +35,7 @@ export async function createReleaseScripts(options: ReleaseScriptsOptionsInput):
     Layer.provide(GitService.Default),
     Layer.provide(GitHubService.Default),
     Layer.provide(DependencyGraphService.Default),
+    Layer.provide(NPMService.Default),
     Layer.provide(PackageUpdaterService.Default),
     Layer.provide(VersionCalculatorService.Default),
     Layer.provide(WorkspaceService.Default),
@@ -64,7 +67,7 @@ export async function createReleaseScripts(options: ReleaseScriptsOptionsInput):
       return runProgram(constructPrepareProgram(config));
     },
     async publish(): Promise<void> {
-      return runProgram(Effect.fail(new Error("Not implemented yet.")));
+      return runProgram(constructPublishProgram(config));
     },
     packages: {
       async list(): Promise<readonly WorkspacePackage[]> {

@@ -1,5 +1,15 @@
+import { Command, CommandExecutor } from "@effect/platform";
 import { Effect, Schema } from "effect";
-import { NPMError } from "../errors";
+import { NPMError, PublishError } from "../errors";
+import { ReleaseScriptsOptions } from "../options";
+
+export interface PublishOptions {
+  packagePath: string;
+  tagName?: string;
+  otp?: string;
+  provenance?: boolean;
+  dryRun?: boolean;
+}
 
 // Schema for npm packument (package document)
 export const PackumentSchema = Schema.Struct({
@@ -24,6 +34,8 @@ export type Packument = typeof PackumentSchema.Type;
 
 export class NPMService extends Effect.Service<NPMService>()("@ucdjs/release-scripts/NPMService", {
   effect: Effect.gen(function* () {
+    const executor = yield* CommandExecutor.CommandExecutor;
+    const config = yield* ReleaseScriptsOptions;
     const fetchPackument = (packageName: string) =>
       Effect.tryPromise({
         try: async () => {
@@ -82,10 +94,45 @@ export class NPMService extends Effect.Service<NPMService>()("@ucdjs/release-scr
         }),
       );
 
+    const publish = (options: PublishOptions) =>
+      Effect.gen(function* () {
+        const args = ["publish"];
+
+        if (options.tagName) {
+          args.push("--tag", options.tagName);
+        }
+
+        if (options.otp) {
+          args.push("--otp", options.otp);
+        }
+
+        if (options.provenance !== false) {
+          args.push("--provenance");
+        }
+
+        if (options.dryRun ?? config.dryRun) {
+          args.push("--dry-run");
+        }
+
+        const command = Command.make("pnpm", ...args).pipe(
+          Command.workingDirectory(options.packagePath),
+        );
+
+        const result = yield* executor.string(command).pipe(
+          Effect.mapError((err) => new PublishError({
+            message: `Failed to publish package at ${options.packagePath}: ${err.message}`,
+            cause: err,
+          })),
+        );
+
+        return result.trim();
+      });
+
     return {
       fetchPackument,
       versionExists,
       getLatestVersion,
+      publish,
     } as const;
   }),
   dependencies: [],
