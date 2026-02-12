@@ -1,4 +1,5 @@
 import { Command, CommandExecutor } from "@effect/platform";
+import { NodeCommandExecutor } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { NPMError, PublishError } from "../errors";
 import { ReleaseScriptsOptions } from "../options";
@@ -135,5 +136,7 @@ export class NPMService extends Effect.Service<NPMService>()("@ucdjs/release-scr
       publish,
     } as const;
   }),
-  dependencies: [],
+  dependencies: [
+    NodeCommandExecutor.layer,
+  ],
 }) {}
