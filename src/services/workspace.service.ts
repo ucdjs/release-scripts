@@ -36,8 +36,8 @@ export type WorkspacePackage = Schema.Schema.Type<typeof WorkspacePackageSchema>
 const WorkspaceListSchema = Schema.Array(Schema.Struct({
   name: Schema.String,
   path: Schema.String,
-  version: Schema.String,
-  private: Schema.Boolean,
+  version: Schema.optional(Schema.String),
+  private: Schema.optional(Schema.Boolean),
   dependencies: Schema.optional(DependencyObjectSchema),
   devDependencies: Schema.optional(DependencyObjectSchema),
   peerDependencies: Schema.optional(DependencyObjectSchema),
