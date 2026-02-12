@@ -27,27 +27,53 @@ export function constructPrepareProgram(
 
     yield* git.workspace.assertWorkspaceReady;
 
-    // Step 1: Fetch release PR
-    const releasePullRequest = yield* github.getPullRequestByBranch(config.branch.release);
-    if (!releasePullRequest || !releasePullRequest.head) {
-      return yield* Effect.fail(new Error(`Release pull request for branch "${config.branch.release}" does not exist.`));
+    // Step 1: Ensure release branch exists
+    const branchExists = yield* git.branches.exists(config.branch.release);
+    if (!branchExists) {
+      yield* Console.log(`🌿 Creating release branch "${config.branch.release}" from "${config.branch.default}"...`);
+      yield* git.branches.create(config.branch.release, config.branch.default);
+      yield* Console.log(`✅ Release branch created.`);
+    }
+
+    // Step 2: Ensure release PR exists
+    let releasePullRequest = yield* github.getPullRequestByBranch(config.branch.release);
+    if (!releasePullRequest) {
+      yield* Console.log(`📋 Creating release pull request...`);
+
+      // Push branch to remote first
+      yield* git.branches.checkout(config.branch.release);
+      yield* git.commits.push(config.branch.release);
+
+      releasePullRequest = yield* github.createPullRequest({
+        title: config.pullRequest.title,
+        body: config.pullRequest.body,
+        head: config.branch.release,
+        base: config.branch.default,
+        draft: true,
+      });
+
+      yield* Console.log(`✅ Release pull request #${releasePullRequest.number} created.`);
+    }
+
+    if (!releasePullRequest.head) {
+      return yield* Effect.fail(new Error(`Release pull request for branch "${config.branch.release}" has no head SHA.`));
     }
 
     yield* Console.log(`✅ Release pull request #${releasePullRequest.number} exists.`);
 
-    // Step 2: Checkout release branch
+    // Step 3: Checkout release branch (if not already on it)
     const currentBranch = yield* git.branches.get;
     if (currentBranch !== config.branch.release) {
       yield* git.branches.checkout(config.branch.release);
       yield* Console.log(`✅ Checked out to release branch "${config.branch.release}".`);
     }
 
-    // Step 3: Rebase release branch onto main
+    // Step 4: Rebase release branch onto main
     yield* Console.log(`🔄 Rebasing "${config.branch.release}" onto "${config.branch.default}"...`);
     yield* git.branches.rebase(config.branch.default);
     yield* Console.log(`✅ Rebase complete.`);
 
-    // Step 4: Load overrides from main branch
+    // Step 5: Load overrides from main branch
     const overrides = yield* loadOverrides({
       sha: config.branch.default,
       overridesPath: ".github/ucdjs-release.overrides.json",
@@ -57,7 +83,7 @@ export function constructPrepareProgram(
       yield* Console.log("📋 Loaded version overrides:", overrides);
     }
 
-    // Step 5: Discover packages with commits (from main branch)
+    // Step 6: Discover packages with commits (from main branch)
     const originalBranch = yield* git.branches.get;
     yield* git.branches.checkout(config.branch.default);
 
@@ -68,7 +94,7 @@ export function constructPrepareProgram(
 
     yield* Console.log(`📦 Discovered ${packages.length} packages with commits.`);
 
-    // Step 6: Calculate version bumps
+    // Step 7: Calculate version bumps
     const releases = yield* versionCalculator.calculateBumps(packages, overrides);
     yield* dependencyGraph.topologicalOrder(packages);
 
@@ -78,12 +104,12 @@ export function constructPrepareProgram(
     // Go back to release branch for updates
     yield* git.branches.checkout(originalBranch);
 
-    // Step 7: Apply package.json updates
+    // Step 8: Apply package.json updates
     yield* Console.log("✏️  Updating package.json files...");
     yield* packageUpdater.applyReleases(packages, releases);
     yield* Console.log("✅ package.json files updated.");
 
-    // Step 8: Generate changelogs
+    // Step 9: Generate changelogs
     yield* Console.log("📝 Generating changelogs...");
     const changelogFiles: string[] = [];
 
@@ -107,7 +133,7 @@ export function constructPrepareProgram(
 
     yield* Console.log(`✅ Generated ${changelogFiles.length} changelog file${changelogFiles.length === 1 ? "" : "s"}.`);
 
-    // Step 9: Stage changes (only files we modified)
+    // Step 10: Stage changes (only files we modified)
     const filesToStage = [
       ...releases.map((r) => `${r.package.path}/package.json`),
       ...changelogFiles,
@@ -116,7 +142,7 @@ export function constructPrepareProgram(
     yield* Console.log(`📌 Staging ${filesToStage.length} file${filesToStage.length === 1 ? "" : "s"}...`);
     yield* git.commits.stage(filesToStage);
 
-    // Step 10: Commit changes
+    // Step 11: Commit changes
     const commitMessage = `chore(release): prepare release
 
 ${releasesCount} package${releasesCount === 1 ? "" : "s"} updated:
@@ -126,12 +152,12 @@ ${releases.map((r) => `  - ${r.package.name}@${r.newVersion}`).join("\n")}`;
     yield* git.commits.write(commitMessage);
     yield* Console.log("✅ Commit created.");
 
-    // Step 11: Force push to release branch
+    // Step 12: Force push to release branch
     yield* Console.log(`⬆️  Force pushing to "${config.branch.release}"...`);
     yield* git.commits.forcePush(config.branch.release);
     yield* Console.log("✅ Force push complete.");
 
-    // Step 12: Update PR body with changelog
+    // Step 13: Update PR body with changelog
     yield* Console.log("📄 Updating pull request...");
     const prBody = yield* github.generateReleasePRBody(
       releases.map((r) => ({

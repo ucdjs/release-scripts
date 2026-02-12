@@ -158,6 +158,25 @@ export class GitHubService extends Effect.Service<GitHubService>()("@ucdjs/relea
       );
     }
 
+    function createPullRequest(options: CreatePullRequestOptions) {
+      return makeRequest(
+        "pulls",
+        PullRequestSchema,
+        {
+          method: "POST",
+          body: JSON.stringify(options),
+        },
+      ).pipe(
+        Effect.mapError((e) =>
+          new GitHubError({
+            message: e.message,
+            operation: "createPullRequest",
+            cause: e.cause,
+          }),
+        ),
+      );
+    }
+
     const prBodyTemplate = `## Release Summary
 
 This PR prepares the release of <%= it.count %> package<%= it.count === 1 ? "" : "s" %>:
@@ -183,6 +202,7 @@ See individual package changelogs for details.
     return {
       getPullRequestByBranch,
       setCommitStatus,
+      createPullRequest,
       updatePullRequest,
       generateReleasePRBody,
     } as const;
