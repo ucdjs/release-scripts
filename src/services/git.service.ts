@@ -92,6 +92,10 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       return execGitCommandIfNotDry(["commit", "-m", message]);
     }
 
+    function writeEmptyCommit(message: string) {
+      return execGitCommandIfNotDry(["commit", "--allow-empty", "-m", message]);
+    }
+
     function pushChanges(branch: string, remote: string = "origin") {
       return execGitCommandIfNotDry(["push", remote, branch]);
     }
@@ -239,6 +243,7 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       commits: {
         stage: stageChanges,
         write: writeCommit,
+        writeEmpty: writeEmptyCommit,
         push: pushChanges,
         forcePush: forcePushChanges,
         get: getCommits,
