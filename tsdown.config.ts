@@ -8,7 +8,7 @@ export default defineConfig({
   treeshake: true,
   exports: true,
   outputOptions: {
-    advancedChunks: {
+    codeSplitting: {
       groups: [
         {
           name: "eta",
@@ -17,4 +17,5 @@ export default defineConfig({
       ],
     },
   },
+  inlineOnly: false,
 });
