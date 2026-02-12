@@ -28,17 +28,21 @@ export interface ReleaseScripts {
 export async function createReleaseScripts(options: ReleaseScriptsOptionsInput): Promise<ReleaseScripts> {
   const config = normalizeReleaseScriptsOptions(options);
 
-  const AppLayer = Layer.succeed(ReleaseScriptsOptions, config).pipe(
+  const ServicesLayer = Layer.mergeAll(
+    ChangelogService.Default,
+    GitService.Default,
+    GitHubService.Default,
+    DependencyGraphService.Default,
+    NPMService.Default,
+    PackageUpdaterService.Default,
+    VersionCalculatorService.Default,
+    WorkspaceService.Default,
+  );
+
+  const AppLayer = ServicesLayer.pipe(
+    Layer.provide(Layer.succeed(ReleaseScriptsOptions, config)),
     Layer.provide(NodeCommandExecutor.layer),
     Layer.provide(NodeFileSystem.layer),
-    Layer.provide(ChangelogService.Default),
-    Layer.provide(GitService.Default),
-    Layer.provide(GitHubService.Default),
-    Layer.provide(DependencyGraphService.Default),
-    Layer.provide(NPMService.Default),
-    Layer.provide(PackageUpdaterService.Default),
-    Layer.provide(VersionCalculatorService.Default),
-    Layer.provide(WorkspaceService.Default),
   );
 
   const runProgram = <A, E, R>(program: Effect.Effect<A, E, R>): Promise<A> => {
