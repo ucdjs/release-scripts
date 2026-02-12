@@ -33,7 +33,7 @@ export function loadOverrides(options: LoadOverridesOptions) {
   });
 }
 
-const GitCommitSchema = Schema.Struct({
+export const GitCommitSchema = Schema.Struct({
   isConventional: Schema.Boolean,
   isBreaking: Schema.Boolean,
   type: Schema.String,
@@ -54,6 +54,8 @@ const GitCommitSchema = Schema.Struct({
   message: Schema.String,
   date: Schema.String,
 });
+
+export type GitCommit = Schema.Schema.Type<typeof GitCommitSchema>;
 
 export const WorkspacePackageWithCommitsSchema = Schema.Struct({
   ...WorkspacePackageSchema.fields,

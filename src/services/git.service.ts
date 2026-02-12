@@ -2,7 +2,7 @@ import { Command, CommandExecutor } from "@effect/platform";
 import { NodeCommandExecutor } from "@effect/platform-node";
 import * as CommitParser from "commit-parser";
 import { Effect } from "effect";
-import { ExternalCommitParserError, GitCommandError } from "../errors";
+import { ExternalCommitParserError, GitCommandError, TagError } from "../errors";
 import { ReleaseScriptsOptions } from "../options";
 
 export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scripts/GitService", {
@@ -74,6 +74,10 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
       return execGitCommand(["checkout", branch]);
     }
 
+    function rebaseBranch(onto: string) {
+      return execGitCommandIfNotDry(["rebase", onto]);
+    }
+
     function stageChanges(files: readonly string[]) {
       return Effect.gen(function* () {
         if (files.length === 0) {
@@ -90,6 +94,10 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
 
     function pushChanges(branch: string, remote: string = "origin") {
       return execGitCommandIfNotDry(["push", remote, branch]);
+    }
+
+    function forcePushChanges(branch: string, remote: string = "origin") {
+      return execGitCommandIfNotDry(["push", "--force-with-lease", remote, branch]);
     }
 
     function readFile(filePath: string, ref: string = "HEAD") {
@@ -118,6 +126,32 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
             })),
           );
         }),
+      );
+    }
+
+    function createTag(name: string, message?: string) {
+      const args = message
+        ? ["tag", "-a", name, "-m", message]
+        : ["tag", name];
+
+      return execGitCommandIfNotDry(args).pipe(
+        Effect.mapError((err) => new TagError({
+          message: `Failed to create tag "${name}"`,
+          tagName: name,
+          operation: "create",
+          cause: err,
+        })),
+      );
+    }
+
+    function pushTag(name: string, remote: string = "origin") {
+      return execGitCommandIfNotDry(["push", remote, name]).pipe(
+        Effect.mapError((err) => new TagError({
+          message: `Failed to push tag "${name}" to ${remote}`,
+          tagName: name,
+          operation: "push",
+          cause: err,
+        })),
       );
     }
 
@@ -199,17 +233,21 @@ export class GitService extends Effect.Service<GitService>()("@ucdjs/release-scr
         exists: doesBranchExist,
         create: createBranch,
         checkout: checkoutBranch,
+        rebase: rebaseBranch,
         get: getBranch,
       },
       commits: {
         stage: stageChanges,
         write: writeCommit,
         push: pushChanges,
+        forcePush: forcePushChanges,
         get: getCommits,
         filesChangesBetweenRefs,
       },
       tags: {
         mostRecentForPackage: getMostRecentPackageTag,
+        create: createTag,
+        push: pushTag,
       },
       workspace: {
         readFile,

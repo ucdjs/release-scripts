@@ -35,11 +35,19 @@ export interface ReleaseScriptsOptionsInput {
     template?: string;
     emojis?: boolean;
   };
+  npm?: {
+    otp?: string;
+    provenance?: boolean;
+  };
 }
 
-export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOptionsInput, "repo">> & {
+export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOptionsInput, "repo" | "npm">> & {
   owner: string;
   repo: string;
+  npm: {
+    otp?: string;
+    provenance: boolean;
+  };
 };
 
 const DEFAULT_PR_BODY_TEMPLATE = `## Summary\n\nThis PR contains the following changes:\n\n- Updated package versions\n- Updated changelogs\n\n## Packages\n\nThe following packages will be released:\n\n{{packages}}`;
@@ -65,6 +73,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     changelog = {},
     types = {},
     dryRun = false,
+    npm = {},
   } = options;
 
   const token = githubToken.trim();
@@ -111,6 +120,10 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
       emojis: changelog.emojis ?? true,
     },
     types: options.types ? { ...DEFAULT_TYPES, ...types } : DEFAULT_TYPES,
+    npm: {
+      otp: npm.otp,
+      provenance: npm.provenance ?? true,
+    },
   };
 }
 

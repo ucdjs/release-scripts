@@ -40,11 +40,12 @@ Now examine the three main workflows in order of complexity:
 - **Use case**: CI/CD validation of release PRs
 
 **[prepare-workflow.mmd](./prepare-workflow.mmd)** (Implemented)
-- Prepares releases by calculating and applying version updates
+- Prepares releases by rebasing, updating versions, and generating changelogs
 - Updates package.json files in topological order
-- Supports dry-run mode
-- Shows future enhancements (PR creation, changelog generation)
-- **Use case**: Local release preparation before creating/updating PR
+- Generates changelog files using Eta templates
+- Commits and force pushes changes (with --force-with-lease)
+- Updates PR body with release summary
+- **Use case**: Automated release preparation for existing PRs
 
 **[publish-workflow.mmd](./publish-workflow.mmd)** (Planned)
 - Publishing packages to NPM in topological order
@@ -53,15 +54,26 @@ Now examine the three main workflows in order of complexity:
 - Git tag creation after successful publish
 - **Use case**: Automated NPM publishing from CI/CD
 
+### 4. Testing Architecture
+Understand how the codebase is structured for testability:
+
+**[testing-architecture.mmd](./testing-architecture.mmd)**
+- Shows the separation between pure functions (utils) and Effect services
+- Illustrates the simple two-file structure (formatters + service)
+- Highlights testable pure functions (no mocking needed)
+- Demonstrates benefits: easy testing, reusability, clear separation, simple structure
+- **Use case**: Understanding how to test and extend the codebase
+
 ## Diagram Files
 
 | File | Type | Purpose | Status |
 |------|------|---------|--------|
 | `service-dependency-graph.mmd` | Architecture | Service dependencies and workflow usage | Current |
+| `testing-architecture.mmd` | Architecture | Testable code structure with pure functions | Current |
 | `version-bump-calculation.mmd` | Algorithm | Version bump logic from commits | Current |
 | `commit-attribution-flow.mmd` | Algorithm | Global commit attribution | Current |
 | `verify-workflow.mmd` | Workflow | Release branch verification | Implemented |
-| `prepare-workflow.mmd` | Workflow | Release preparation | Implemented |
+| `prepare-workflow.mmd` | Workflow | Release preparation with changelog generation | Implemented |
 | `publish-workflow.mmd` | Workflow | NPM publishing | Planned |
 
 ## Viewing the Diagrams
@@ -109,8 +121,9 @@ The diagrams use consistent color coding:
 - **Light blue** (`#e1f0ff`): Configuration
 - **Light red** (`#ffe1e1`): External services (Git, GitHub, NPM)
 - **Light green** (`#e1ffe1`): Core workspace service
-- **Yellow** (`#fff4e1`): Calculation services
+- **Yellow** (`#fff4e1`, `#fffacd`): Calculation and changelog services
 - **Purple** (`#f0e1ff`): Update services
+- **Bright green** (`#90ee90`): Pure function modules
 - **Gray** (`#f0f0f0`): Helper utilities
 - **Green** (`#d4edda`): Implemented workflows
 - **Blue dashed**: Planned workflows
@@ -121,6 +134,13 @@ The diagrams use consistent color coding:
 - **Green** (`#ccffcc`): Patch bump
 - **Gray** (`#f0f0f0`): No bump
 - **Blue** (`#e1f0ff`): Override
+
+### Testing Architecture
+- **Bright green** (`#90EE90`): Pure testable functions
+- **Light orange** (`#FFE4B5`): Utils modules with pure functions
+- **Light pink** (`#FFB6C1`): Effect services
+- **Sky blue** (`#87CEEB`): Test suites
+- **Light yellow** (`#FAFAD2`): Architecture benefits
 
 ## Integration
 

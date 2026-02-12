@@ -74,6 +74,19 @@ classDiagram
         +getLatestVersion(name) Effect~string~
     }
 
+    class ChangelogService {
+        <<Effect Service>>
+        +generateChangelog(pkg, version, commits) Effect~ChangelogResult~
+    }
+
+    class ChangelogFormatters {
+        <<Utils Module>>
+        +parseCommits(commits) ChangelogEntry[]
+        +groupByType(entries) Map
+        +createChangelog(data) PackageChangelog
+        +formatChangelogMarkdown(changelog) string
+    }
+
     class HelperUtilities {
         <<Static Functions>>
         +loadOverrides() Effect~Overrides~
@@ -97,6 +110,10 @@ classDiagram
     PackageUpdaterService --> VersionCalculatorService : applies versions
     PackageUpdaterService --> DependencyGraphService : uses topo order
 
+    %% Changelog service dependencies
+    ChangelogService --> ChangelogFormatters : uses pure functions
+    ChangelogFormatters --> HelperUtilities : uses GitCommit type
+
     %% Helper utilities
     HelperUtilities --> GitService : reads overrides
     HelperUtilities --> WorkspaceService : enriches packages
@@ -109,6 +126,7 @@ classDiagram
     ReleaseScriptsAPI --> VersionCalculatorService : version bumps
     ReleaseScriptsAPI --> DependencyGraphService : dependency ordering
     ReleaseScriptsAPI --> PackageUpdaterService : apply updates
+    ReleaseScriptsAPI --> ChangelogService : generate changelogs
     ReleaseScriptsAPI --> NPMService : check/publish
     ReleaseScriptsAPI --> HelperUtilities : helper functions
 
@@ -120,6 +138,8 @@ classDiagram
     style VersionCalculatorService fill:#fff4e1
     style DependencyGraphService fill:#fff4e1
     style PackageUpdaterService fill:#f0e1ff
+    style ChangelogService fill:#fffacd
+    style ChangelogFormatters fill:#90ee90
     style HelperUtilities fill:#f0f0f0
     style ReleaseScriptsOptions fill:#e1f0ff
     style ReleaseScriptsAPI fill:#d4edda

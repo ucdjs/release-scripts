@@ -51,3 +51,16 @@ export class NPMError extends Data.TaggedError("NPMError")<{
   operation?: string;
   cause?: unknown;
 }> {}
+
+export class PublishError extends Data.TaggedError("PublishError")<{
+  message: string;
+  packageName?: string;
+  cause?: unknown;
+}> {}
+
+export class TagError extends Data.TaggedError("TagError")<{
+  message: string;
+  tagName?: string;
+  operation: "create" | "push";
+  cause?: unknown;
+}> {}

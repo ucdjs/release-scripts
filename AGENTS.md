@@ -34,7 +34,7 @@ All services extend `Effect.Service` with dependency injection:
 ```typescript
 export class ServiceName extends Effect.Service<ServiceName>()(
   "service-identifier",
-  { effect: Effect.gen(function* () { ... }), dependencies: [...] }
+  { effect: Effect.gen(function* () { console.log("Hello from ServiceName"); }), dependencies: [...yourDependencies] }
 ) {}
 ```
 
@@ -255,9 +255,9 @@ Finds oldest/newest commits across all packages for changelog generation
 
 ```typescript
 export interface ReleaseScripts {
-  verify: () => Promise<void>;        // Verify release branch integrity
-  prepare: () => Promise<void>;       // Prepare release (calculate & update versions)
-  publish: () => Promise<void>;       // Publish to NPM (not yet implemented)
+  verify: () => Promise<void>; // Verify release branch integrity
+  prepare: () => Promise<void>; // Prepare release (calculate & update versions)
+  publish: () => Promise<void>; // Publish to NPM (not yet implemented)
   packages: {
     list: () => Promise<readonly WorkspacePackage[]>;
     get: (packageName: string) => Promise<WorkspacePackage | null>;
@@ -266,7 +266,7 @@ export interface ReleaseScripts {
 
 export async function createReleaseScripts(
   options: ReleaseScriptsOptionsInput
-): Promise<ReleaseScripts>
+): Promise<ReleaseScripts>;
 ```
 
 ### Initialization Flow
@@ -280,20 +280,20 @@ export async function createReleaseScripts(
 
 ```typescript
 interface ReleaseScriptsOptionsInput {
-  repo: string;                           // "owner/repo"
-  githubToken?: string;                   // GitHub API token
-  workspaceRoot?: string;                 // Path to workspace root
+  repo: string; // "owner/repo"
+  githubToken?: string; // GitHub API token
+  workspaceRoot?: string; // Path to workspace root
   packages?: {
-    include?: string[];                   // Package name filters
-    exclude?: string[];                   // Package name exclusions
-    excludePrivate?: boolean;             // Exclude private packages
+    include?: string[]; // Package name filters
+    exclude?: string[]; // Package name exclusions
+    excludePrivate?: boolean; // Exclude private packages
   };
   branch?: {
-    release?: string;                     // Release branch name
-    default?: string;                     // Default/main branch
+    release?: string; // Release branch name
+    default?: string; // Default/main branch
   };
   globalCommitMode?: "none" | "all" | "dependencies";
-  dryRun?: boolean;                       // Enable dry-run mode
+  dryRun?: boolean; // Enable dry-run mode
 }
 ```
 
@@ -767,7 +767,7 @@ pnpm typecheck  # TypeScript type checking
 
 ### Import Aliases
 
-```typescript
+```txt
 #services/* → ./src/services/*.service.ts
 ```
 
