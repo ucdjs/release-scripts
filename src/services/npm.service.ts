@@ -13,9 +13,9 @@ export interface PublishOptions {
 
 // Schema for npm packument (package document)
 export const PackumentSchema = Schema.Struct({
-  name: Schema.String,
+  "name": Schema.String,
   "dist-tags": Schema.Record({ key: Schema.String, value: Schema.String }),
-  versions: Schema.Record({
+  "versions": Schema.Record({
     key: Schema.String,
     value: Schema.Struct({
       name: Schema.String,
