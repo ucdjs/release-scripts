@@ -100,15 +100,21 @@ export class WorkspaceService extends Effect.Service<WorkspaceService>()("@ucdjs
           operation: "readPackageJson",
         }),
       }).pipe(
-        Effect.flatMap((json) => Schema.decodeUnknown(PackageJsonSchema)(json).pipe(
-          Effect.mapError(
-            (e) => new WorkspaceError({
-              message: `Invalid package.json for ${pkgPath}`,
-              cause: e,
-              operation: "readPackageJson",
-            }),
+        Effect.flatMap((json) =>
+          Schema.decodeUnknown(PackageJsonSchema)(json).pipe(
+            Effect.mapError(
+              (e) => new WorkspaceError({
+                message: `Invalid package.json for ${pkgPath}`,
+                cause: e,
+                operation: "readPackageJson",
+              }),
+            ),
+            Effect.map((validated) => ({
+              ...(json as Record<string, unknown>),
+              ...validated,
+            } as PackageJson)),
           ),
-        )),
+        ),
       );
     }
 

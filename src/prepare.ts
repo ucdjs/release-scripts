@@ -31,6 +31,15 @@ export function constructPrepareProgram(
 
     yield* git.workspace.assertWorkspaceReady;
 
+    // Save the branch we started on to switch back later
+    const startingBranch = yield* git.branches.get;
+
+    if (startingBranch !== config.branch.default) {
+      return yield* Effect.fail(new Error(
+        `Prepare must be run on the default branch "${config.branch.default}". Current branch: "${startingBranch}"`,
+      ));
+    }
+
     // Step 1: Check if release PR exists
     let releasePullRequest = yield* github.getPullRequestByBranch(config.branch.release);
     const isNewRelease = !releasePullRequest;
@@ -116,6 +125,15 @@ export function constructPrepareProgram(
         }
 
         const result = yield* versionPrompt.promptForVersion(pkg, conventionalBump, remainingCount);
+
+        if (result.cancelled) {
+          yield* Console.log("\nCancelled by user.");
+          if (startingBranch !== (yield* git.branches.get)) {
+            yield* git.branches.checkout(startingBranch);
+            yield* Console.log(`Switched back to "${startingBranch}".`);
+          }
+          return yield* Effect.fail(new Error("Release preparation cancelled."));
+        }
 
         releases.push({
           package: {
@@ -232,8 +250,10 @@ ${releases.map((r) => `  - ${r.package.name}@${r.newVersion}`).join("\n")}`;
 
     yield* Console.log(`\nRelease preparation complete! View PR: #${releasePullRequest!.number}`);
 
-    // Step 14: Switch back to default branch
-    yield* git.branches.checkout(config.branch.default);
-    yield* Console.log(`Switched back to "${config.branch.default}".`);
+    // Step 14: Switch back to starting branch
+    if (startingBranch !== (yield* git.branches.get)) {
+      yield* git.branches.checkout(startingBranch);
+      yield* Console.log(`Switched back to "${startingBranch}".`);
+    }
   });
 }

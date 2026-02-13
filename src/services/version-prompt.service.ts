@@ -27,6 +27,7 @@ export interface VersionPromptResult {
   newVersion: string;
   bumpType: BumpKind;
   applyToAllRemaining: boolean;
+  cancelled: boolean;
 }
 
 function formatCommit(commit: GitCommit): string {
@@ -226,6 +227,7 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
       const config = yield* ReleaseScriptsOptions;
 
       let applyToAllRemainingChoice: { version: string; bumpType: BumpKind } | null = null;
+      let isCancelled = false;
 
       function promptForVersion(
         pkg: WorkspacePackageWithCommits,
@@ -233,6 +235,16 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
         remainingCount: number,
       ) {
         return Effect.async<VersionPromptResult, never, never>((resume) => {
+          if (isCancelled) {
+            resume(Effect.succeed({
+              newVersion: pkg.version,
+              bumpType: "none",
+              applyToAllRemaining: false,
+              cancelled: true,
+            }));
+            return;
+          }
+
           const allCommits = [...pkg.commits, ...pkg.globalCommits];
           const prereleaseInfo = getPrereleaseInfo(pkg.version);
 
@@ -249,6 +261,7 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
                 : applyToAllRemainingChoice.version,
               bumpType: applyToAllRemainingChoice.bumpType,
               applyToAllRemaining: false,
+              cancelled: false,
             };
             resume(Effect.succeed(result));
             return;
@@ -276,10 +289,12 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
             hint: "Use arrow keys to navigate, enter to select",
           }).then(async (response) => {
             if (!response.choice) {
+              isCancelled = true;
               const result: VersionPromptResult = {
                 newVersion: pkg.version,
                 bumpType: "none",
                 applyToAllRemaining: false,
+                cancelled: true,
               };
               resume(Effect.succeed(result));
               return;
@@ -301,47 +316,67 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
                 initial: findDefaultIndex(applyOptions, conventionalBump),
               });
 
-              if (applyResponse.choice) {
-                if (applyResponse.choice.version === "custom") {
-                  const customVersion = await promptForCustomVersion(pkg.version);
-                  if (customVersion) {
-                    applyToAllRemainingChoice = { version: customVersion, bumpType: applyResponse.choice.bumpType };
-                  }
-                } else {
-                  applyToAllRemainingChoice = applyResponse.choice;
-                }
-
-                const result: VersionPromptResult = {
-                  newVersion: applyToAllRemainingChoice?.version || pkg.version,
-                  bumpType: applyToAllRemainingChoice?.bumpType || "none",
-                  applyToAllRemaining: true,
-                };
-                resume(Effect.succeed(result));
-              } else {
-                promptForVersion(pkg, conventionalBump, remainingCount).pipe(
-                  Effect.runPromise,
-                ).then((r) => resume(Effect.succeed(r)));
+              if (!applyResponse.choice) {
+                isCancelled = true;
+                resume(Effect.succeed({
+                  newVersion: pkg.version,
+                  bumpType: "none",
+                  applyToAllRemaining: false,
+                  cancelled: true,
+                }));
+                return;
               }
+
+              if (applyResponse.choice.version === "custom") {
+                const customVersion = await promptForCustomVersion(pkg.version);
+                if (!customVersion) {
+                  isCancelled = true;
+                  resume(Effect.succeed({
+                    newVersion: pkg.version,
+                    bumpType: "none",
+                    applyToAllRemaining: false,
+                    cancelled: true,
+                  }));
+                  return;
+                }
+                applyToAllRemainingChoice = { version: customVersion, bumpType: applyResponse.choice.bumpType };
+              } else {
+                applyToAllRemainingChoice = applyResponse.choice;
+              }
+
+              const result: VersionPromptResult = {
+                newVersion: applyToAllRemainingChoice?.version || pkg.version,
+                bumpType: applyToAllRemainingChoice?.bumpType || "none",
+                applyToAllRemaining: true,
+                cancelled: false,
+              };
+              resume(Effect.succeed(result));
               return;
             }
 
             let selectedVersion = response.choice.version;
-            let selectedBumpType = response.choice.bumpType;
+            const selectedBumpType = response.choice.bumpType;
 
             if (selectedVersion === "custom") {
               const customVersion = await promptForCustomVersion(pkg.version);
-              if (customVersion) {
-                selectedVersion = customVersion;
-              } else {
-                selectedVersion = pkg.version;
-                selectedBumpType = "none";
+              if (!customVersion) {
+                isCancelled = true;
+                resume(Effect.succeed({
+                  newVersion: pkg.version,
+                  bumpType: "none",
+                  applyToAllRemaining: false,
+                  cancelled: true,
+                }));
+                return;
               }
+              selectedVersion = customVersion;
             }
 
             const result: VersionPromptResult = {
               newVersion: selectedVersion,
               bumpType: selectedBumpType,
               applyToAllRemaining: false,
+              cancelled: false,
             };
             resume(Effect.succeed(result));
           });
@@ -353,6 +388,7 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
         isEnabled: config.prompts.versions,
         resetApplyToAll: () => {
           applyToAllRemainingChoice = null;
+          isCancelled = false;
         },
       } as const;
     }),

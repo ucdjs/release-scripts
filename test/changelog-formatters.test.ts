@@ -1,6 +1,6 @@
 import type { GitCommit } from "../src/utils/helpers";
 import { describe, expect, it } from "vitest";
-import { createChangelog, formatChangelogMarkdown, groupByType, parseCommits } from "../src/utils/changelog-formatters";
+import { appendChangelogEntry, createChangelog, formatChangelogEntryMarkdown, groupByType, parseCommits } from "../src/utils/changelog-formatters";
 
 // eslint-disable-next-line test/prefer-lowercase-title
 describe("Changelog Formatters", () => {
@@ -94,9 +94,9 @@ describe("Changelog Formatters", () => {
   describe("groupByType", () => {
     it("should group entries by type", () => {
       const entries = [
-        { type: "feat", scope: undefined, description: "feature 1", breaking: false, hash: "a", shortHash: "a", references: [] },
-        { type: "fix", scope: undefined, description: "fix 1", breaking: false, hash: "b", shortHash: "b", references: [] },
-        { type: "feat", scope: undefined, description: "feature 2", breaking: false, hash: "c", shortHash: "c", references: [] },
+        { type: "feat", scope: undefined, description: "feature 1", breaking: false, hash: "a", shortHash: "a", references: [], authors: [] },
+        { type: "fix", scope: undefined, description: "fix 1", breaking: false, hash: "b", shortHash: "b", references: [], authors: [] },
+        { type: "feat", scope: undefined, description: "feature 2", breaking: false, hash: "c", shortHash: "c", references: [], authors: [] },
       ];
 
       const groups = groupByType(entries);
@@ -106,8 +106,8 @@ describe("Changelog Formatters", () => {
 
     it("should put breaking changes in separate group", () => {
       const entries = [
-        { type: "feat", scope: undefined, description: "breaking", breaking: true, hash: "a", shortHash: "a", references: [] },
-        { type: "feat", scope: undefined, description: "normal", breaking: false, hash: "b", shortHash: "b", references: [] },
+        { type: "feat", scope: undefined, description: "breaking", breaking: true, hash: "a", shortHash: "a", references: [], authors: [] },
+        { type: "feat", scope: undefined, description: "normal", breaking: false, hash: "b", shortHash: "b", references: [], authors: [] },
       ];
 
       const groups = groupByType(entries);
@@ -145,8 +145,8 @@ describe("Changelog Formatters", () => {
     });
   });
 
-  describe("formatChangelogMarkdown", () => {
-    it("should format changelog as markdown", () => {
+  describe("formatChangelogEntryMarkdown", () => {
+    it("should format changelog entry as markdown", () => {
       const changelog = {
         packageName: "test-package",
         version: "1.0.0",
@@ -160,17 +160,18 @@ describe("Changelog Formatters", () => {
             hash: "abc123",
             shortHash: "abc",
             references: [{ type: "issue", value: "42" }],
+            authors: [{ name: "Test", email: "test@example.com" }],
           },
         ],
+        repo: "ucdjs/release-scripts",
       };
 
-      const markdown = formatChangelogMarkdown(changelog);
+      const markdown = formatChangelogEntryMarkdown(changelog);
 
-      expect(markdown).toContain("# test-package v1.0.0");
-      expect(markdown).toContain("**Previous version**: `0.9.0`");
-      expect(markdown).toContain("**New version**: `1.0.0`");
-      expect(markdown).toContain("## ✨ Features");
-      expect(markdown).toContain("**core**: add feature (#42) (`abc`)");
+      expect(markdown).toContain("## 1.0.0");
+      expect(markdown).toContain("### &nbsp;&nbsp;&nbsp;🚀 Features");
+      expect(markdown).toContain("**core**:");
+      expect(markdown).toContain("add feature &amp;nbsp;-&amp;nbsp; by Test");
     });
 
     it("should handle empty changelog", () => {
@@ -179,10 +180,23 @@ describe("Changelog Formatters", () => {
         version: "1.0.0",
         previousVersion: "0.9.0",
         entries: [],
+        repo: "ucdjs/release-scripts",
       };
 
-      const markdown = formatChangelogMarkdown(changelog);
+      const markdown = formatChangelogEntryMarkdown(changelog);
       expect(markdown).toContain("*No conventional commits found.*");
+    });
+  });
+
+  describe("appendChangelogEntry", () => {
+    it("should prepend entry under package header", () => {
+      const existing = "# test-package\n\n## 0.9.0\n";
+      const entry = "## 1.0.0\n\n- change";
+
+      const result = appendChangelogEntry(existing, entry, "test-package");
+
+      expect(result.startsWith("# test-package\n\n## 1.0.0")).toBe(true);
+      expect(result).toContain("## 0.9.0");
     });
   });
 });
