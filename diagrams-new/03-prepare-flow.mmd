@@ -1,0 +1,62 @@
+sequenceDiagram
+    participant User
+    participant API as createReleaseScripts
+    participant Prepare as prepare()
+    participant IO as I/O Functions
+    participant Core as Pure Functions
+    participant Prompt as prompts library
+
+    User->>API: prepare()
+    API->>Prepare: prepare(config, deps)
+
+    Prepare->>IO: git.assertClean()
+    Prepare->>IO: github.getPR('release')
+    Prepare->>IO: git.branchExists('release')
+
+    alt branch exists
+        Prepare->>IO: git.checkout('release')
+        Prepare->>IO: git.rebase('main')
+    else
+        Prepare->>IO: git.createBranch('release', 'main')
+    end
+
+    Prepare->>IO: workspace.discover()
+    IO-->>Prepare: packages[]
+
+    loop Each package
+        Prepare->>IO: git.getCommits({folder: pkg.path})
+        IO-->>Prepare: commits[]
+    end
+
+    Prepare->>Core: calculateBumps(packages, overrides)
+    Core-->>Prepare: releases[]
+
+    alt interactive mode
+        loop Each package
+            Prepare->>Prompt: select version options
+            Prompt-->>Prepare: user choice
+        end
+    end
+
+    Prepare->>Core: topologicalOrder(packages)
+    
+    loop Each release
+        Prepare->>Core: formatChangelog(commits)
+        Core-->>Prepare: markdown
+        Prepare->>IO: writePackageJson(path, updated)
+        Prepare->>IO: writeFile('CHANGELOG.md', markdown)
+    end
+
+    Prepare->>IO: git.stage(['package.json', 'CHANGELOG.md'])
+    Prepare->>IO: git.commit('chore(release): prepare')
+
+    alt new release
+        Prepare->>IO: git.push('release')
+        Prepare->>IO: github.createPR({title, body, head, base})
+    else
+        Prepare->>IO: git.forcePush('release')
+        Prepare->>IO: github.updatePR(pr.number, {body})
+    end
+
+    Prepare->>IO: git.checkout(originalBranch)
+    Prepare-->>User: Success
