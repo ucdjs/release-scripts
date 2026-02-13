@@ -1,0 +1,48 @@
+flowchart TB
+    subgraph Entry["Entry Point"]
+        API["createReleaseScripts(config)<br/>Returns: {verify, prepare, publish}"]
+    end
+
+    subgraph Workflows["Workflow Functions<br/>Async/await, explicit deps"]
+        verify["verify(config, deps)<br/>Simple function call"]
+        prepare["prepare(config, deps)<br/>Sequential steps"]
+        publish["publish(config, deps)<br/>Topological publish"]
+    end
+
+    subgraph Core["Pure Functions<br/>No side effects, easily tested"]
+        calc["calculateBumps(packages, overrides)<br/>Returns: PackageRelease[]"]
+        graph["topologicalOrder(packages)<br/>Returns: ordered packages"]
+        bump["determineBump(commits)<br/>Returns: BumpKind"]
+        range["nextRange(oldRange, newVersion)<br/>Returns: updated range"]
+        fmt["formatChangelog(commits)<br/>Returns: markdown string"]
+    end
+
+    subgraph IO["I/O Operations<br/>Explicit async functions"]
+        gitExec["git.exec(args, opts)<br/>Simple command execution"]
+        npmFetch["npm.fetch(packageName)<br/>HTTP request"]
+        githubApi["github.api(endpoint, opts)<br/>Fetch wrapper"]
+        pkgRead["readPackageJson(path)<br/>fs.readFile"]
+        pkgWrite["writePackageJson(path, data)<br/>fs.writeFile"]
+    end
+
+    subgraph Config["Configuration"]
+        opts["ReleaseConfig object<br/>Plain interface, validated once"]
+    end
+
+    API --> Workflows
+    verify --> Core
+    verify --> IO
+    prepare --> Core
+    prepare --> IO
+    publish --> Core
+    publish --> IO
+    
+    Workflows -.uses.-> Config
+    Core -.uses.-> Config
+    IO -.uses.-> Config
+
+    style Entry fill:#e1f5e1
+    style Workflows fill:#fff4e1
+    style Core fill:#d4edda
+    style IO fill:#ffe1e1
+    style Config fill:#e1f0ff

@@ -1,0 +1,50 @@
+sequenceDiagram
+    participant User
+    participant API as createReleaseScripts
+    participant Verify as verify()
+    participant IO as I/O Functions
+    participant Core as Pure Functions
+
+    User->>API: createReleaseScripts(config)
+    API-->>User: { verify, prepare, publish }
+
+    User->>API: verify()
+    API->>Verify: verify(config, {git, github, workspace})
+
+    Verify->>IO: git.exec(['status', '--porcelain'])
+    IO-->>Verify: clean working directory
+
+    Verify->>IO: github.api('pulls', {branch: 'release'})
+    IO-->>Verify: PR or null
+
+    Verify->>IO: workspace.discover(config.workspaceRoot)
+    IO-->>Verify: packages[]
+
+    loop Each package
+        Verify->>IO: git.getCommits({from: tag, folder: pkg.path})
+        IO-->>Verify: commits[]
+    end
+
+    Verify->>Core: calculateBumps(packagesWithCommits, overrides)
+    Core-->>Verify: releases[]
+
+    Verify->>Core: topologicalOrder(packages)
+    Core-->>Verify: ordered[]
+
+    loop Each package
+        Verify->>IO: git.readFile('package.json', sha)
+        IO-->>Verify: current content
+    end
+
+    Verify->>Verify: findDrift(expected, actual)
+
+    Verify->>IO: github.setStatus(sha, status)
+    IO-->>Verify: ok
+
+    alt drift found
+        Verify-->>User: throw new Error('Drift detected')
+    else
+        Verify-->>User: Success
+    end
+
+    Note over Verify: No Effect, no generators<br/>Just async/await and plain functions
