@@ -1,0 +1,66 @@
+# Package Discovery & Filtering
+
+```mermaid
+flowchart LR
+    subgraph Discovery["Package Discovery Flow"]
+        direction TB
+        
+        Start([discoverWorkspacePackages]) --> CheckConfig{Config type?}
+        
+        CheckConfig -->|packages === true| AllPackages[include all<br/>excludePrivate: false]
+        CheckConfig -->|string[]| ExplicitList[explicit include list<br/>validate all found]
+        CheckConfig -->|object| WithOptions[use options:<br/>- exclude<br/>- include<br/>- excludePrivate]
+        
+        AllPackages --> RunPnpm[pnpm -r ls --json]
+        ExplicitList --> RunPnpm
+        WithOptions --> RunPnpm
+        
+        RunPnpm --> ParseJSON[Parse JSON output]
+        ParseJSON --> Validate[Schema.decode<br/>WorkspaceListSchema]
+        
+        Validate --> LoopPkgs[For each raw project]
+        
+        LoopPkgs --> ReadPkgJson[readPackageJson<br/>fs.readFile + parse]
+        ReadPkgJson --> Filter[shouldIncludePackage?]
+        
+        Filter -->|No| Skip[Skip package<br/>Return null]
+        Filter -->|Yes| CheckVersion{Has version?}
+        
+        CheckVersion -->|No| LogWarning[Log warning<br/>Skip]
+        CheckVersion -->|Yes| Decode[Schema.decode<br/>WorkspacePackageSchema]
+        
+        Decode --> Collect[Collect valid packages]
+        Skip --> LoopMore{More?}
+        LogWarning --> LoopMore
+        Collect --> LoopMore
+        
+        LoopMore -->|Yes| LoopPkgs
+        LoopMore -->|No| ValidateExplicit{Explicit packages<br/>all found?}
+        
+        ValidateExplicit -->|No| ThrowError[Throw: Package not found]
+        ValidateExplicit -->|Yes| Return[Return packages]
+    end
+
+    subgraph Filtering["Filtering Logic"]
+        direction TB
+        
+        FStart[shouldIncludePackage] --> CheckPrivate{excludePrivate<br/>&& private?}
+        CheckPrivate -->|Yes| FNo[Exclude]
+        CheckPrivate -->|No| CheckInclude{include list<br/>specified?}
+        
+        CheckInclude -->|Yes| CheckInInclude{In include?}
+        CheckInInclude -->|Yes| CheckExclude{In exclude?}
+        CheckInInclude -->|No| FNo
+        
+        CheckInclude -->|No| CheckExclude
+        
+        CheckExclude -->|Yes| FNo
+        CheckExclude -->|No| FYes[Include]
+    end
+
+    Discovery --> Filtering
+    
+    style Start fill:#e1f5e1
+    style Return fill:#e1f5e1
+    style ThrowError fill:#ffe1e1
+```

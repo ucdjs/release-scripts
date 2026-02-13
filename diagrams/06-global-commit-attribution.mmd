@@ -1,0 +1,54 @@
+# Global Commit Attribution Algorithm
+
+```mermaid
+flowchart TD
+    Start([mergeCommitsAffectingGloballyIntoPackage]) --> CheckMode{globalCommitMode?}
+    
+    CheckMode -->|none| ReturnNone[Return packages as-is]
+    CheckMode -->|all| ProcessAll[Process all global commits]
+    CheckMode -->|dependencies| ProcessDeps[Process only dependency-related global commits]
+    
+    ProcessAll --> FindRange[findCommitRange<br/>Get oldest & newest commit]
+    ProcessDeps --> FindRange
+    
+    FindRange --> GetAllCommits[git.commits.get<br/>from: oldest<br/>to: newest<br/>folder: '.']
+    GetAllCommits --> GetFiles[git.commits.filesChangesBetweenRefs<br/>Get files per commit]
+    
+    GetFiles --> BuildTimestamps[Build commit timestamp map<br/>hash -> timestamp]
+    
+    BuildTimestamps --> LoopPackages[For each package]
+    
+    LoopPackages --> GetLastTag[git.tags.mostRecentForPackage<br/>Get package's last release tag]
+    GetLastTag --> GetCutoff[Get cutoff timestamp from tag SHA]
+    
+    GetCutoff --> FilterCommits[Filter commits:<br/>commit.time > cutoff]
+    
+    FilterCommits --> CheckGlobal{Is commit global?<br/>isGlobalCommit(files, packagePaths)}
+    
+    CheckGlobal -->|No| NextCommit[Next commit]
+    CheckGlobal -->|Yes| CheckModeFilter{Mode filtering}
+    
+    CheckModeFilter -->|all| AddGlobal[Add to globalCommits]
+    CheckModeFilter -->|dependencies| CheckDepFile{isDependencyFile(file)?}
+    
+    CheckDepFile -->|Yes| AddGlobal
+    CheckDepFile -->|No| NextCommit
+    
+    AddGlobal --> NextCommit
+    
+    NextCommit -->|More commits| FilterCommits
+    NextCommit -->|Done| NextPkg{More packages?}
+    
+    NextPkg -->|Yes| LoopPackages
+    NextPkg -->|No| ReturnResult[Return packages<br/>with globalCommits]
+    
+    ReturnNone --> End([End])
+    ReturnResult --> End
+    
+    style Start fill:#e1f5e1
+    style End fill:#e1f5e1
+    style CheckMode fill:#fff4e1
+    style CheckGlobal fill:#fff4e1
+    style CheckModeFilter fill:#fff4e1
+    style CheckDepFile fill:#fff4e1
+```
