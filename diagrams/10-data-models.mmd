@@ -1,0 +1,90 @@
+# Data Models & Relationships
+
+```mermaid
+erDiagram
+    WorkspacePackage {
+        string name
+        string version
+        string path
+        PackageJson packageJson
+        string[] workspaceDependencies
+        string[] workspaceDevDependencies
+    }
+    
+    WorkspacePackageWithCommits {
+        string name
+        string version
+        string path
+        PackageJson packageJson
+        string[] workspaceDependencies
+        string[] workspaceDevDependencies
+        GitCommit[] commits
+        GitCommit[] globalCommits
+    }
+    
+    PackageJson {
+        string name
+        boolean private
+        string version
+        Record_dependencies dependencies
+        Record_devDependencies devDependencies
+        Record_peerDependencies peerDependencies
+    }
+    
+    GitCommit {
+        boolean isConventional
+        boolean isBreaking
+        string type
+        string scope
+        string description
+        Reference[] references
+        Author[] authors
+        string hash
+        string shortHash
+        string body
+        string message
+        string date
+    }
+    
+    PackageRelease {
+        WorkspacePackage package
+        string currentVersion
+        string newVersion
+        BumpKind bumpType
+        boolean hasDirectChanges
+    }
+    
+    PullRequest {
+        number number
+        string title
+        string body
+        PRHead head
+        PRBase base
+        string state
+        boolean draft
+        boolean mergeable
+        string url
+        string html_url
+    }
+    
+    Config {
+        boolean dryRun
+        string workspaceRoot
+        string githubToken
+        string owner
+        string repo
+        PackageConfig packages
+        BranchConfig branch
+        string globalCommitMode
+        PRConfig pullRequest
+        ChangelogConfig changelog
+        NPMConfig npm
+        PromptConfig prompts
+    }
+    
+    WorkspacePackage ||--|| PackageJson : contains
+    WorkspacePackageWithCommits ||--|| WorkspacePackage : extends
+    WorkspacePackageWithCommits ||--o{ GitCommit : has
+    PackageRelease ||--|| WorkspacePackage : references
+    Config ||--o{ WorkspacePackage : discovers
+```
