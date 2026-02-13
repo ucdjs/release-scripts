@@ -57,13 +57,13 @@ export function constructPublishProgram(
       ));
     }
 
-    yield* Console.log(`✅ On default branch "${config.branch.default}".`);
+    yield* Console.log(`On default branch "${config.branch.default}".`);
 
     const packages = yield* workspace.discoverWorkspacePackages;
 
     const publicPackages = packages.filter((pkg) => !pkg.packageJson.private);
 
-    yield* Console.log(`📦 Found ${publicPackages.length} public package${publicPackages.length === 1 ? "" : "s"} to check.`);
+    yield* Console.log(`Found ${publicPackages.length} public package${publicPackages.length === 1 ? "" : "s"} to check.`);
 
     const orderedPackages = yield* dependencyGraph.topologicalOrder(publicPackages);
 
@@ -76,7 +76,7 @@ export function constructPublishProgram(
 
       const exists = yield* npm.versionExists(pkg.name, version);
       if (exists) {
-        yield* Console.log(`⏭️  Skipping ${pkg.name}@${version} - already published.`);
+        yield* Console.log(`Skipping ${pkg.name}@${version} - already published.`);
         results.push({
           packageName: pkg.name,
           version,
@@ -86,12 +86,12 @@ export function constructPublishProgram(
         continue;
       }
 
-      yield* Console.log(`🔨 Building ${pkg.name}...`);
+      yield* Console.log(`Building ${pkg.name}...`);
       yield* buildPackage(pkg.path);
-      yield* Console.log(`✅ Build complete for ${pkg.name}.`);
+      yield* Console.log(`Build complete for ${pkg.name}.`);
 
       const distTag = getDistTag(version);
-      yield* Console.log(`🚀 Publishing ${pkg.name}@${version} with tag "${distTag}"...`);
+      yield* Console.log(`Publishing ${pkg.name}@${version} with tag "${distTag}"...`);
 
       const publishResult = yield* npm.publish({
         packagePath: pkg.path,
@@ -105,15 +105,15 @@ export function constructPublishProgram(
       );
 
       if (publishResult.success) {
-        yield* Console.log(`✅ Published ${pkg.name}@${version}.`);
+        yield* Console.log(`Published ${pkg.name}@${version}.`);
 
         if (!config.dryRun) {
-          yield* Console.log(`🏷️  Creating tag ${tagName}...`);
+          yield* Console.log(`Creating tag ${tagName}...`);
           yield* git.tags.create(tagName, `Release ${tagName}`);
           yield* git.tags.push(tagName);
-          yield* Console.log(`✅ Tag ${tagName} created and pushed.`);
+          yield* Console.log(`Tag ${tagName} created and pushed.`);
         } else {
-          yield* Console.log(`🏷️  [Dry Run] Would create and push tag ${tagName}.`);
+          yield* Console.log(`[Dry Run] Would create and push tag ${tagName}.`);
         }
 
         results.push({
@@ -123,7 +123,7 @@ export function constructPublishProgram(
         });
       } else {
         const error = publishResult.error;
-        yield* Console.log(`❌ Failed to publish ${pkg.name}@${version}: ${error.message}`);
+        yield* Console.log(`Failed to publish ${pkg.name}@${version}: ${error.message}`);
         results.push({
           packageName: pkg.name,
           version,
@@ -137,13 +137,13 @@ export function constructPublishProgram(
     const skipped = results.filter((r) => r.status === "skipped");
     const failed = results.filter((r) => r.status === "failed");
 
-    yield* Console.log("\n📊 Publish Summary:");
+    yield* Console.log("\nPublish Summary:");
     yield* Console.log(`   Published: ${published.length}`);
     yield* Console.log(`   Skipped: ${skipped.length}`);
     yield* Console.log(`   Failed: ${failed.length}`);
 
     if (failed.length > 0) {
-      yield* Console.log("\n❌ Failed packages:");
+      yield* Console.log("\nFailed packages:");
       for (const f of failed) {
         yield* Console.log(`   - ${f.packageName}@${f.version}: ${f.reason}`);
       }
@@ -152,9 +152,9 @@ export function constructPublishProgram(
     }
 
     if (published.length === 0 && skipped.length > 0) {
-      yield* Console.log("\n✅ All packages were already published.");
+      yield* Console.log("\nAll packages were already published.");
     } else if (published.length > 0) {
-      yield* Console.log("\n🎉 Publish complete!");
+      yield* Console.log("\nPublish complete!");
     }
   });
 }

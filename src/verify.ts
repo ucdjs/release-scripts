@@ -118,12 +118,12 @@ export function constructVerifyProgram(
       return yield* Effect.fail(new Error(`Release pull request for branch "${config.branch.release}" does not exist.`));
     }
 
-    yield* Console.log(`✅ Release pull request #${releasePullRequest.number} exists.`);
+    yield* Console.log(`Release pull request #${releasePullRequest.number} exists.`);
 
     const currentBranch = yield* git.branches.get;
     if (currentBranch !== config.branch.default) {
       yield* git.branches.checkout(config.branch.default);
-      yield* Console.log(`✅ Checked out to default branch "${config.branch.default}".`);
+      yield* Console.log(`Checked out to default branch "${config.branch.default}".`);
     }
 
     const overrides = yield* loadOverrides({
@@ -159,9 +159,9 @@ export function constructVerifyProgram(
     const drift = findDrift(packages, releases, branchSnapshots);
 
     if (drift.length === 0) {
-      yield* Console.log("✅ Release branch is in sync with expected releases.");
+      yield* Console.log("Release branch is in sync with expected releases.");
     } else {
-      yield* Console.log("❌ Release branch is out of sync:", drift);
+      yield* Console.log("Release branch is out of sync:", drift);
     }
 
     const status = drift.length === 0

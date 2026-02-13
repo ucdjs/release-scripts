@@ -6,6 +6,23 @@ import prompts from "prompts";
 import semver from "semver";
 import { ReleaseScriptsOptions } from "../options";
 
+const GREY = "\x1B[90m";
+const RESET = "\x1B[0m";
+
+const NON_VERSIONING_TYPES = new Set([
+  "chore",
+  "docs",
+  "style",
+  "test",
+  "ci",
+  "build",
+  "refactor",
+]);
+
+function isVersioningCommit(commit: GitCommit): boolean {
+  return !NON_VERSIONING_TYPES.has(commit.type) || commit.isBreaking;
+}
+
 export interface VersionPromptResult {
   newVersion: string;
   bumpType: BumpKind;
@@ -13,35 +30,15 @@ export interface VersionPromptResult {
 }
 
 function formatCommit(commit: GitCommit): string {
-  const typeEmoji = getTypeEmoji(commit.type);
+  const isGreyed = !isVersioningCommit(commit);
   const scope = commit.scope ? `(${commit.scope})` : "";
-  const breaking = commit.isBreaking ? "!" : "";
-  const header = commit.isConventional
-    ? `${typeEmoji} ${commit.type}${scope}${breaking}: ${commit.description}`
+  const description = commit.isConventional
+    ? commit.description
     : (commit.message.split("\n")[0] ?? commit.message);
 
-  const refs = commit.references
-    .map((r) => r.type === "pull-request" ? `#${r.value}` : `#${r.value}`)
-    .join(" ");
+  const line = `${commit.shortHash}  ${commit.type.padEnd(12)}${scope.padEnd(10)}: ${description}`;
 
-  return refs ? `${header} (${refs})` : header;
-}
-
-function getTypeEmoji(type: string): string {
-  const emojis: Record<string, string> = {
-    feat: "✨",
-    fix: "🐛",
-    docs: "📚",
-    style: "💎",
-    refactor: "🔧",
-    perf: "🏎️",
-    test: "🧪",
-    build: "📦",
-    ci: "👷",
-    chore: "🔧",
-    revert: "⏪",
-  };
-  return emojis[type] || "📝";
+  return isGreyed ? `${GREY}${line}${RESET}` : line;
 }
 
 function formatCommits(commits: readonly GitCommit[]): string {
@@ -49,11 +46,15 @@ function formatCommits(commits: readonly GitCommit[]): string {
     return "  No commits since the last version";
   }
 
-  return commits
+  const lines = commits
     .slice(0, 10)
-    .map((c) => `  ${formatCommit(c)}`)
-    .join("\n")
-    + (commits.length > 10 ? `\n  ... and ${commits.length - 10} more` : "");
+    .map((c) => `  ${formatCommit(c)}`);
+
+  if (commits.length > 10) {
+    lines.push(`  ${GREY}... and ${commits.length - 10} more${RESET}`);
+  }
+
+  return lines.join("\n");
 }
 
 function getPrereleaseInfo(version: string): { identifier: string; baseVersion: string } | null {
@@ -112,9 +113,9 @@ function generateVersionOptions(
 
   const conventionalVersion = conventionalBump !== "none"
     ? semver.inc(currentVersion, conventionalBump)
-    : currentVersion;
+    : null;
 
-  if (conventionalVersion && conventionalVersion !== currentVersion) {
+  if (conventionalVersion) {
     options.push({
       title: `conventional ${conventionalVersion}`,
       value: { version: conventionalVersion, bumpType: conventionalBump },
@@ -186,6 +187,21 @@ function generateVersionOptions(
   return options;
 }
 
+function findDefaultIndex(
+  options: Array<{ title: string; value: { version: string; bumpType: BumpKind } }>,
+  conventionalBump: BumpKind,
+): number {
+  if (conventionalBump === "none") {
+    return 0;
+  }
+
+  const conventionalIndex = options.findIndex(
+    (o) => o.title.startsWith("conventional"),
+  );
+
+  return conventionalIndex >= 0 ? conventionalIndex : 0;
+}
+
 async function promptForCustomVersion(currentVersion: string): Promise<string | null> {
   const response = await prompts({
     type: "text",
@@ -220,11 +236,9 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
           const allCommits = [...pkg.commits, ...pkg.globalCommits];
           const prereleaseInfo = getPrereleaseInfo(pkg.version);
 
+          const commitCount = allCommits.length;
           console.log("");
-          console.log(`\x1B[1m${pkg.name}\x1B[0m`);
-          console.log(`Current version: ${pkg.version}`);
-          console.log("");
-          console.log("Commits:");
+          console.log(`${commitCount} commit${commitCount === 1 ? "" : "s"} since the last version:`);
           console.log(formatCommits(allCommits));
           console.log("");
 
@@ -241,6 +255,7 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
           }
 
           const options = generateVersionOptions(pkg.version, conventionalBump, prereleaseInfo);
+          const defaultIndex = findDefaultIndex(options, conventionalBump);
 
           if (remainingCount > 1) {
             options.push({
@@ -252,11 +267,12 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
           prompts({
             type: "select",
             name: "choice",
-            message: `Select version`,
+            message: `Current version ${pkg.version}`,
             choices: options.map((o) => ({
               title: o.title,
               value: o.value,
             })),
+            initial: defaultIndex,
             hint: "Use arrow keys to navigate, enter to select",
           }).then(async (response) => {
             if (!response.choice) {
@@ -282,6 +298,7 @@ export class VersionPromptService extends Effect.Service<VersionPromptService>()
                   title: o.title,
                   value: o.value,
                 })),
+                initial: findDefaultIndex(applyOptions, conventionalBump),
               });
 
               if (applyResponse.choice) {
