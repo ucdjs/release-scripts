@@ -1,0 +1,80 @@
+# verify() Workflow - Detailed Data Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as ReleaseScripts API
+    participant Git as GitService
+    participant GitHub as GitHubService
+    participant WS as WorkspaceService
+    participant Helpers as Helper Functions
+    participant VC as VersionCalculatorService
+    participant DG as DependencyGraphService
+
+    User->>API: verify()
+    
+    API->>Git: workspace.assertWorkspaceReady
+    Git-->>API: OK (clean repo)
+    
+    API->>GitHub: getPullRequestByBranch(release)
+    GitHub-->>API: PullRequest | null
+    
+    alt PR exists
+        API->>Git: branches.get
+        Git-->>API: currentBranch
+        
+        opt currentBranch != default
+            API->>Git: branches.checkout(default)
+        end
+        
+        API->>Helpers: loadOverrides({sha, overridesPath})
+        Helpers->>Git: workspace.readFile(overrides.json)
+        Git-->>Helpers: file content
+        Helpers-->>API: overrides map
+        
+        API->>WS: discoverWorkspacePackages
+        WS->>WS: pnpm -r ls --json
+        WS-->>API: WorkspacePackage[]
+        
+        API->>Helpers: mergePackageCommitsIntoPackages(packages)
+        loop Each package
+            Helpers->>Git: tags.mostRecentForPackage(pkg.name)
+            Git-->>Helpers: TagInfo | null
+            Helpers->>Git: commits.get({from: tag, to: HEAD, folder: pkg.path})
+            Git-->>Helpers: GitCommit[]
+        end
+        Helpers-->>API: WorkspacePackageWithCommits[]
+        
+        API->>Helpers: mergeCommitsAffectingGloballyIntoPackage(pkgs, mode)
+        Helpers->>Helpers: findCommitRange(pkgs)
+        Helpers->>Git: commits.get({from: oldest, to: newest})
+        Git-->>Helpers: all commits
+        Helpers->>Git: commits.filesChangesBetweenRefs(oldest, newest)
+        Git-->>Helpers: Map<sha, files[]>
+        Helpers-->>API: packages with globalCommits
+        
+        API->>VC: calculateBumps(packages, overrides)
+        VC-->>API: PackageRelease[]
+        
+        API->>DG: topologicalOrder(packages)
+        DG-->>API: PackageUpdateOrder[]
+        
+        loop Each package
+            API->>Git: workspace.readFile(package.json, releaseHeadSha)
+            Git-->>API: package.json content
+        end
+        
+        API->>API: findDrift(packages, releases, snapshots)
+        
+        API->>GitHub: setCommitStatus(sha, {state, description})
+        GitHub-->>API: OK
+        
+        alt drift.length > 0
+            API-->>User: Throw Error("Release branch out of sync")
+        else
+            API-->>User: Success
+        end
+    else
+        API-->>User: Throw Error("No release PR found")
+    end
+```

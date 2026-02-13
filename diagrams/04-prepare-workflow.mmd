@@ -1,0 +1,106 @@
+# prepare() Workflow - Detailed Data Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as ReleaseScripts API
+    participant Git as GitService
+    participant GitHub as GitHubService
+    participant WS as WorkspaceService
+    participant Helpers as Helper Functions
+    participant VC as VersionCalculatorService
+    participant VP as VersionPromptService
+    participant DG as DependencyGraphService
+    participant PU as PackageUpdaterService
+    participant CL as ChangelogService
+
+    User->>API: prepare()
+    
+    API->>Git: workspace.assertWorkspaceReady
+    
+    API->>Git: branches.get
+    Git-->>API: startingBranch
+    
+    API->>GitHub: getPullRequestByBranch(release)
+    GitHub-->>API: existingPR | null
+    
+    API->>Git: branches.exists(release)
+    Git-->>API: boolean
+    
+    opt branch doesn't exist
+        API->>Git: branches.create(release, default)
+    end
+    
+    API->>Git: branches.checkout(release)
+    
+    opt not new release
+        API->>Git: branches.rebase(default)
+    end
+    
+    API->>Helpers: loadOverrides({sha: default, ...})
+    Helpers-->>API: overrides
+    
+    API->>Git: branches.checkout(default)
+    
+    API->>WS: discoverWorkspacePackages
+    WS-->>API: packages
+    
+    API->>Helpers: mergePackageCommitsIntoPackages(packages)
+    Helpers-->>API: packagesWithCommits
+    
+    API->>Helpers: mergeCommitsAffectingGloballyIntoPackage(pkgs, mode)
+    Helpers-->>API: enrichedPackages
+    
+    API->>Git: branches.checkout(release)
+    
+    alt interactive mode enabled
+        loop Each package
+            API->>VP: promptForVersion(pkg, bump, remainingCount)
+            VP-->>API: {newVersion, bumpType, cancelled}
+            
+            alt cancelled
+                API->>Git: branches.checkout(startingBranch)
+                API-->>User: Throw Error("Cancelled")
+            end
+        end
+    else
+        API->>VC: calculateBumps(packages, overrides)
+        VC-->>API: releases
+    end
+    
+    API->>DG: topologicalOrder(packages)
+    
+    API->>PU: applyReleases(allPackages, releases)
+    PU->>WS: writePackageJson(path, updatedJson)
+    WS-->>PU: written | skipped
+    PU-->>API: results
+    
+    loop Each release
+        API->>CL: generateChangelog(pkg, newVersion, commits)
+        CL-->>API: {markdown, filePath}
+        API->>WS: fs.writeFile(filePath, markdown)
+    end
+    
+    API->>Git: commits.stage([package.jsons, changelogs])
+    
+    API->>Git: commits.write(commitMessage)
+    
+    alt new release
+        API->>Git: commits.push(release)
+    else
+        API->>Git: commits.forcePush(release)
+    end
+    
+    API->>GitHub: generateReleasePRBody(releases)
+    GitHub-->>API: prBody
+    
+    alt new release
+        API->>GitHub: createPullRequest({title, body, head, base, draft})
+        GitHub-->>API: newPR
+    else
+        API->>GitHub: updatePullRequest(pr.number, {body})
+    end
+    
+    API->>Git: branches.checkout(startingBranch)
+    API-->>User: Success
+```

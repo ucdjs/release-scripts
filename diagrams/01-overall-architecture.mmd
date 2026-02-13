@@ -1,0 +1,90 @@
+# Overall System Architecture
+
+```mermaid
+flowchart TB
+    subgraph Entry["Entry Point (src/index.ts)"]
+        API["createReleaseScripts(options)<br/>Returns: ReleaseScripts API"]
+    end
+
+    subgraph Config["Configuration Layer"]
+        OPT["normalizeReleaseScriptsOptions()<br/>DeepRequired validation<br/>Default values injection"]
+        CTX["ReleaseScriptsOptions Context<br/>Effect Context.Tag"]
+    end
+
+    subgraph Services["Service Layer (Effect-based)"]
+        GIT["GitService<br/>- Branch operations<br/>- Commits & tags<br/>- File reading"]
+        GH["GitHubService<br/>- PR operations<br/>- Commit status<br/>- API requests"]
+        WS["WorkspaceService<br/>- Package discovery<br/>- package.json I/O<br/>- Filter packages"]
+        NPM["NPMService<br/>- Registry queries<br/>- Version checks<br/>- Publishing"]
+        VC["VersionCalculatorService<br/>- Bump calculation<br/>- Override handling"]
+        DG["DependencyGraphService<br/>- Graph building<br/>- Topological sort"]
+        PU["PackageUpdaterService<br/>- Version updates<br/>- Dependency ranges"]
+        CL["ChangelogService<br/>- Generate changelogs<br/>- Template rendering"]
+        VP["VersionPromptService<br/>- Interactive prompts<br/>- User input handling"]
+    end
+
+    subgraph Core["Core Workflows"]
+        VER["verify()<br/>Release verification"]
+        PRE["prepare()<br/>Release preparation"]
+        PUB["publish()<br/>NPM publishing"]
+    end
+
+    subgraph Helpers["Helper Utilities"]
+        LD["loadOverrides()<br/>Load .github/overrides.json"]
+        MPC["mergePackageCommitsIntoPackages()<br/>Fetch commits per package"]
+        MGC["mergeCommitsAffectingGloballyIntoPackage()<br/>Global commit attribution"]
+        FCR["findCommitRange()<br/>Determine commit time bounds"]
+    end
+
+    subgraph External["External Dependencies"]
+        GIT_CMD["git CLI<br/>Commands via CommandExecutor"]
+        PNPM["pnpm CLI<br/>Workspace listing"]
+        GITHUB_API["GitHub REST API<br/>fetch() calls"]
+        NPM_REG["NPM Registry<br/>registry.npmjs.org"]
+        CP["commit-parser<br/>Conventional commits"]
+    end
+
+    API --> OPT
+    OPT --> CTX
+    
+    CTX -.provides config.-> Services
+    
+    VER -.uses.-> GIT
+    VER -.uses.-> GH
+    VER -.uses.-> WS
+    VER -.uses.-> VC
+    VER -.uses.-> DG
+    
+    PRE -.uses.-> GIT
+    PRE -.uses.-> GH
+    PRE -.uses.-> WS
+    PRE -.uses.-> VC
+    PRE -.uses.-> DG
+    PRE -.uses.-> PU
+    PRE -.uses.-> CL
+    PRE -.uses.-> VP
+    
+    PUB -.uses.-> GIT
+    PUB -.uses.-> NPM
+    PUB -.uses.-> WS
+    PUB -.uses.-> DG
+    
+    VER -.calls.-> LD
+    VER -.calls.-> MPC
+    VER -.calls.-> MGC
+    
+    PRE -.calls.-> LD
+    PRE -.calls.-> MPC
+    PRE -.calls.-> MGC
+    
+    GIT -.executes.-> GIT_CMD
+    WS -.executes.-> PNPM
+    GH -.calls.-> GITHUB_API
+    NPM -.queries.-> NPM_REG
+    GIT -.parses.-> CP
+    
+    style Services fill:#e1f0ff
+    style Core fill:#e1f5e1
+    style Helpers fill:#fff4e1
+    style External fill:#ffe1e1
+```

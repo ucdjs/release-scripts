@@ -1,0 +1,52 @@
+# Service Dependencies & Injection
+
+```mermaid
+flowchart LR
+    subgraph Layers["Effect Layer Composition"]
+        direction TB
+        
+        Base["Base Layers<br/>(Platform)"]
+        Base --> NC["NodeCommandExecutor.layer"]
+        Base --> NF["NodeFileSystem.layer"]
+        
+        NC --> ConfigLayer["Config Layer<br/>ReleaseScriptsOptions"]
+        NF --> ConfigLayer
+        
+        ConfigLayer --> ServiceLayer["Service Layer<br/>All Services"]
+        
+        ServiceLayer --> AppLayer["App Layer<br/>Composed Application"]
+    end
+
+    subgraph ServiceDeps["Service Dependencies"]
+        direction TB
+        
+        GitS["GitService<br/>depends on:<br/>- NodeCommandExecutor"]
+        
+        WsS["WorkspaceService<br/>depends on:<br/>- NodeCommandExecutor"]
+        
+        NpmS["NPMService<br/>depends on:<br/>- NodeCommandExecutor"]
+        
+        PuS["PackageUpdaterService<br/>depends on:<br/>- WorkspaceService"]
+        
+        VpS["VersionPromptService<br/>depends on:<br/>- ReleaseScriptsOptions"]
+    end
+
+    subgraph Injection["Dependency Injection Flow"]
+        direction TB
+        Make["Service Effect Constructor<br/>Effect.gen(function* () {...})"]
+        Provide["Layer.provide()"]
+        Run["Effect.runPromise()"]
+    end
+
+    NC -.provides.-> GitS
+    NC -.provides.-> WsS
+    NC -.provides.-> NpmS
+    
+    WsS -.provides.-> PuS
+    
+    Make --> Provide --> Run
+    
+    style Layers fill:#e1f0ff
+    style ServiceDeps fill:#fff4e1
+    style Injection fill:#e1f5e1
+```
