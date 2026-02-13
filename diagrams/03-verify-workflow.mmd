@@ -1,6 +1,3 @@
-# verify() Workflow - Detailed Data Flow
-
-```mermaid
 sequenceDiagram
     participant User
     participant API as ReleaseScripts API
@@ -77,4 +74,3 @@ sequenceDiagram
     else
         API-->>User: Throw Error("No release PR found")
     end
-```

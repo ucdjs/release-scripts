@@ -1,6 +1,3 @@
-# prepare() Workflow - Detailed Data Flow
-
-```mermaid
 sequenceDiagram
     participant User
     participant API as ReleaseScripts API
@@ -103,4 +100,3 @@ sequenceDiagram
     
     API->>Git: branches.checkout(startingBranch)
     API-->>User: Success
-```
