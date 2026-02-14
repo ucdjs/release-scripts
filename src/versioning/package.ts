@@ -3,8 +3,8 @@ import type {
   PackageRelease,
   PackageUpdateOrder,
 } from "#shared/types";
-import { logger } from "#shared/utils";
 import { createVersionUpdate } from "#operations/version";
+import { logger } from "#shared/utils";
 
 interface PackageDependencyGraph {
   packages: Map<string, WorkspacePackage>;

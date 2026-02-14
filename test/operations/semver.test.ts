@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { calculateBumpType, getNextVersion, isValidSemver } from "#operations/semver";
+import { describe, expect, it } from "vitest";
 
 describe("semver operations", () => {
   it("validates semver strings", () => {

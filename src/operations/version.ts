@@ -1,6 +1,6 @@
+import type { WorkspacePackage } from "#core/workspace";
 import type { BumpKind, PackageRelease } from "#shared/types";
 import type { GitCommit } from "commit-parser";
-import type { WorkspacePackage } from "#core/workspace";
 import { getNextVersion } from "./semver";
 
 export function determineHighestBump(commits: GitCommit[]): BumpKind {

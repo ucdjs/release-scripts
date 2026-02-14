@@ -1,6 +1,5 @@
-import type { CommitTypeRule } from "#shared/types";
+import type { AuthorInfo, CommitTypeRule } from "#shared/types";
 import type { GitCommit } from "commit-parser";
-import type { AuthorInfo } from "#shared/types";
 import { groupByType } from "commit-parser";
 
 interface FormatCommitLineOptions {

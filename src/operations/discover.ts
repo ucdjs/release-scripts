@@ -1,4 +1,4 @@
-import type { WorkspaceOperations, WorkspaceError } from "#core/types";
+import type { WorkspaceError, WorkspaceOperations } from "#core/types";
 import type { Result } from "#types/result";
 
 interface DiscoverOptions {

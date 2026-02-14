@@ -1,4 +1,3 @@
-import type { VersionOverrides } from "#versioning/version";
 import type { NormalizedReleaseScriptsOptions } from "./options";
 import { verifyWorkflow } from "#workflows/verify";
 

@@ -1,16 +1,16 @@
-import type { NormalizedReleaseScriptsOptions } from "../options";
 import type { ReleaseResult } from "#types/release";
+import type { NormalizedReleaseScriptsOptions } from "../options";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { updateChangelog } from "#core/changelog";
-import { createGitHubClient, createGitHubOperations } from "#core/github";
 import { createGitOperations } from "#core/git";
+import { createGitHubClient, createGitHubOperations } from "#core/github";
 import { createWorkspaceOperations } from "#core/workspace";
 import { prepareReleaseBranch, syncReleaseChanges } from "#operations/branch";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { syncPullRequest } from "#operations/pr";
-import { createVersioningOperations } from "#versioning/operations";
 import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
+import { createVersioningOperations } from "#versioning/operations";
 import farver from "farver";
 import { compare } from "semver";
 

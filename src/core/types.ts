@@ -1,7 +1,7 @@
+import type { GitHubPullRequest } from "#core/github";
 import type { WorkspacePackage } from "#core/workspace";
 import type { PackageRelease } from "#shared/types";
 import type { GitCommit } from "commit-parser";
-import type { GitHubPullRequest } from "#core/github";
 import type { Result } from "../types/result";
 
 export interface GitError {

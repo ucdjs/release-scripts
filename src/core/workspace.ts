@@ -1,14 +1,14 @@
+import type { WorkspaceError, WorkspaceOperations } from "#core/types";
 import type {
   FindWorkspacePackagesOptions,
   PackageJson,
 } from "#shared/types";
 import type { NormalizedReleaseScriptsOptions } from "../options";
-import type { WorkspaceError, WorkspaceOperations } from "#core/types";
-import { err, ok } from "#types/result";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { selectPackagePrompt } from "#core/prompts";
 import { exitWithError, isCI, logger, run } from "#shared/utils";
+import { err, ok } from "#types/result";
 import farver from "farver";
 
 interface RawProject {

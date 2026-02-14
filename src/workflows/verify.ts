@@ -5,8 +5,8 @@ import { createGitHubOperations } from "#core/github";
 import { createWorkspaceOperations } from "#core/workspace";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { discoverPackages } from "#operations/discover";
-import { createVersioningOperations } from "#versioning/operations";
 import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
+import { createVersioningOperations } from "#versioning/operations";
 import { gt } from "semver";
 
 export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {

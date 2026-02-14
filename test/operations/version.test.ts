@@ -1,6 +1,6 @@
+import { determineHighestBump } from "#operations/version";
 import { describe, expect, it } from "vitest";
 import { createCommit } from "../_shared";
-import { determineHighestBump } from "#operations/version";
 
 describe("version operations", () => {
   it("returns none for empty commits", () => {

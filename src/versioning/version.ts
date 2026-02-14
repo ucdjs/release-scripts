@@ -4,12 +4,11 @@ import type { GitCommit } from "commit-parser";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { selectVersionPrompt } from "#core/prompts";
+import { calculateBumpType, getNextVersion } from "#operations/semver";
+import { determineHighestBump } from "#operations/version";
 import { isCI, logger } from "#shared/utils";
-import { determineHighestBump, createVersionUpdate } from "#operations/version";
 import { buildPackageDependencyGraph, createDependentUpdates } from "#versioning/package";
 import farver from "farver";
-import { calculateBumpType, getNextVersion, isValidSemver } from "#operations/semver";
-
 
 const messageColorMap: Record<string, (c: string) => string> = {
   feat: farver.green,

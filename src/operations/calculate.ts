@@ -1,7 +1,7 @@
 import type { GitError, VersioningOperations } from "#core/types";
-import type { Result } from "#types/result";
-import type { PackageRelease } from "#shared/types";
 import type { WorkspacePackage } from "#core/workspace";
+import type { PackageRelease } from "#shared/types";
+import type { Result } from "#types/result";
 import { err } from "#types/result";
 
 interface CalculateUpdatesOptions {

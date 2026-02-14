@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
 import type {
   GitError,
   GitHubError,
   WorkspaceError,
 } from "../../src/core/types";
+import { describe, expect, it } from "vitest";
 
 describe("core types", () => {
   it("matches git error shape", () => {

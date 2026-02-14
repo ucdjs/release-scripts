@@ -1,5 +1,5 @@
-import type { NormalizedReleaseScriptsOptions } from "./options";
 import type { ReleaseResult } from "#types/release";
+import type { NormalizedReleaseScriptsOptions } from "./options";
 import { prepareWorkflow } from "#workflows/prepare";
 
 export async function release(

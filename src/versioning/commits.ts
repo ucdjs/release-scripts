@@ -1,6 +1,6 @@
 import type { WorkspacePackage } from "#core/workspace";
-import type { GitCommit } from "commit-parser";
 import type { BumpKind } from "#shared/types";
+import type { GitCommit } from "commit-parser";
 import { getGroupedFilesByCommitSha, getMostRecentPackageTag } from "#core/git";
 import { logger } from "#shared/utils";
 import { getCommits } from "commit-parser";

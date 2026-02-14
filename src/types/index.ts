@@ -1,14 +1,14 @@
+export type { ReleaseResult } from "./release";
+
 export type {
-  Result,
-  Ok,
   Err,
+  Ok,
+  Result,
 } from "./result";
 
 export {
-  ok,
   err,
-  isOk,
   isErr,
+  isOk,
+  ok,
 } from "./result";
-
-export type { ReleaseResult } from "./release";

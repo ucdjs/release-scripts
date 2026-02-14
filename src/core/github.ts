@@ -1,6 +1,6 @@
+import type { GitHubError, GitHubOperations } from "#core/types";
 import type { AuthorInfo, PackageRelease } from "#shared/types";
 import { logger } from "#shared/utils";
-import type { GitHubError, GitHubOperations } from "#core/types";
 import { err, ok } from "#types/result";
 import { Eta } from "eta";
 import farver from "farver";

@@ -5,11 +5,11 @@ import type { GitHubClient } from "./github";
 import type { WorkspacePackage } from "./workspace";
 import { writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { buildTemplateGroups } from "#operations/changelog-format";
 import { logger } from "#shared/utils";
 import { Eta } from "eta";
 import { DEFAULT_CHANGELOG_TEMPLATE } from "../options";
 import { readFileFromGit } from "./git";
-import { buildTemplateGroups } from "#operations/changelog-format";
 
 const excludeAuthors = [
   /\[bot\]/i,

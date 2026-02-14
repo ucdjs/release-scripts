@@ -1,12 +1,12 @@
+import type { GitError, GitOperations } from "#core/types";
 import {
   exitWithError,
   logger,
   run,
   runIfNotDry,
 } from "#shared/utils";
-import farver from "farver";
-import type { GitError, GitOperations } from "#core/types";
 import { err, ok } from "#types/result";
+import farver from "farver";
 
 /**
  * Check if the working directory is clean (no uncommitted changes)

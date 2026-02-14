@@ -1,6 +1,6 @@
-import type { GitHubOperations, GitHubError } from "#core/types";
-import type { Result } from "#types/result";
+import type { GitHubError, GitHubOperations } from "#core/types";
 import type { PackageRelease } from "#shared/types";
+import type { Result } from "#types/result";
 import { generatePullRequestBody } from "#core/github";
 import { ok } from "#types/result";
 

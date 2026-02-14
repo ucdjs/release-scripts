@@ -1,6 +1,6 @@
+import type { ReleaseResult } from "#types/release";
 import type { WorkspacePackage } from "./core/workspace";
 import type { ReleaseScriptsOptionsInput } from "./options";
-import type { ReleaseResult } from "#types/release";
 import { discoverWorkspacePackages } from "./core/workspace";
 import { normalizeReleaseScriptsOptions } from "./options";
 import { release } from "./prepare";

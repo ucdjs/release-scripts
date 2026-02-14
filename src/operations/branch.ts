@@ -1,7 +1,7 @@
 import type { GitError, GitOperations } from "#core/types";
 import type { Result } from "#types/result";
-import { err, ok } from "#types/result";
 import { logger } from "#shared/utils";
+import { err, ok } from "#types/result";
 
 interface PrepareReleaseBranchOptions {
   git: GitOperations;
