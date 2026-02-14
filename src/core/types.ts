@@ -71,10 +71,10 @@ export interface VersioningOperations {
     workspaceRoot: string;
     showPrompt: boolean;
     globalCommitsPerPackage: Map<string, GitCommit[]>;
-    overrides: Record<string, { version: string }>;
+    overrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>;
   }) => Promise<Result<{
     allUpdates: PackageRelease[];
     applyUpdates: () => Promise<void>;
-    overrides: Record<string, { version: string }>;
+    overrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>;
   }, GitError>>;
 }

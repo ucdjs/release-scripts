@@ -1,41 +1,25 @@
-import type { GitHubClient } from "#core/github";
-import type {
-  PackageRelease,
-} from "#shared/types";
+import type { PackageRelease } from "#shared/types";
 import type { VersionOverrides } from "#versioning/version";
 import type { NormalizedReleaseScriptsOptions } from "./options";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { updateChangelog } from "#core/changelog";
-import {
-  checkoutBranch,
-  commitChanges,
-  createBranch,
-  doesBranchExist,
-  getCurrentBranch,
-  isBranchAheadOfRemote,
-  isWorkingDirectoryClean,
-  pullLatestChanges,
-  pushBranch,
-  rebaseBranch,
-} from "#core/git";
-import {
-  createGitHubClient,
-  generatePullRequestBody,
-} from "#core/github";
-import { discoverWorkspacePackages } from "#core/workspace";
+import { createGitHubClient } from "#core/github";
 import {
   exitWithError,
   logger,
   ucdjsReleaseOverridesPath,
 } from "#shared/utils";
-import {
-  getGlobalCommitsPerPackage,
-  getWorkspacePackageGroupedCommits,
-} from "#versioning/commits";
+import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 import farver from "farver";
 import { compare } from "semver";
+import { createGitOperations } from "#core/git";
+import { createGitHubOperations } from "#core/github";
+import { createWorkspaceOperations } from "#core/workspace";
+import { prepareReleaseBranch, syncReleaseChanges } from "#operations/branch";
+import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
+import { syncPullRequest } from "#operations/pr";
 
 export interface ReleaseResult {
   /**
@@ -57,19 +41,33 @@ export interface ReleaseResult {
 export async function release(
   options: NormalizedReleaseScriptsOptions,
 ): Promise<ReleaseResult | null> {
-  if (options.safeguards && !(await isWorkingDirectoryClean(options.workspaceRoot))) {
-    exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
+  const gitOps = createGitOperations();
+  const githubOps = createGitHubOperations({
+    owner: options.owner,
+    repo: options.repo,
+    githubToken: options.githubToken,
+  });
+  const workspaceOps = createWorkspaceOperations();
+
+  if (options.safeguards) {
+    const clean = await gitOps.isWorkingDirectoryClean(options.workspaceRoot);
+    if (!clean.ok || !clean.value) {
+      exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
+    }
   }
 
-  const workspacePackages = await discoverWorkspacePackages(
-    options.workspaceRoot,
-    options,
-  );
+  const discovered = await workspaceOps.discoverWorkspacePackages(options.workspaceRoot, options);
+  if (!discovered.ok) {
+    exitWithError(`Failed to discover packages: ${discovered.error.message}`);
+  }
 
-  if (workspacePackages.length === 0) {
-    logger.warn("No packages found to release");
+  const ensured = ensureHasPackages(discovered.value);
+  if (!ensured.ok) {
+    logger.warn(ensured.error.message);
     return null;
   }
+
+  const workspacePackages = ensured.value;
 
   logger.section("📦 Workspace Packages");
   logger.item(`Found ${workspacePackages.length} packages`);
@@ -85,33 +83,16 @@ export async function release(
   // Each package's commits are determined based on its own release history.
   // So, for example, if package A was last released at v1.2.0 and package B at v2.0.0,
   // we will get all commits since v1.2.0 for package A, and all commits since v2.0.0 for package B.
-  const groupedPackageCommits = await getWorkspacePackageGroupedCommits(options.workspaceRoot, workspacePackages);
-
-  // Get global commits per-package based on each package's own timeline
-  const globalCommitsPerPackage = await getGlobalCommitsPerPackage(
-    options.workspaceRoot,
-    groupedPackageCommits,
-    workspacePackages,
-    options.globalCommitMode === "none" ? false : options.globalCommitMode,
-  );
-
-  const githubClient = createGitHubClient({
-    owner: options.owner,
-    repo: options.repo,
-    githubToken: options.githubToken,
-  });
-
-  const prOps = await orchestrateReleasePullRequest({
+  const prepareBranchResult = await prepareReleaseBranch({
+    git: gitOps,
     workspaceRoot: options.workspaceRoot,
-    githubClient,
     releaseBranch: options.branch.release,
     defaultBranch: options.branch.default,
-    pullRequestTitle: options.pullRequest?.title,
-    pullRequestBody: options.pullRequest?.body,
   });
 
-  // Prepare the release branch (checkout, rebase, etc.)
-  await prOps.prepareBranch();
+  if (!prepareBranchResult.ok) {
+    exitWithError(prepareBranchResult.error.message);
+  }
 
   const overridesPath = join(options.workspaceRoot, ucdjsReleaseOverridesPath);
   let existingOverrides: VersionOverrides = {};
@@ -123,15 +104,49 @@ export async function release(
     logger.info("No existing version overrides file found. Continuing...");
   }
 
-  // Calculate version updates and prepare apply function
-  const { allUpdates, applyUpdates, overrides: newOverrides } = await calculateAndPrepareVersionUpdates({
+  const versioningOps = {
+    getWorkspacePackageGroupedCommits: async (workspaceRoot: string, packages: typeof workspacePackages) => {
+      try {
+        return { ok: true, value: await getWorkspacePackageGroupedCommits(workspaceRoot, packages) } as const;
+      } catch (error) {
+        return { ok: false, error: { type: "git", operation: "getWorkspacePackageGroupedCommits", message: String(error) } } as const;
+      }
+    },
+    getGlobalCommitsPerPackage: async (
+      workspaceRoot: string,
+      packageCommits: Map<string, import("commit-parser").GitCommit[]>,
+      packages: typeof workspacePackages,
+      mode: false | "dependencies" | "all",
+    ) => {
+      try {
+        return { ok: true, value: await getGlobalCommitsPerPackage(workspaceRoot, packageCommits, packages, mode) } as const;
+      } catch (error) {
+        return { ok: false, error: { type: "git", operation: "getGlobalCommitsPerPackage", message: String(error) } } as const;
+      }
+    },
+    calculateAndPrepareVersionUpdates: async (payload: Parameters<typeof calculateAndPrepareVersionUpdates>[0]) => {
+      try {
+        return { ok: true, value: await calculateAndPrepareVersionUpdates(payload) } as const;
+      } catch (error) {
+        return { ok: false, error: { type: "git", operation: "calculateAndPrepareVersionUpdates", message: String(error) } } as const;
+      }
+    },
+  };
+
+  const updatesResult = await calculateUpdates({
+    versioning: versioningOps,
     workspacePackages,
-    packageCommits: groupedPackageCommits,
     workspaceRoot: options.workspaceRoot,
     showPrompt: options.prompts?.versions !== false,
-    globalCommitsPerPackage,
+    globalCommitMode: options.globalCommitMode === "none" ? false : options.globalCommitMode,
     overrides: existingOverrides,
   });
+
+  if (!updatesResult.ok) {
+    exitWithError(updatesResult.error.message);
+  }
+
+  const { allUpdates, applyUpdates, overrides: newOverrides } = updatesResult.value;
 
   // If there are any overrides, write them to the overrides file.
   if (Object.keys(newOverrides).length > 0) {
@@ -188,6 +203,14 @@ export async function release(
   if (options.changelog?.enabled) {
     logger.step("Updating changelogs");
 
+    const groupedPackageCommits = await getWorkspacePackageGroupedCommits(options.workspaceRoot, workspacePackages);
+    const globalCommitsPerPackage = await getGlobalCommitsPerPackage(
+      options.workspaceRoot,
+      groupedPackageCommits,
+      workspacePackages,
+      options.globalCommitMode === "none" ? false : options.globalCommitMode,
+    );
+
     const changelogPromises = allUpdates.map((update) => {
       const pkgCommits = groupedPackageCommits.get(update.package.name) || [];
 
@@ -206,7 +229,11 @@ export async function release(
           ...options,
           workspaceRoot: options.workspaceRoot,
         },
-        githubClient,
+        githubClient: createGitHubClient({
+          owner: options.owner,
+          repo: options.repo,
+          githubToken: options.githubToken,
+        }),
         workspacePackage: update.package,
         version: update.newVersion,
         previousVersion: update.currentVersion !== "0.0.0" ? update.currentVersion : undefined,
@@ -221,158 +248,67 @@ export async function release(
   }
 
   // Commit and push changes
-  const hasChangesToPush = await prOps.syncChanges(true);
+  const hasChangesToPush = await syncReleaseChanges({
+    git: gitOps,
+    workspaceRoot: options.workspaceRoot,
+    releaseBranch: options.branch.release,
+    commitMessage: "chore: update release versions",
+    hasChanges: true,
+  });
 
-  if (!hasChangesToPush) {
-    if (prOps.doesReleasePRExist && prOps.existingPullRequest) {
+  if (!hasChangesToPush.ok) {
+    exitWithError(hasChangesToPush.error.message);
+  }
+
+  if (!hasChangesToPush.value) {
+    const prResult = await syncPullRequest({
+      github: githubOps,
+      releaseBranch: options.branch.release,
+      defaultBranch: options.branch.default,
+      pullRequestTitle: options.pullRequest?.title,
+      pullRequestBody: options.pullRequest?.body,
+      updates: allUpdates,
+    });
+
+    if (!prResult.ok) {
+      exitWithError(prResult.error.message);
+    }
+
+    if (prResult.value.pullRequest) {
       logger.item("No updates needed, PR is already up to date");
-
-      const { pullRequest, created } = await prOps.syncPullRequest(allUpdates);
-
-      await prOps.cleanup();
 
       return {
         updates: allUpdates,
-        prUrl: pullRequest?.html_url,
-        created,
+        prUrl: prResult.value.pullRequest.html_url,
+        created: prResult.value.created,
       };
-    } else {
-      logger.error("No changes to commit, and no existing PR. Nothing to do.");
-      return null;
     }
+
+    logger.error("No changes to commit, and no existing PR. Nothing to do.");
+    return null;
   }
 
-  // Create or update PR
-  const { pullRequest, created } = await prOps.syncPullRequest(allUpdates);
+  const prResult = await syncPullRequest({
+    github: githubOps,
+    releaseBranch: options.branch.release,
+    defaultBranch: options.branch.default,
+    pullRequestTitle: options.pullRequest?.title,
+    pullRequestBody: options.pullRequest?.body,
+    updates: allUpdates,
+  });
 
-  await prOps.cleanup();
+  if (!prResult.ok) {
+    exitWithError(prResult.error.message);
+  }
 
-  if (pullRequest?.html_url) {
+  if (prResult.value.pullRequest?.html_url) {
     logger.section("🚀 Pull Request");
-    logger.success(`Pull request ${created ? "created" : "updated"}: ${pullRequest.html_url}`);
+    logger.success(`Pull request ${prResult.value.created ? "created" : "updated"}: ${prResult.value.pullRequest.html_url}`);
   }
 
   return {
     updates: allUpdates,
-    prUrl: pullRequest?.html_url,
-    created,
-  };
-}
-
-async function orchestrateReleasePullRequest({
-  workspaceRoot,
-  githubClient,
-  releaseBranch,
-  defaultBranch,
-  pullRequestTitle,
-  pullRequestBody,
-}: {
-  workspaceRoot: string;
-  githubClient: GitHubClient;
-  releaseBranch: string;
-  defaultBranch: string;
-  pullRequestTitle?: string;
-  pullRequestBody?: string;
-}) {
-  const currentBranch = await getCurrentBranch(workspaceRoot);
-
-  if (currentBranch !== defaultBranch) {
-    exitWithError(
-      `Current branch is '${currentBranch}'. Please switch to the default branch '${defaultBranch}' before proceeding.`,
-      `git checkout ${defaultBranch}`,
-    );
-  }
-
-  const existingPullRequest = await githubClient.getExistingPullRequest(releaseBranch);
-
-  const doesReleasePRExist = !!existingPullRequest;
-
-  if (doesReleasePRExist) {
-    logger.item("Found existing release pull request");
-  } else {
-    logger.item("Will create new pull request");
-  }
-
-  const branchExists = await doesBranchExist(releaseBranch, workspaceRoot);
-
-  return {
-    existingPullRequest,
-    doesReleasePRExist,
-    async prepareBranch() {
-      if (!branchExists) {
-        await createBranch(releaseBranch, defaultBranch, workspaceRoot);
-      }
-
-      // The following operations should be done in the correct order!
-      // First we will checkout the release branch, then pull the latest changes if it exists remotely,
-      // then rebase onto the default branch to get the latest changes from main, and only after that
-      // we will apply our updates.
-      logger.step(`Checking out release branch: ${releaseBranch}`);
-      const hasCheckedOut = await checkoutBranch(releaseBranch, workspaceRoot);
-      if (!hasCheckedOut) {
-        throw new Error(`Failed to checkout branch: ${releaseBranch}`);
-      }
-
-      // If the branch already exists, we will just pull the latest changes.
-      // Since the branch could have been updated remotely since we last checked it out.
-      if (branchExists) {
-        logger.step("Pulling latest changes from remote");
-        const hasPulled = await pullLatestChanges(releaseBranch, workspaceRoot);
-        if (!hasPulled) {
-          logger.warn("Failed to pull latest changes, continuing anyway");
-        }
-      }
-
-      // After we have pulled the latest changes, we will rebase our changes onto the default branch
-      // to ensure we have the latest updates.
-      logger.step(`Rebasing onto ${defaultBranch}`);
-      const rebased = await rebaseBranch(defaultBranch, workspaceRoot);
-      if (!rebased) {
-        throw new Error(`Failed to rebase onto ${defaultBranch}. Please resolve conflicts manually.`);
-      }
-    },
-    async syncChanges(hasChanges: boolean) {
-      // If there are any changes, we will commit them.
-      const hasCommitted = hasChanges ? await commitChanges("chore: update release versions", workspaceRoot) : false;
-
-      // Check if branch is ahead of remote (has commits to push)
-      const isBranchAhead = await isBranchAheadOfRemote(releaseBranch, workspaceRoot);
-
-      if (!hasCommitted && !isBranchAhead) {
-        logger.item("No changes to commit and branch is in sync with remote");
-        return false;
-      }
-
-      // Push with --force-with-lease for safety
-      logger.step("Pushing changes to remote");
-      const pushed = await pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
-      if (!pushed) {
-        throw new Error(`Failed to push changes to ${releaseBranch}. Remote may have been updated.`);
-      }
-
-      return true;
-    },
-    async syncPullRequest(updates: PackageRelease[]) {
-      const prTitle = existingPullRequest?.title || pullRequestTitle || "chore: update package versions";
-      const prBody = generatePullRequestBody(updates, pullRequestBody);
-
-      const pullRequest = await githubClient.upsertPullRequest({
-        pullNumber: existingPullRequest?.number,
-        title: prTitle,
-        body: prBody,
-        head: releaseBranch,
-        base: defaultBranch,
-      });
-
-      logger.success(`${doesReleasePRExist ? "Updated" : "Created"} pull request: ${pullRequest?.html_url}`);
-
-      return {
-        pullRequest,
-        created: !doesReleasePRExist,
-      };
-    },
-    async cleanup() {
-      await checkoutBranch(defaultBranch, workspaceRoot);
-    },
+    prUrl: prResult.value.pullRequest?.html_url,
+    created: prResult.value.created,
   };
 }
