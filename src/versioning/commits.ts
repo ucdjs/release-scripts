@@ -1,5 +1,4 @@
 import type { WorkspacePackage } from "#core/workspace";
-import type { BumpKind } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import { getGroupedFilesByCommitSha, getMostRecentPackageTag } from "#core/git";
 import { logger } from "#shared/utils";
@@ -231,41 +230,4 @@ export async function getGlobalCommitsPerPackage(
   }
 
   return result;
-}
-
-function determineBumpType(commit: GitCommit): BumpKind {
-  // Breaking change always results in major bump
-  if (commit.isBreaking) {
-    return "major";
-  }
-
-  // Non-conventional commits don't trigger bumps
-  if (!commit.isConventional || !commit.type) {
-    return "none";
-  }
-
-  // Map conventional commit types to bump types
-  switch (commit.type) {
-    case "feat":
-      return "minor";
-
-    case "fix":
-    case "perf":
-      return "patch";
-
-    // These don't trigger version bumps
-    case "docs":
-    case "style":
-    case "refactor":
-    case "test":
-    case "build":
-    case "ci":
-    case "chore":
-    case "revert":
-      return "none";
-
-    default:
-      // Unknown types don't trigger bumps
-      return "none";
-  }
 }

@@ -14,6 +14,7 @@ export function getNextVersion(currentVersion: string, bump: BumpKind): string {
     throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
   }
 
+  // eslint-disable-next-line regexp/no-super-linear-backtracking
   const match = currentVersion.match(/^(\d+)\.(\d+)\.(\d+)(.*)$/);
   if (!match) {
     throw new Error(`Invalid semver version: ${currentVersion}`);
