@@ -5,10 +5,9 @@ import { createGitHubOperations } from "#core/github";
 import { createWorkspaceOperations } from "#core/workspace";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { discoverPackages } from "#operations/discover";
+import { createVersioningOperations } from "#versioning/operations";
 import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { gt } from "semver";
-import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
-import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 
 export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {
   const gitOps = createGitOperations();
@@ -82,34 +81,7 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   const mainPackages = ensured.value;
 
   const updatesResult = await calculateUpdates({
-    versioning: {
-      getWorkspacePackageGroupedCommits: async (workspaceRoot: string, packages: typeof mainPackages) => {
-        try {
-          return { ok: true, value: await getWorkspacePackageGroupedCommits(workspaceRoot, packages) } as const;
-        } catch (error) {
-          return { ok: false, error: { type: "git", operation: "getWorkspacePackageGroupedCommits", message: String(error) } } as const;
-        }
-      },
-      getGlobalCommitsPerPackage: async (
-        workspaceRoot: string,
-        packageCommits: Map<string, import("commit-parser").GitCommit[]>,
-        packages: typeof mainPackages,
-        mode: false | "dependencies" | "all",
-      ) => {
-        try {
-          return { ok: true, value: await getGlobalCommitsPerPackage(workspaceRoot, packageCommits, packages, mode) } as const;
-        } catch (error) {
-          return { ok: false, error: { type: "git", operation: "getGlobalCommitsPerPackage", message: String(error) } } as const;
-        }
-      },
-      calculateAndPrepareVersionUpdates: async (payload: Parameters<typeof calculateAndPrepareVersionUpdates>[0]) => {
-        try {
-          return { ok: true, value: await calculateAndPrepareVersionUpdates(payload) } as const;
-        } catch (error) {
-          return { ok: false, error: { type: "git", operation: "calculateAndPrepareVersionUpdates", message: String(error) } } as const;
-        }
-      },
-    },
+    versioning: createVersioningOperations(),
     workspacePackages: mainPackages,
     workspaceRoot: options.workspaceRoot,
     showPrompt: false,
