@@ -1,5 +1,4 @@
 import process from "node:process";
-import { Context } from "effect";
 
 type DeepRequired<T> = Required<{
   [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>
@@ -41,6 +40,7 @@ export interface ReleaseScriptsOptionsInput {
   };
   prompts?: {
     versions?: boolean;
+    packages?: boolean;
   };
 }
 
@@ -53,12 +53,13 @@ export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOp
   };
   prompts: {
     versions: boolean;
+    packages: boolean;
   };
 };
 
 const DEFAULT_PR_BODY_TEMPLATE = `## Summary\n\nThis PR contains the following changes:\n\n- Updated package versions\n- Updated changelogs\n\n## Packages\n\nThe following packages will be released:\n\n{{packages}}`;
 const DEFAULT_CHANGELOG_TEMPLATE = `# Changelog\n\n{{releases}}`;
-const DEFAULT_TYPES = {
+export const DEFAULT_TYPES = {
   feat: { title: "🚀 Features", color: "green" },
   fix: { title: "🐞 Bug Fixes", color: "red" },
   refactor: { title: "🔧 Code Refactoring", color: "blue" },
@@ -135,11 +136,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     },
     prompts: {
       versions: prompts.versions ?? !isCI,
+      packages: prompts.packages ?? !isCI,
     },
   };
 }
-
-export class ReleaseScriptsOptions extends Context.Tag("@ucdjs/release-scripts/ReleaseScriptsOptions")<
-  ReleaseScriptsOptions,
-  NormalizedReleaseScriptsOptions
->() { }

@@ -1,177 +1,132 @@
-import type { WorkspacePackage } from "#services/workspace";
+import type { VersionOverrides } from "#versioning/version";
 import type { NormalizedReleaseScriptsOptions } from "./options";
-import { DependencyGraphService } from "#services/dependency-graph";
-import { GitService } from "#services/git";
-import { GitHubService } from "#services/github";
-import { VersionCalculatorService } from "#services/version-calculator";
-import { WorkspaceService } from "#services/workspace";
-import { Console, Effect } from "effect";
-import semver from "semver";
+import { join, relative } from "node:path";
+import { checkoutBranch, getCurrentBranch, isWorkingDirectoryClean, readFileFromGit } from "#core/git";
+import { createGitHubClient } from "#core/github";
 import {
-  loadOverrides,
-  mergeCommitsAffectingGloballyIntoPackage,
-  mergePackageCommitsIntoPackages,
-} from "./utils/helpers";
+  discoverWorkspacePackages,
+} from "#core/workspace";
+import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
+import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
+import {
+  calculateAndPrepareVersionUpdates,
 
-interface DriftReason {
-  readonly packageName: string;
-  readonly reason: string;
-}
+} from "#versioning/version";
+import { gt } from "semver";
 
-function satisfiesRange(range: string, version: string): boolean {
-  // For simple ranges, use semver.satisfies. For complex ranges, semver still works;
-  // we accept ranges that already include the new version.
-  return semver.satisfies(version, range, { includePrerelease: true });
-}
+export async function verify(options: NormalizedReleaseScriptsOptions): Promise<void> {
+  if (options.safeguards && !(await isWorkingDirectoryClean(options.workspaceRoot))) {
+    exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
+  }
 
-function snapshotPackageJson(pkg: WorkspacePackage, ref: string) {
-  return Effect.gen(function* () {
-    const git = yield* GitService;
-
-    return yield* git.workspace.readFile(`${pkg.path}/package.json`, ref).pipe(
-      Effect.flatMap((content) => Effect.try({
-        try: () => JSON.parse(content) as Record<string, unknown>,
-        catch: (e) => new Error(`Failed to parse package.json for ${pkg.name} at ${ref}: ${String(e)}`),
-      })),
-    );
+  const githubClient = createGitHubClient({
+    owner: options.owner,
+    repo: options.repo,
+    githubToken: options.githubToken,
   });
-}
 
-function findDrift(
-  packages: readonly WorkspacePackage[],
-  releases: readonly {
-    package: WorkspacePackage;
-    newVersion: string;
-  }[],
-  branchSnapshots: Map<string, Record<string, unknown> | Error>,
-): DriftReason[] {
-  const releaseVersionByName = new Map<string, string>();
-  for (const rel of releases) {
-    releaseVersionByName.set(rel.package.name, rel.newVersion);
+  const releaseBranch = options.branch.release;
+  const defaultBranch = options.branch.default;
+
+  const releasePr = await githubClient.getExistingPullRequest(releaseBranch);
+
+  if (!releasePr || !releasePr.head) {
+    logger.warn(`No open release pull request found for branch "${releaseBranch}". Nothing to verify.`);
+    return;
   }
 
-  const reasons: DriftReason[] = [];
+  logger.info(`Found release PR #${releasePr.number}. Verifying against default branch "${defaultBranch}"...`);
 
-  for (const pkg of packages) {
-    const snapshot = branchSnapshots.get(pkg.name);
-    if (snapshot == null) {
-      reasons.push({ packageName: pkg.name, reason: "package.json missing on release branch" });
-      continue;
+  const originalBranch = await getCurrentBranch(options.workspaceRoot);
+  if (originalBranch !== defaultBranch) {
+    await checkoutBranch(defaultBranch, options.workspaceRoot);
+  }
+
+  // Read overrides file from the release branch
+  const overridesPath = ucdjsReleaseOverridesPath;
+  let existingOverrides: VersionOverrides = {};
+  try {
+    const overridesContent = await readFileFromGit(options.workspaceRoot, releasePr.head.sha, overridesPath);
+    if (overridesContent) {
+      existingOverrides = JSON.parse(overridesContent);
+      logger.info("Found existing version overrides file on release branch.");
     }
+  } catch {
+    logger.info("No version overrides file found on release branch. Continuing...");
+  }
 
-    if (snapshot instanceof Error) {
-      reasons.push({ packageName: pkg.name, reason: snapshot.message });
-      continue;
-    }
+  const mainPackages = await discoverWorkspacePackages(options.workspaceRoot, options);
+  const mainCommits = await getWorkspacePackageGroupedCommits(options.workspaceRoot, mainPackages);
 
-    const expectedVersion = releaseVersionByName.get(pkg.name) ?? pkg.version;
-    const branchVersion = typeof snapshot.version === "string" ? snapshot.version : undefined;
+  const globalCommitsPerPackage = await getGlobalCommitsPerPackage(
+    options.workspaceRoot,
+    mainCommits,
+    mainPackages,
+    options.globalCommitMode,
+  );
 
-    if (!branchVersion) {
-      reasons.push({ packageName: pkg.name, reason: "package.json on release branch lacks version" });
-      continue;
-    }
+  const { allUpdates: expectedUpdates } = await calculateAndPrepareVersionUpdates({
+    workspacePackages: mainPackages,
+    packageCommits: mainCommits,
+    workspaceRoot: options.workspaceRoot,
+    showPrompt: false,
+    globalCommitsPerPackage,
+    overrides: existingOverrides,
+  });
 
-    if (branchVersion !== expectedVersion) {
-      reasons.push({ packageName: pkg.name, reason: `version mismatch: expected ${expectedVersion}, found ${branchVersion}` });
-    }
+  const expectedVersionMap = new Map<string, string>(
+    expectedUpdates.map((u) => [u.package.name, u.newVersion]),
+  );
 
-    // Check workspace dependency ranges for updated packages
-    const dependencySections = ["dependencies", "devDependencies", "peerDependencies"] as const;
-    for (const section of dependencySections) {
-      const deps = snapshot[section];
-      if (!deps || typeof deps !== "object") continue;
-
-      for (const [depName, range] of Object.entries(deps as Record<string, unknown>)) {
-        const bumpedVersion = releaseVersionByName.get(depName);
-        if (!bumpedVersion) continue;
-
-        if (typeof range !== "string") {
-          reasons.push({ packageName: pkg.name, reason: `${section}.${depName} is not a string range` });
-          continue;
-        }
-
-        if (!satisfiesRange(range, bumpedVersion)) {
-          reasons.push({ packageName: pkg.name, reason: `${section}.${depName} does not include ${bumpedVersion}` });
-        }
-      }
+  // Read package.json versions from the release branch without checking it out
+  const prVersionMap = new Map<string, string>();
+  for (const pkg of mainPackages) {
+    const pkgJsonPath = relative(options.workspaceRoot, join(pkg.path, "package.json"));
+    const pkgJsonContent = await readFileFromGit(options.workspaceRoot, releasePr.head.sha, pkgJsonPath);
+    if (pkgJsonContent) {
+      const pkgJson = JSON.parse(pkgJsonContent);
+      prVersionMap.set(pkg.name, pkgJson.version);
     }
   }
 
-  return reasons;
-}
+  if (originalBranch !== defaultBranch) {
+    await checkoutBranch(originalBranch, options.workspaceRoot);
+  }
 
-export function constructVerifyProgram(
-  config: NormalizedReleaseScriptsOptions,
-) {
-  return Effect.gen(function* () {
-    const git = yield* GitService;
-    const github = yield* GitHubService;
-    const dependencyGraph = yield* DependencyGraphService;
-    const versionCalculator = yield* VersionCalculatorService;
-    const workspace = yield* WorkspaceService;
-
-    yield* git.workspace.assertWorkspaceReady;
-
-    const releasePullRequest = yield* github.getPullRequestByBranch(config.branch.release);
-    if (!releasePullRequest || !releasePullRequest.head) {
-      return yield* Effect.fail(new Error(`Release pull request for branch "${config.branch.release}" does not exist.`));
+  let isOutOfSync = false;
+  for (const [pkgName, expectedVersion] of expectedVersionMap.entries()) {
+    const prVersion = prVersionMap.get(pkgName);
+    if (!prVersion) {
+      logger.warn(`Package "${pkgName}" found in default branch but not in release branch. Skipping.`);
+      continue;
     }
 
-    yield* Console.log(`Release pull request #${releasePullRequest.number} exists.`);
-
-    const currentBranch = yield* git.branches.get;
-    if (currentBranch !== config.branch.default) {
-      yield* git.branches.checkout(config.branch.default);
-      yield* Console.log(`Checked out to default branch "${config.branch.default}".`);
-    }
-
-    const overrides = yield* loadOverrides({
-      sha: releasePullRequest.head.sha,
-      overridesPath: ".github/ucdjs-release.overrides.json",
-    });
-
-    yield* Console.log("Loaded overrides:", overrides);
-
-    const packages = (yield* workspace.discoverWorkspacePackages.pipe(
-      Effect.flatMap(mergePackageCommitsIntoPackages),
-      Effect.flatMap((pkgs) => mergeCommitsAffectingGloballyIntoPackage(pkgs, config.globalCommitMode)),
-    ));
-
-    yield* Console.log("Discovered packages with commits and global commits:", packages);
-
-    const releases = yield* versionCalculator.calculateBumps(packages, overrides);
-    const ordered = yield* dependencyGraph.topologicalOrder(packages);
-
-    yield* Console.log("Calculated releases:", releases);
-    yield* Console.log("Release order:", ordered);
-
-    const releaseHeadSha = releasePullRequest.head.sha;
-
-    const branchSnapshots = new Map<string, Record<string, unknown> | Error>();
-    for (const pkg of packages) {
-      const snapshot = yield* snapshotPackageJson(pkg, releaseHeadSha).pipe(
-        Effect.catchAll((err) => Effect.succeed(err instanceof Error ? err : new Error(String(err)))),
-      );
-      branchSnapshots.set(pkg.name, snapshot);
-    }
-
-    const drift = findDrift(packages, releases, branchSnapshots);
-
-    if (drift.length === 0) {
-      yield* Console.log("Release branch is in sync with expected releases.");
+    if (gt(expectedVersion, prVersion)) {
+      logger.error(`Package "${pkgName}" is out of sync. Expected version >= ${expectedVersion}, but PR has ${prVersion}.`);
+      isOutOfSync = true;
     } else {
-      yield* Console.log("Release branch is out of sync:", drift);
+      logger.success(`Package "${pkgName}" is up to date (PR version: ${prVersion}, Expected: ${expectedVersion})`);
     }
+  }
 
-    const status = drift.length === 0
-      ? { state: "success" as const, description: "Release artifacts in sync", context: "release/verify" }
-      : { state: "failure" as const, description: "Release branch out of sync", context: "release/verify" };
+  const statusContext = "ucdjs/release-verify";
 
-    yield* github.setCommitStatus(releaseHeadSha, status);
-
-    if (drift.length > 0) {
-      return yield* Effect.fail(new Error("Release branch is out of sync."));
-    }
-  });
+  if (isOutOfSync) {
+    await githubClient.setCommitStatus({
+      sha: releasePr.head.sha,
+      state: "failure",
+      context: statusContext,
+      description: "Release PR is out of sync with the default branch. Please re-run the release process.",
+    });
+    logger.error("Verification failed. Commit status set to 'failure'.");
+  } else {
+    await githubClient.setCommitStatus({
+      sha: releasePr.head.sha,
+      state: "success",
+      context: statusContext,
+      description: "Release PR is up to date.",
+      targetUrl: `https://github.com/${options.owner}/${options.repo}/pull/${releasePr.number}`,
+    });
+    logger.success("Verification successful. Commit status set to 'success'.");
+  }
 }

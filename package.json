@@ -10,7 +10,12 @@
     "url": "git+https://github.com/ucdjs/release-scripts.git"
   },
   "imports": {
-    "#services/*": "./src/services/*.service.ts"
+    "#core/*": "./src/core/*.ts",
+    "#versioning/*": "./src/versioning/*.ts",
+    "#shared/*": "./src/shared/*.ts",
+    "#release": "./src/release.ts",
+    "#publish": "./src/publish.ts",
+    "#verify": "./src/verify.ts"
   },
   "exports": {
     ".": "./dist/index.mjs",

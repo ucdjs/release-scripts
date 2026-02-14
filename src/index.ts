@@ -1,98 +1,47 @@
+import type { WorkspacePackage } from "./core/workspace";
 import type { ReleaseScriptsOptionsInput } from "./options";
-import type { WorkspacePackage } from "./services/workspace.service";
-import { ChangelogService } from "#services/changelog";
-import { DependencyGraphService } from "#services/dependency-graph";
-import { GitService } from "#services/git";
-import { GitHubService } from "#services/github";
-import { NPMService } from "#services/npm";
-import { PackageUpdaterService } from "#services/package-updater";
-import { VersionCalculatorService } from "#services/version-calculator";
-import { VersionPromptService } from "#services/version-prompt";
-import { WorkspaceService } from "#services/workspace";
-import { NodeCommandExecutor, NodeFileSystem } from "@effect/platform-node";
-import { Console, Effect, Layer } from "effect";
-import { normalizeReleaseScriptsOptions, ReleaseScriptsOptions } from "./options";
-import { constructPrepareProgram } from "./prepare";
-import { constructPublishProgram } from "./publish";
-import { constructVerifyProgram } from "./verify";
+import type { ReleaseResult } from "./prepare";
+import { discoverWorkspacePackages } from "./core/workspace";
+import { normalizeReleaseScriptsOptions } from "./options";
+import { release } from "./prepare";
+import { publish } from "./publish";
+import { verify } from "./verify";
 
 export interface ReleaseScripts {
   verify: () => Promise<void>;
-  prepare: () => Promise<void>;
+  prepare: () => Promise<ReleaseResult | null>;
   publish: () => Promise<void>;
   packages: {
-    list: () => Promise<readonly WorkspacePackage[]>;
-    get: (packageName: string) => Promise<WorkspacePackage | null>;
+    list: () => Promise<WorkspacePackage[]>;
+    get: (packageName: string) => Promise<WorkspacePackage | undefined>;
   };
 }
 
 export async function createReleaseScripts(options: ReleaseScriptsOptionsInput): Promise<ReleaseScripts> {
-  const config = normalizeReleaseScriptsOptions(options);
-
-  const ServicesLayer = Layer.mergeAll(
-    ChangelogService.Default,
-    GitService.Default,
-    GitHubService.Default,
-    DependencyGraphService.Default,
-    NPMService.Default,
-    PackageUpdaterService.Default,
-    VersionCalculatorService.Default,
-    VersionPromptService.Default,
-    WorkspaceService.Default,
-  );
-
-  const AppLayer = ServicesLayer.pipe(
-    Layer.provide(Layer.succeed(ReleaseScriptsOptions, config)),
-    Layer.provide(NodeCommandExecutor.layer),
-    Layer.provide(NodeFileSystem.layer),
-  );
-
-  const runProgram = <A, E, R>(program: Effect.Effect<A, E, R>): Promise<A> => {
-    const provided = program.pipe(Effect.provide(AppLayer));
-    return Effect.runPromise(provided as Effect.Effect<A, E, never>);
-  };
-
-  const safeguardProgram = Effect.gen(function* () {
-    const git = yield* GitService;
-    return yield* git.workspace.assertWorkspaceReady;
-  });
-
-  try {
-    await runProgram(safeguardProgram);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await Effect.runPromise(Console.error(`❌ Initialization failed: ${message}`));
-    throw err;
-  }
+  // Normalize options once for packages.list and packages.get
+  const normalizedOptions = normalizeReleaseScriptsOptions(options);
 
   return {
     async verify(): Promise<void> {
-      return runProgram(constructVerifyProgram(config));
+      return verify(normalizedOptions);
     },
-    async prepare(): Promise<void> {
-      return runProgram(constructPrepareProgram(config));
+
+    async prepare(): Promise<ReleaseResult | null> {
+      return release(normalizedOptions);
     },
+
     async publish(): Promise<void> {
-      return runProgram(constructPublishProgram(config));
+      return publish(normalizedOptions);
     },
+
     packages: {
-      async list(): Promise<readonly WorkspacePackage[]> {
-        const program = Effect.gen(function* () {
-          const workspace = yield* WorkspaceService;
-          return yield* workspace.discoverWorkspacePackages;
-        });
-
-        return runProgram(program);
+      async list(): Promise<WorkspacePackage[]> {
+        return discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
       },
-      async get(packageName: string): Promise<WorkspacePackage | null> {
-        const program = Effect.gen(function* () {
-          const workspace = yield* WorkspaceService;
 
-          const pkg = yield* workspace.findPackageByName(packageName);
-          return pkg || null;
-        });
-
-        return runProgram(program);
+      async get(packageName: string): Promise<WorkspacePackage | undefined> {
+        const packages = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
+        return packages.find((p) => p.name === packageName);
       },
     },
   };
