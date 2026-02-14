@@ -6,7 +6,6 @@ import type { WorkspacePackage } from "./workspace";
 import { writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { logger } from "#shared/utils";
-import { dedent } from "@luxass/utils";
 import { groupByType } from "commit-parser";
 import { Eta } from "eta";
 import { DEFAULT_CHANGELOG_TEMPLATE } from "../options";

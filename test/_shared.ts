@@ -1,7 +1,7 @@
 import type { GitHubClient } from "#core/github";
 import type { WorkspacePackage } from "#core/workspace";
-import type { NormalizedReleaseScriptsOptions } from "../src/options";
 import type { GitCommit } from "commit-parser";
+import type { NormalizedReleaseScriptsOptions } from "../src/options";
 import { DEFAULT_TYPES } from "../src/options";
 
 export function createCommit(overrides: Partial<GitCommit> = {}): GitCommit {

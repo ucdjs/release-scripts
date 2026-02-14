@@ -1,6 +1,5 @@
 import type { GitHubClient } from "#core/github";
 import type {
-  GlobalCommitMode,
   PackageRelease,
 } from "#shared/types";
 import type { VersionOverrides } from "#versioning/version";

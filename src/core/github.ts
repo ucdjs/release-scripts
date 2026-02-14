@@ -1,6 +1,5 @@
 import type { AuthorInfo, PackageRelease } from "#shared/types";
 import { logger } from "#shared/utils";
-import { dedent } from "@luxass/utils";
 import { Eta } from "eta";
 import farver from "farver";
 import { DEFAULT_PR_BODY_TEMPLATE } from "../options";

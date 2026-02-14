@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { generateChangelogEntry, parseChangelog, updateChangelog } from "#core/changelog";
-import { DEFAULT_TYPES } from "../../src/options";
 import { dedent } from "@luxass/utils";
 import * as tinyexec from "tinyexec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testdir } from "vitest-testdirs";
+import { DEFAULT_TYPES } from "../../src/options";
 import {
   createChangelogTestContext,
   createCommit,
