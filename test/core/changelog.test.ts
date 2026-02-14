@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { generateChangelogEntry, parseChangelog, updateChangelog } from "#core/changelog";
-import { DEFAULT_COMMIT_GROUPS } from "../../src/options";
+import { DEFAULT_TYPES } from "../../src/options";
 import { dedent } from "@luxass/utils";
 import * as tinyexec from "tinyexec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,7 +47,7 @@ describe("generateChangelogEntry", () => {
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
-      groups: DEFAULT_COMMIT_GROUPS,
+      types: DEFAULT_TYPES,
       githubClient: createGitHubClientStub(),
     });
 
@@ -55,7 +55,7 @@ describe("generateChangelogEntry", () => {
       "## [0.2.0](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.2.0) (2025-01-16)
 
 
-      ### Features
+      ### 🚀 Features
       * feat: add new feature ([Issue #123](https://github.com/ucdjs/test-repo/issues/123)) ([abc1234](https://github.com/ucdjs/test-repo/commit/abc1234567890)) (by Test Author)"
     `);
   });
@@ -76,7 +76,7 @@ describe("generateChangelogEntry", () => {
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
-      groups: DEFAULT_COMMIT_GROUPS,
+      types: DEFAULT_TYPES,
       githubClient: createGitHubClientStub(),
     });
 
@@ -84,7 +84,7 @@ describe("generateChangelogEntry", () => {
       "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
 
 
-      ### Bug Fixes
+      ### 🐞 Bug Fixes
       * fix: fix critical bug ([def5678](https://github.com/ucdjs/test-repo/commit/def5678901234)) (by Test Author)"
     `);
   });
@@ -118,7 +118,7 @@ describe("generateChangelogEntry", () => {
       previousVersion: "0.2.0",
       date: "2025-01-16",
       commits,
-      groups: DEFAULT_COMMIT_GROUPS,
+      types: DEFAULT_TYPES,
       githubClient: createGitHubClientStub(),
     });
 
@@ -126,10 +126,10 @@ describe("generateChangelogEntry", () => {
       "## [0.3.0](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.2.0...@ucdjs/test@0.3.0) (2025-01-16)
 
 
-      ### Features
+      ### 🚀 Features
       * feat: add feature A ([aaa1111](https://github.com/ucdjs/test-repo/commit/aaa1111111111)) (by Test Author)
 
-      ### Bug Fixes
+      ### 🐞 Bug Fixes
       * fix: fix bug B ([Issue #456](https://github.com/ucdjs/test-repo/issues/456)) ([bbb2222](https://github.com/ucdjs/test-repo/commit/bbb2222222222)) (by Test Author)"
     `);
   });
@@ -149,7 +149,7 @@ describe("generateChangelogEntry", () => {
       version: "0.1.0",
       date: "2025-01-16",
       commits,
-      groups: DEFAULT_COMMIT_GROUPS,
+      types: DEFAULT_TYPES,
       githubClient: createGitHubClientStub(),
     });
 
@@ -157,7 +157,7 @@ describe("generateChangelogEntry", () => {
       "## 0.1.0 (2025-01-16)
 
 
-      ### Features
+      ### 🚀 Features
       * feat: initial release ([initial](https://github.com/ucdjs/test-repo/commit/initial123)) (by Test Author)"
     `);
   });
@@ -178,7 +178,7 @@ describe("generateChangelogEntry", () => {
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
-      groups: DEFAULT_COMMIT_GROUPS,
+      types: DEFAULT_TYPES,
       githubClient: createGitHubClientStub(),
     });
 
@@ -186,7 +186,7 @@ describe("generateChangelogEntry", () => {
       "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
 
 
-      ### Bug Fixes
+      ### 🏎 Performance
       * perf: improve performance ([perf123](https://github.com/ucdjs/test-repo/commit/perf123456789)) (by Test Author)"
     `);
   });
@@ -207,7 +207,7 @@ describe("generateChangelogEntry", () => {
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
-      groups: DEFAULT_COMMIT_GROUPS,
+      types: DEFAULT_TYPES,
       githubClient: createGitHubClientStub(),
     });
 
@@ -376,7 +376,7 @@ describe("updateChangelog", () => {
       ## 0.1.0 (2025-01-16)
 
 
-      ### Features
+      ### 🚀 Features
       * feat: add new feature ([abc123](https://github.com/ucdjs/test-repo/commit/abc123)) (by Test Author)
       "
     `);
@@ -435,14 +435,14 @@ describe("updateChangelog", () => {
       ## [0.2.0](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.2.0) (2025-01-16)
 
 
-      ### Features
+      ### 🚀 Features
       * feat: add feature B ([def456](https://github.com/ucdjs/test-repo/commit/def456)) (by Test Author)
 
 
       ## 0.1.0 (2025-01-15)
 
 
-      ### Features
+      ### 🚀 Features
       * feat: initial release ([abc123](https://github.com/ucdjs/test-repo/commit/abc123)) (by Test Author)
       "
     `);

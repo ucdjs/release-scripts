@@ -1,4 +1,4 @@
-import type { AuthorInfo, CommitGroup } from "#shared/types";
+import type { AuthorInfo, CommitTypeRule } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import type { GitHubClient } from "./github";
@@ -41,7 +41,7 @@ export async function generateChangelogEntry(options: {
   commits: GitCommit[];
   owner: string;
   repo: string;
-  groups: CommitGroup[];
+  types: Record<string, CommitTypeRule>;
   template?: string;
   githubClient: GitHubClient;
 }): Promise<string> {
@@ -53,7 +53,7 @@ export async function generateChangelogEntry(options: {
     commits,
     owner,
     repo,
-    groups,
+    types,
     template,
     githubClient,
   } = options;
@@ -64,21 +64,23 @@ export async function generateChangelogEntry(options: {
     : undefined;
 
   // Group commits by type using commit-parser
+  const mergeKeys = Object.fromEntries(
+    Object.entries(types).map(([key, value]) => [key, value.types ?? [key]]),
+  );
+
   const grouped = groupByType(commits, {
     includeNonConventional: false,
-    mergeKeys: Object.fromEntries(
-      groups.map((g) => [g.name, g.types]),
-    ) as Record<string, string[]>,
+    mergeKeys,
   });
 
   const commitAuthors = await resolveCommitAuthors(commits, githubClient);
 
   // Format commits for each group
-  const templateGroups = groups.map((group) => {
-    const commitsInGroup = grouped.get(group.name) ?? [];
+  const templateGroups = Object.entries(types).map(([key, value]) => {
+    const commitsInGroup = grouped.get(key) ?? [];
 
     if (commitsInGroup.length > 0) {
-      logger.verbose(`Found ${commitsInGroup.length} commits for group "${group.name}".`);
+      logger.verbose(`Found ${commitsInGroup.length} commits for group "${key}".`);
     }
 
     // Format each commit
@@ -92,8 +94,8 @@ export async function generateChangelogEntry(options: {
     }));
 
     return {
-      name: group.name,
-      title: group.title,
+      name: key,
+      title: value.title,
       commits: formattedCommits,
     };
   });
@@ -160,7 +162,7 @@ export async function updateChangelog(options: {
     commits,
     owner: normalizedOptions.owner!,
     repo: normalizedOptions.repo!,
-    groups: normalizedOptions.groups,
+    types: normalizedOptions.types,
     template: normalizedOptions.changelog?.template,
     githubClient,
   });

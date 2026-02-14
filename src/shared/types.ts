@@ -3,21 +3,16 @@ import type { WorkspacePackage } from "#core/workspace";
 export type BumpKind = "none" | "patch" | "minor" | "major";
 export type GlobalCommitMode = false | "dependencies" | "all";
 
-export interface CommitGroup {
-  /**
-   * Unique identifier for the group
-   */
-  name: string;
-
+export interface CommitTypeRule {
   /**
    * Display title (e.g., "Features", "Bug Fixes")
    */
   title: string;
 
   /**
-   * Conventional commit types to include in this group
+   * Commit types to include in this group (defaults to the map key)
    */
-  types: string[];
+  types?: string[];
 }
 
 export interface PackageJson {

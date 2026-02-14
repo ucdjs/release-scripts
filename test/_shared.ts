@@ -2,7 +2,7 @@ import type { GitHubClient } from "#core/github";
 import type { WorkspacePackage } from "#core/workspace";
 import type { NormalizedReleaseScriptsOptions } from "../src/options";
 import type { GitCommit } from "commit-parser";
-import { DEFAULT_COMMIT_GROUPS, DEFAULT_TYPES } from "../src/options";
+import { DEFAULT_TYPES } from "../src/options";
 
 export function createCommit(overrides: Partial<GitCommit> = {}): GitCommit {
   const message = overrides.message ?? overrides.description ?? "feat: add feature";
@@ -52,7 +52,6 @@ export function createNormalizedReleaseOptions(
     githubToken: "test-token",
     owner: overrides.owner ?? "ucdjs",
     repo: overrides.repo ?? "test-repo",
-    groups: overrides.groups ?? DEFAULT_COMMIT_GROUPS,
     types: overrides.types ?? DEFAULT_TYPES,
     branch: {
       release: "release/next",
@@ -113,7 +112,7 @@ export function createWorkspacePackage(
 }
 
 export function createChangelogTestContext(workspaceRoot: string, overrides: {
-  normalizedOptions?: Partial<NormalizedReleaseOptions>;
+  normalizedOptions?: Partial<NormalizedReleaseScriptsOptions>;
   workspacePackage?: Partial<WorkspacePackage>;
   githubClient?: Partial<GitHubClient>;
 } = {}) {

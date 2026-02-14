@@ -1,4 +1,4 @@
-import type { CommitGroup } from "#shared/types";
+import type { CommitTypeRule } from "#shared/types";
 import process from "node:process";
 
 type DeepRequired<T> = Required<{
@@ -27,11 +27,7 @@ export interface ReleaseScriptsOptionsInput {
     title?: string;
     body?: string;
   };
-  types?: Record<string, {
-    title: string;
-    color?: string;
-  }>;
-  groups?: CommitGroup[];
+  types?: Record<string, CommitTypeRule>;
   changelog?: {
     enabled?: boolean;
     template?: string;
@@ -51,7 +47,7 @@ export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOp
   owner: string;
   repo: string;
   safeguards: boolean;
-  groups: CommitGroup[];
+  types: Record<string, CommitTypeRule>;
   npm: {
     otp?: string;
     provenance: boolean;
@@ -64,22 +60,13 @@ export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOp
 
 const DEFAULT_PR_BODY_TEMPLATE = `## Summary\n\nThis PR contains the following changes:\n\n- Updated package versions\n- Updated changelogs\n\n## Packages\n\nThe following packages will be released:\n\n{{packages}}`;
 const DEFAULT_CHANGELOG_TEMPLATE = `# Changelog\n\n{{releases}}`;
-export const DEFAULT_TYPES = {
-  feat: { title: "🚀 Features", color: "green" },
-  fix: { title: "🐞 Bug Fixes", color: "red" },
-  refactor: { title: "🔧 Code Refactoring", color: "blue" },
-  perf: { title: "🏎 Performance", color: "orange" },
-  docs: { title: "📚 Documentation", color: "purple" },
-  style: { title: "🎨 Styles", color: "pink" },
+export const DEFAULT_TYPES: Record<string, CommitTypeRule> = {
+  feat: { title: "🚀 Features" },
+  fix: { title: "🐞 Bug Fixes" },
+  perf: { title: "🏎 Performance" },
+  docs: { title: "📚 Documentation" },
+  style: { title: "🎨 Styles" },
 };
-
-export const DEFAULT_COMMIT_GROUPS: CommitGroup[] = [
-  { name: "features", title: "Features", types: ["feat"] },
-  { name: "fixes", title: "Bug Fixes", types: ["fix", "perf"] },
-  { name: "refactor", title: "Refactoring", types: ["refactor"] },
-  { name: "docs", title: "Documentation", types: ["docs"] },
-  { name: "style", title: "Style", types: ["style"] },
-];
 
 export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInput): NormalizedReleaseScriptsOptions {
   const {
@@ -91,8 +78,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     globalCommitMode = "dependencies",
     pullRequest = {},
     changelog = {},
-    types = {},
-    groups,
+    types,
     safeguards = true,
     dryRun = false,
     npm = {},
@@ -145,8 +131,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
       template: changelog.template ?? DEFAULT_CHANGELOG_TEMPLATE,
       emojis: changelog.emojis ?? true,
     },
-    types: options.types ? { ...DEFAULT_TYPES, ...types } : DEFAULT_TYPES,
-    groups: groups ?? DEFAULT_COMMIT_GROUPS,
+    types: types ? { ...DEFAULT_TYPES, ...types } : DEFAULT_TYPES,
     npm: {
       otp: npm.otp,
       provenance: npm.provenance ?? true,
