@@ -9,29 +9,14 @@ import { logger } from "#shared/utils";
 import { dedent } from "@luxass/utils";
 import { groupByType } from "commit-parser";
 import { Eta } from "eta";
+import { DEFAULT_CHANGELOG_TEMPLATE } from "../options";
 import { readFileFromGit } from "./git";
 
-const globalAuthorCache = new Map<string, AuthorInfo>();
-
-export const DEFAULT_CHANGELOG_TEMPLATE = dedent`
-  <% if (it.previousVersion) { -%>
-  ## [<%= it.version %>](<%= it.compareUrl %>) (<%= it.date %>)
-  <% } else { -%>
-  ## <%= it.version %> (<%= it.date %>)
-  <% } %>
-
-  <% it.groups.forEach((group) => { %>
-  <% if (group.commits.length > 0) { %>
-
-  ### <%= group.title %>
-  <% group.commits.forEach((commit) => { %>
-
-  * <%= commit.line %>
-  <% }); %>
-
-  <% } %>
-  <% }); %>
-`;
+const excludeAuthors = [
+  /\[bot\]/i,
+  /dependabot/i,
+  /\(bot\)/i,
+];
 
 export async function generateChangelogEntry(options: {
   packageName: string;
@@ -215,7 +200,7 @@ async function resolveCommitAuthors(
   commits: GitCommit[],
   githubClient: GitHubClient,
 ): Promise<Map<string, AuthorInfo[]>> {
-  const authorsToResolve = new Set<AuthorInfo>();
+  const authorMap = new Map<string, AuthorInfo>();
   const commitAuthors = new Map<string, AuthorInfo[]>();
 
   for (const commit of commits) {
@@ -226,34 +211,32 @@ async function resolveCommitAuthors(
         return;
       }
 
-      let info = globalAuthorCache.get(author.email);
+      if (excludeAuthors.some((re) => re.test(author.name))) {
+        return;
+      }
 
-      if (!info) {
-        info = {
+      if (!authorMap.has(author.email)) {
+        authorMap.set(author.email, {
           commits: [],
           name: author.name,
           email: author.email,
-        };
-        globalAuthorCache.set(author.email, info);
+        });
       }
+
+      const info = authorMap.get(author.email)!;
 
       if (idx === 0) {
         info.commits.push(commit.shortHash);
       }
 
       authorsForCommit.push(info);
-
-      if (!info.login) {
-        authorsToResolve.add(info);
-      }
     });
 
     commitAuthors.set(commit.hash, authorsForCommit);
   }
 
-  await Promise.all(
-    Array.from(authorsToResolve).map((info) => githubClient.resolveAuthorInfo(info)),
-  );
+  const authors = Array.from(authorMap.values());
+  await Promise.all(authors.map((info) => githubClient.resolveAuthorInfo(info)));
 
   return commitAuthors;
 }
