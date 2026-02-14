@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { err, isErr, isOk, ok } from "../../src/types/result";
 
-describe("Result", () => {
+describe("result", () => {
   it("creates ok values", () => {
     const result = ok(123);
     expect(result.ok).toBe(true);
