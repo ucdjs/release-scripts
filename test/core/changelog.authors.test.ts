@@ -1,7 +1,7 @@
 import type { GitHubClient } from "#core/github";
 import { generateChangelogEntry } from "#core/changelog";
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_TYPES } from "../../src/options";
+import { DEFAULT_COMMIT_GROUPS } from "../../src/options";
 import { createCommit } from "../_shared";
 
 describe("generateChangelogEntry author rendering", () => {
@@ -31,7 +31,7 @@ describe("generateChangelogEntry author rendering", () => {
       commits,
       owner: "ucdjs",
       repo: "release-scripts",
-      groups: DEFAULT_TYPES,
+      groups: DEFAULT_COMMIT_GROUPS,
       githubClient,
     });
 

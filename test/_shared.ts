@@ -1,8 +1,8 @@
 import type { GitHubClient } from "#core/github";
 import type { WorkspacePackage } from "#core/workspace";
-import type { NormalizedReleaseOptions } from "#shared/options";
+import type { NormalizedReleaseScriptsOptions } from "../src/options";
 import type { GitCommit } from "commit-parser";
-import { DEFAULT_COMMIT_GROUPS } from "#shared/options";
+import { DEFAULT_COMMIT_GROUPS, DEFAULT_TYPES } from "../src/options";
 
 export function createCommit(overrides: Partial<GitCommit> = {}): GitCommit {
   const message = overrides.message ?? overrides.description ?? "feat: add feature";
@@ -36,19 +36,24 @@ export function createGitHubClientStub(overrides: Partial<GitHubClient> = {}): G
 }
 
 export function createNormalizedReleaseOptions(
-  overrides: Partial<NormalizedReleaseOptions> = {},
-): NormalizedReleaseOptions {
-  const base: NormalizedReleaseOptions = {
+  overrides: Partial<NormalizedReleaseScriptsOptions> = {},
+): NormalizedReleaseScriptsOptions {
+  const base: NormalizedReleaseScriptsOptions = {
     packages: true,
     prompts: {
       packages: true,
       versions: true,
+    },
+    npm: {
+      provenance: true,
+      otp: undefined,
     },
     workspaceRoot: overrides.workspaceRoot ?? process.cwd(),
     githubToken: "test-token",
     owner: overrides.owner ?? "ucdjs",
     repo: overrides.repo ?? "test-repo",
     groups: overrides.groups ?? DEFAULT_COMMIT_GROUPS,
+    types: overrides.types ?? DEFAULT_TYPES,
     branch: {
       release: "release/next",
       default: "main",
@@ -62,7 +67,9 @@ export function createNormalizedReleaseOptions(
     changelog: {
       enabled: true,
       template: "",
+      emojis: true,
     },
+    dryRun: false,
   };
 
   return {

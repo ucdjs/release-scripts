@@ -238,7 +238,7 @@ describe("git utilities", () => {
 
         expect(mockExec).toHaveBeenCalledWith(
           "git",
-          ["checkout", "-b", "new-feature", "main"],
+          ["branch", "new-feature", "main"],
           expect.objectContaining({
             nodeOptions: expect.objectContaining({
               cwd: "/workspace",

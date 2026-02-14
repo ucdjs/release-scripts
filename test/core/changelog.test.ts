@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { generateChangelogEntry, parseChangelog, updateChangelog } from "#core/changelog";
-import { DEFAULT_COMMIT_GROUPS } from "#shared/options";
+import { DEFAULT_COMMIT_GROUPS } from "../../src/options";
 import { dedent } from "@luxass/utils";
 import * as tinyexec from "tinyexec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
