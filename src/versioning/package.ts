@@ -4,7 +4,7 @@ import type {
   PackageUpdateOrder,
 } from "#shared/types";
 import { logger } from "#shared/utils";
-import { createVersionUpdate } from "#versioning/version";
+import { createVersionUpdate } from "#operations/version";
 
 interface PackageDependencyGraph {
   packages: Map<string, WorkspacePackage>;

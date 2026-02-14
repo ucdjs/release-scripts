@@ -1,6 +1,6 @@
 import type { WorkspacePackage } from "#core/workspace";
 import type { BumpKind } from "#shared/types";
-import { getNextVersion, isValidSemver } from "#versioning/version";
+import { getNextVersion, isValidSemver } from "#operations/semver";
 import farver from "farver";
 import prompts from "prompts";
 

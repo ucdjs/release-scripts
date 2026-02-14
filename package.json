@@ -11,6 +11,7 @@
   },
   "imports": {
     "#core/*": "./src/core/*.ts",
+    "#operations/*": "./src/operations/*.ts",
     "#versioning/*": "./src/versioning/*.ts",
     "#shared/*": "./src/shared/*.ts",
     "#release": "./src/release.ts",

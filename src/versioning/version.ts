@@ -5,87 +5,11 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { selectVersionPrompt } from "#core/prompts";
 import { isCI, logger } from "#shared/utils";
-import { determineHighestBump } from "#versioning/commits";
+import { determineHighestBump, createVersionUpdate } from "#operations/version";
 import { buildPackageDependencyGraph, createDependentUpdates } from "#versioning/package";
 import farver from "farver";
+import { calculateBumpType, getNextVersion, isValidSemver } from "#operations/semver";
 
-export function isValidSemver(version: string): boolean {
-  // Basic semver validation: X.Y.Z with optional pre-release/build metadata
-  const semverRegex = /^\d+\.\d+\.\d+(?:[-+].+)?$/;
-  return semverRegex.test(version);
-}
-
-export function getNextVersion(currentVersion: string, bump: BumpKind): string {
-  if (bump === "none") {
-    logger.verbose(`No version bump needed, keeping version ${currentVersion}`);
-    return currentVersion;
-  }
-
-  if (!isValidSemver(currentVersion)) {
-    throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
-  }
-
-  // eslint-disable-next-line regexp/no-super-linear-backtracking
-  const match = currentVersion.match(/^(\d+)\.(\d+)\.(\d+)(.*)$/);
-  if (!match) {
-    throw new Error(`Invalid semver version: ${currentVersion}`);
-  }
-
-  const [, major, minor, patch] = match;
-  let newMajor = Number.parseInt(major!, 10);
-  let newMinor = Number.parseInt(minor!, 10);
-  let newPatch = Number.parseInt(patch!, 10);
-
-  switch (bump) {
-    case "major":
-      newMajor += 1;
-      newMinor = 0;
-      newPatch = 0;
-      break;
-
-    case "minor":
-      newMinor += 1;
-      newPatch = 0;
-      break;
-
-    case "patch":
-      newPatch += 1;
-      break;
-  }
-
-  return `${newMajor}.${newMinor}.${newPatch}`;
-}
-
-export function createVersionUpdate(
-  pkg: WorkspacePackage,
-  bump: BumpKind,
-  hasDirectChanges: boolean,
-): PackageRelease {
-  const newVersion = getNextVersion(pkg.version, bump);
-
-  return {
-    package: pkg,
-    currentVersion: pkg.version,
-    newVersion,
-    bumpType: bump,
-    hasDirectChanges,
-  };
-}
-
-function _calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
-  if (!isValidSemver(oldVersion) || !isValidSemver(newVersion)) {
-    throw new Error(`Cannot calculate bump type for invalid semver: ${oldVersion} or ${newVersion}`);
-  }
-
-  const oldParts = oldVersion.split(".").map(Number);
-  const newParts = newVersion.split(".").map(Number);
-
-  if (newParts[0]! > oldParts[0]!) return "major";
-  if (newParts[1]! > oldParts[1]!) return "minor";
-  if (newParts[2]! > oldParts[2]!) return "patch";
-
-  return "none";
-}
 
 const messageColorMap: Record<string, (c: string) => string> = {
   feat: farver.green,
@@ -232,7 +156,7 @@ async function calculateVersionUpdates({
 
       if (selectedVersion === null) continue;
 
-      const userBump = _calculateBumpType(pkg.version, selectedVersion);
+      const userBump = calculateBumpType(pkg.version, selectedVersion);
       finalBumpType = userBump;
 
       if (bumpRanks[userBump] < bumpRanks[determinedBump]) {
@@ -270,7 +194,7 @@ async function calculateVersionUpdates({
       if (newVersion === null) break;
 
       if (newVersion !== pkg.version) {
-        const bumpType = _calculateBumpType(pkg.version, newVersion);
+        const bumpType = calculateBumpType(pkg.version, newVersion);
         versionUpdates.push({
           package: pkg,
           currentVersion: pkg.version,

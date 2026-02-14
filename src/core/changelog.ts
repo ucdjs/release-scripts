@@ -6,10 +6,10 @@ import type { WorkspacePackage } from "./workspace";
 import { writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { logger } from "#shared/utils";
-import { groupByType } from "commit-parser";
 import { Eta } from "eta";
 import { DEFAULT_CHANGELOG_TEMPLATE } from "../options";
 import { readFileFromGit } from "./git";
+import { buildTemplateGroups } from "#operations/changelog-format";
 
 const excludeAuthors = [
   /\[bot\]/i,
@@ -47,41 +47,13 @@ export async function generateChangelogEntry(options: {
     ? `https://github.com/${owner}/${repo}/compare/${packageName}@${previousVersion}...${packageName}@${version}`
     : undefined;
 
-  // Group commits by type using commit-parser
-  const mergeKeys = Object.fromEntries(
-    Object.entries(types).map(([key, value]) => [key, value.types ?? [key]]),
-  );
-
-  const grouped = groupByType(commits, {
-    includeNonConventional: false,
-    mergeKeys,
-  });
-
   const commitAuthors = await resolveCommitAuthors(commits, githubClient);
-
-  // Format commits for each group
-  const templateGroups = Object.entries(types).map(([key, value]) => {
-    const commitsInGroup = grouped.get(key) ?? [];
-
-    if (commitsInGroup.length > 0) {
-      logger.verbose(`Found ${commitsInGroup.length} commits for group "${key}".`);
-    }
-
-    // Format each commit
-    const formattedCommits = commitsInGroup.map((commit) => ({
-      line: formatCommitLine({
-        commit,
-        owner,
-        repo,
-        authors: commitAuthors.get(commit.hash) ?? [],
-      }),
-    }));
-
-    return {
-      name: key,
-      title: value.title,
-      commits: formattedCommits,
-    };
+  const templateGroups = buildTemplateGroups({
+    commits,
+    owner,
+    repo,
+    types,
+    commitAuthors,
   });
 
   const templateData = {
@@ -240,54 +212,7 @@ async function resolveCommitAuthors(
   return commitAuthors;
 }
 
-interface FormatCommitLineOptions {
-  commit: GitCommit;
-  owner: string;
-  repo: string;
-  authors: AuthorInfo[];
-}
-
-function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOptions): string {
-  const commitUrl = `https://github.com/${owner}/${repo}/commit/${commit.hash}`;
-  let line = `${commit.description}`;
-  const references = commit.references ?? [];
-
-  if (references.length > 0) {
-    logger.verbose("Located references in commit", references.length);
-  }
-
-  for (const ref of references) {
-    if (!ref.value) continue;
-
-    const number = Number.parseInt(ref.value.replace(/^#/, ""), 10);
-    if (Number.isNaN(number)) continue;
-
-    if (ref.type === "issue") {
-      line += ` ([Issue ${ref.value}](https://github.com/${owner}/${repo}/issues/${number}))`;
-      continue;
-    }
-
-    line += ` ([PR ${ref.value}](https://github.com/${owner}/${repo}/pull/${number}))`;
-  }
-
-  line += ` ([${commit.shortHash}](${commitUrl}))`;
-
-  if (authors.length > 0) {
-    const authorList = authors
-      .map((author) => {
-        if (author.login) {
-          return `[@${author.login}](https://github.com/${author.login})`;
-        }
-
-        return author.name;
-      })
-      .join(", ");
-
-    line += ` (by ${authorList})`;
-  }
-
-  return line;
-}
+// formatCommitLine moved to operations/changelog-format
 
 export function parseChangelog(content: string) {
   const lines = content.split("\n");

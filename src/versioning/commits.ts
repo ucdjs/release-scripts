@@ -1,36 +1,10 @@
 import type { WorkspacePackage } from "#core/workspace";
-import type { BumpKind } from "#shared/types";
 import type { GitCommit } from "commit-parser";
+import type { BumpKind } from "#shared/types";
 import { getGroupedFilesByCommitSha, getMostRecentPackageTag } from "#core/git";
 import { logger } from "#shared/utils";
 import { getCommits } from "commit-parser";
 import farver from "farver";
-
-export function determineHighestBump(commits: GitCommit[]): BumpKind {
-  if (commits.length === 0) {
-    return "none";
-  }
-
-  let highestBump: BumpKind = "none";
-
-  for (const commit of commits) {
-    const bump = determineBumpType(commit);
-    // logger.verbose(`Commit ${commit.shortHash} results in a ${bump} bump`);
-
-    // Priority: major > minor > patch > none
-    if (bump === "major") {
-      return "major"; // Early exit - can't get higher
-    }
-
-    if (bump === "minor") {
-      highestBump = "minor";
-    } else if (bump === "patch" && highestBump === "none") {
-      highestBump = "patch";
-    }
-  }
-
-  return highestBump;
-}
 
 /**
  * Get commits grouped by workspace package.
