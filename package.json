@@ -15,9 +15,6 @@
     "#workflows/*": "./src/workflows/*.ts",
     "#versioning/*": "./src/versioning/*.ts",
     "#shared/*": "./src/shared/*.ts",
-    "#release": "./src/release.ts",
-    "#publish": "./src/publish.ts",
-    "#verify": "./src/verify.ts",
     "#types/*": "./src/types/*.ts"
   },
   "exports": {

@@ -1,11 +1,11 @@
 import type { ReleaseResult } from "#types/release";
 import type { WorkspacePackage } from "./core/workspace";
 import type { ReleaseScriptsOptionsInput } from "./options";
+import { prepareWorkflow as release } from "#workflows/prepare";
+import { publishWorkflow as publish } from "#workflows/publish";
+import { verifyWorkflow as verify } from "#workflows/verify";
 import { discoverWorkspacePackages } from "./core/workspace";
 import { normalizeReleaseScriptsOptions } from "./options";
-import { release } from "./prepare";
-import { publish } from "./publish";
-import { verify } from "./verify";
 
 export interface ReleaseScripts {
   verify: () => Promise<void>;
