@@ -246,6 +246,11 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     logger.success(`Pull request ${prResult.value.created ? "created" : "updated"}: ${prResult.value.pullRequest.html_url}`);
   }
 
+  const returnToDefault = await gitOps.checkoutBranch(options.branch.default, options.workspaceRoot);
+  if (!returnToDefault.ok || !returnToDefault.value) {
+    exitWithError(`Failed to checkout branch: ${options.branch.default}`);
+  }
+
   return {
     updates: allUpdates,
     prUrl: prResult.value.pullRequest?.html_url,
