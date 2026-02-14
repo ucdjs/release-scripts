@@ -3,6 +3,8 @@ import type {
   PackageJson,
 } from "#shared/types";
 import type { NormalizedReleaseScriptsOptions } from "../options";
+import type { WorkspaceError, WorkspaceOperations } from "#core/types";
+import { err, ok } from "#types/result";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { selectPackagePrompt } from "#core/prompts";
@@ -78,6 +80,36 @@ export async function discoverWorkspacePackages(
   }
 
   return workspacePackages;
+}
+
+type WorkspaceOperationOverrides = Partial<Record<keyof WorkspaceOperations, (...args: unknown[]) => Promise<unknown>>>;
+
+function toWorkspaceError(operation: string, error: unknown): WorkspaceError {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    type: "workspace",
+    operation,
+    message,
+  };
+}
+
+async function wrapWorkspace<T>(operation: string, fn: () => Promise<T>): Promise<ReturnType<typeof ok<T>> | ReturnType<typeof err<WorkspaceError>>> {
+  try {
+    return ok(await fn());
+  } catch (error) {
+    return err(toWorkspaceError(operation, error));
+  }
+}
+
+export function createWorkspaceOperations(overrides: WorkspaceOperationOverrides = {}): WorkspaceOperations {
+  return {
+    discoverWorkspacePackages: (workspaceRoot, options) => wrapWorkspace("discoverWorkspacePackages", async () => {
+      if (overrides.discoverWorkspacePackages) {
+        return overrides.discoverWorkspacePackages(workspaceRoot, options) as Promise<WorkspacePackage[]>;
+      }
+      return discoverWorkspacePackages(workspaceRoot, options as NormalizedReleaseScriptsOptions);
+    }),
+  };
 }
 
 async function findWorkspacePackages(

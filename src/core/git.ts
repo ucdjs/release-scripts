@@ -5,6 +5,8 @@ import {
   runIfNotDry,
 } from "#shared/utils";
 import farver from "farver";
+import type { GitError, GitOperations } from "#core/types";
+import { err, ok } from "#types/result";
 
 /**
  * Check if the working directory is clean (no uncommitted changes)
@@ -31,6 +33,108 @@ export async function isWorkingDirectoryClean(
     logger.error("Error checking git status:", err);
     return false;
   }
+}
+
+type GitOperationOverrides = Partial<Record<keyof GitOperations, (...args: unknown[]) => Promise<unknown>>>;
+
+function toGitError(operation: string, error: unknown): GitError {
+  const message = error instanceof Error ? error.message : String(error);
+  const stderr = typeof error === "object" && error && "stderr" in error
+    ? String((error as { stderr?: unknown }).stderr ?? "")
+    : undefined;
+  return {
+    type: "git",
+    operation,
+    message,
+    stderr: stderr?.trim() || undefined,
+  };
+}
+
+async function wrapGit<T>(operation: string, fn: () => Promise<T>): Promise<ReturnType<typeof ok<T>> | ReturnType<typeof err<GitError>>> {
+  try {
+    return ok(await fn());
+  } catch (error) {
+    return err(toGitError(operation, error));
+  }
+}
+
+export function createGitOperations(overrides: GitOperationOverrides = {}): GitOperations {
+  return {
+    isWorkingDirectoryClean: (workspaceRoot) => wrapGit("isWorkingDirectoryClean", async () => {
+      if (overrides.isWorkingDirectoryClean) {
+        return overrides.isWorkingDirectoryClean(workspaceRoot) as Promise<boolean>;
+      }
+      return isWorkingDirectoryClean(workspaceRoot);
+    }),
+    doesBranchExist: (branch, workspaceRoot) => wrapGit("doesBranchExist", async () => {
+      if (overrides.doesBranchExist) {
+        return overrides.doesBranchExist(branch, workspaceRoot) as Promise<boolean>;
+      }
+      return doesBranchExist(branch, workspaceRoot);
+    }),
+    getCurrentBranch: (workspaceRoot) => wrapGit("getCurrentBranch", async () => {
+      if (overrides.getCurrentBranch) {
+        return overrides.getCurrentBranch(workspaceRoot) as Promise<string>;
+      }
+      return getCurrentBranch(workspaceRoot);
+    }),
+    checkoutBranch: (branch, workspaceRoot) => wrapGit("checkoutBranch", async () => {
+      if (overrides.checkoutBranch) {
+        return overrides.checkoutBranch(branch, workspaceRoot) as Promise<boolean>;
+      }
+      return checkoutBranch(branch, workspaceRoot);
+    }),
+    createBranch: (branch, base, workspaceRoot) => wrapGit("createBranch", async () => {
+      if (overrides.createBranch) {
+        await overrides.createBranch(branch, base, workspaceRoot);
+        return;
+      }
+      await createBranch(branch, base, workspaceRoot);
+    }),
+    pullLatestChanges: (branch, workspaceRoot) => wrapGit("pullLatestChanges", async () => {
+      if (overrides.pullLatestChanges) {
+        return overrides.pullLatestChanges(branch, workspaceRoot) as Promise<boolean>;
+      }
+      return pullLatestChanges(branch, workspaceRoot);
+    }),
+    rebaseBranch: (ontoBranch, workspaceRoot) => wrapGit("rebaseBranch", async () => {
+      if (overrides.rebaseBranch) {
+        await overrides.rebaseBranch(ontoBranch, workspaceRoot);
+        return;
+      }
+      await rebaseBranch(ontoBranch, workspaceRoot);
+    }),
+    isBranchAheadOfRemote: (branch, workspaceRoot) => wrapGit("isBranchAheadOfRemote", async () => {
+      if (overrides.isBranchAheadOfRemote) {
+        return overrides.isBranchAheadOfRemote(branch, workspaceRoot) as Promise<boolean>;
+      }
+      return isBranchAheadOfRemote(branch, workspaceRoot);
+    }),
+    commitChanges: (message, workspaceRoot) => wrapGit("commitChanges", async () => {
+      if (overrides.commitChanges) {
+        return overrides.commitChanges(message, workspaceRoot) as Promise<boolean>;
+      }
+      return commitChanges(message, workspaceRoot);
+    }),
+    pushBranch: (branch, workspaceRoot, options) => wrapGit("pushBranch", async () => {
+      if (overrides.pushBranch) {
+        return overrides.pushBranch(branch, workspaceRoot, options) as Promise<boolean>;
+      }
+      return pushBranch(branch, workspaceRoot, options);
+    }),
+    readFileFromGit: (workspaceRoot, ref, filePath) => wrapGit("readFileFromGit", async () => {
+      if (overrides.readFileFromGit) {
+        return overrides.readFileFromGit(workspaceRoot, ref, filePath) as Promise<string | null>;
+      }
+      return readFileFromGit(workspaceRoot, ref, filePath);
+    }),
+    getMostRecentPackageTag: (workspaceRoot, packageName) => wrapGit("getMostRecentPackageTag", async () => {
+      if (overrides.getMostRecentPackageTag) {
+        return overrides.getMostRecentPackageTag(workspaceRoot, packageName) as Promise<string | undefined>;
+      }
+      return getMostRecentPackageTag(workspaceRoot, packageName);
+    }),
+  };
 }
 
 /**

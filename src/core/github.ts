@@ -1,5 +1,7 @@
 import type { AuthorInfo, PackageRelease } from "#shared/types";
 import { logger } from "#shared/utils";
+import type { GitHubError, GitHubOperations } from "#core/types";
+import { err, ok } from "#types/result";
 import { Eta } from "eta";
 import farver from "farver";
 import { DEFAULT_PR_BODY_TEMPLATE } from "../options";
@@ -249,6 +251,57 @@ export class GitHubClient {
 
 export function createGitHubClient(options: SharedGitHubOptions): GitHubClient {
   return new GitHubClient(options);
+}
+
+type GitHubOperationOverrides = Partial<Record<keyof GitHubOperations, (...args: unknown[]) => Promise<unknown>>>;
+
+function toGitHubError(operation: string, error: unknown): GitHubError {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    type: "github",
+    operation,
+    message,
+  };
+}
+
+async function wrapGitHub<T>(operation: string, fn: () => Promise<T>): Promise<ReturnType<typeof ok<T>> | ReturnType<typeof err<GitHubError>>> {
+  try {
+    return ok(await fn());
+  } catch (error) {
+    return err(toGitHubError(operation, error));
+  }
+}
+
+export function createGitHubOperations(options: SharedGitHubOptions, overrides: GitHubOperationOverrides = {}): GitHubOperations {
+  const client = createGitHubClient(options);
+
+  return {
+    getExistingPullRequest: (branch) => wrapGitHub("getExistingPullRequest", async () => {
+      if (overrides.getExistingPullRequest) {
+        return overrides.getExistingPullRequest(branch) as Promise<GitHubPullRequest | null>;
+      }
+      return client.getExistingPullRequest(branch);
+    }),
+    upsertPullRequest: (input) => wrapGitHub("upsertPullRequest", async () => {
+      if (overrides.upsertPullRequest) {
+        return overrides.upsertPullRequest(input) as Promise<GitHubPullRequest | null>;
+      }
+      return client.upsertPullRequest(input);
+    }),
+    setCommitStatus: (input) => wrapGitHub("setCommitStatus", async () => {
+      if (overrides.setCommitStatus) {
+        await overrides.setCommitStatus(input);
+        return;
+      }
+      await client.setCommitStatus(input);
+    }),
+    resolveAuthorInfo: (info) => wrapGitHub("resolveAuthorInfo", async () => {
+      if (overrides.resolveAuthorInfo) {
+        return overrides.resolveAuthorInfo(info) as Promise<typeof info>;
+      }
+      return client.resolveAuthorInfo(info);
+    }),
+  };
 }
 
 function dedentString(str: string): string {
