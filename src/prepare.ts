@@ -1,4 +1,5 @@
 import type { PackageRelease } from "#shared/types";
+import type { ReleaseResult } from "#types/release";
 import type { VersionOverrides } from "#versioning/version";
 import type { NormalizedReleaseScriptsOptions } from "./options";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -20,23 +21,6 @@ import { createWorkspaceOperations } from "#core/workspace";
 import { prepareReleaseBranch, syncReleaseChanges } from "#operations/branch";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { syncPullRequest } from "#operations/pr";
-
-export interface ReleaseResult {
-  /**
-   * Packages that will be updated
-   */
-  updates: PackageRelease[];
-
-  /**
-   * URL of the created or updated PR
-   */
-  prUrl?: string;
-
-  /**
-   * Whether a new PR was created (vs updating existing)
-   */
-  created: boolean;
-}
 
 export async function release(
   options: NormalizedReleaseScriptsOptions,

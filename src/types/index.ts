@@ -10,3 +10,5 @@ export {
   isOk,
   isErr,
 } from "./result";
+
+export type { ReleaseResult } from "./release";
