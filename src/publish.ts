@@ -1,7 +1,6 @@
 import type { NormalizedReleaseScriptsOptions } from "./options";
-import { logger } from "#shared/utils";
+import { publishWorkflow } from "#workflows/publish";
 
 export async function publish(options: NormalizedReleaseScriptsOptions): Promise<void> {
-  logger.warn("Publish workflow is not implemented yet.");
-  logger.verbose("Publish options:", options);
+  return publishWorkflow(options);
 }
