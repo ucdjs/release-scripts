@@ -93,7 +93,7 @@ export async function release(
     options.workspaceRoot,
     groupedPackageCommits,
     workspacePackages,
-    options.globalCommitMode,
+    options.globalCommitMode === "none" ? false : options.globalCommitMode,
   );
 
   const githubClient = createGitHubClient({

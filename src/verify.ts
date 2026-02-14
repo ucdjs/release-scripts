@@ -62,7 +62,7 @@ export async function verify(options: NormalizedReleaseScriptsOptions): Promise<
     options.workspaceRoot,
     mainCommits,
     mainPackages,
-    options.globalCommitMode,
+    options.globalCommitMode === "none" ? false : options.globalCommitMode,
   );
 
   const { allUpdates: expectedUpdates } = await calculateAndPrepareVersionUpdates({

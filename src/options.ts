@@ -1,3 +1,4 @@
+import type { CommitGroup } from "#shared/types";
 import process from "node:process";
 
 type DeepRequired<T> = Required<{
@@ -16,6 +17,7 @@ export interface ReleaseScriptsOptionsInput {
   workspaceRoot?: string;
   packages?: true | FindWorkspacePackagesOptions | string[];
   githubToken: string;
+  safeguards?: boolean;
   branch?: {
     release?: string;
     default?: string;
@@ -29,6 +31,7 @@ export interface ReleaseScriptsOptionsInput {
     title: string;
     color?: string;
   }>;
+  groups?: CommitGroup[];
   changelog?: {
     enabled?: boolean;
     template?: string;
@@ -47,6 +50,8 @@ export interface ReleaseScriptsOptionsInput {
 export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOptionsInput, "repo" | "npm" | "prompts">> & {
   owner: string;
   repo: string;
+  safeguards: boolean;
+  groups: CommitGroup[];
   npm: {
     otp?: string;
     provenance: boolean;
@@ -68,6 +73,14 @@ export const DEFAULT_TYPES = {
   style: { title: "🎨 Styles", color: "pink" },
 };
 
+export const DEFAULT_COMMIT_GROUPS: CommitGroup[] = [
+  { name: "features", title: "Features", types: ["feat"] },
+  { name: "fixes", title: "Bug Fixes", types: ["fix", "perf"] },
+  { name: "refactor", title: "Refactoring", types: ["refactor"] },
+  { name: "docs", title: "Documentation", types: ["docs"] },
+  { name: "style", title: "Style", types: ["style"] },
+];
+
 export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInput): NormalizedReleaseScriptsOptions {
   const {
     workspaceRoot = process.cwd(),
@@ -79,6 +92,8 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     pullRequest = {},
     changelog = {},
     types = {},
+    groups,
+    safeguards = true,
     dryRun = false,
     npm = {},
     prompts = {},
@@ -120,6 +135,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
       default: branch.default ?? "main",
     },
     globalCommitMode,
+    safeguards,
     pullRequest: {
       title: pullRequest.title ?? "chore: release new version",
       body: pullRequest.body ?? DEFAULT_PR_BODY_TEMPLATE,
@@ -130,6 +146,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
       emojis: changelog.emojis ?? true,
     },
     types: options.types ? { ...DEFAULT_TYPES, ...types } : DEFAULT_TYPES,
+    groups: groups ?? DEFAULT_COMMIT_GROUPS,
     npm: {
       otp: npm.otp,
       provenance: npm.provenance ?? true,
