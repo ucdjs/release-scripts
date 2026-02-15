@@ -39,6 +39,20 @@ export interface UpsertPullRequestOptions {
   pullNumber?: number;
 }
 
+export interface UpsertReleaseOptions {
+  tagName: string;
+  name: string;
+  body?: string;
+  prerelease?: boolean;
+}
+
+export interface GitHubRelease {
+  id: number;
+  tagName: string;
+  name: string;
+  htmlUrl?: string;
+}
+
 export interface GitHubError {
   type: "github";
   operation: string;
@@ -253,6 +267,96 @@ export class GitHubClient {
     });
 
     logger.info(`Commit status set to ${farver.cyan(state)} for ${farver.gray(sha.substring(0, 7))}`);
+  }
+
+  async upsertReleaseByTag({
+    tagName,
+    name,
+    body,
+    prerelease = false,
+  }: UpsertReleaseOptions): Promise<{ release: GitHubRelease; created: boolean }> {
+    const encodedTag = encodeURIComponent(tagName);
+
+    let existingRelease: {
+      id: number;
+      tag_name: string;
+      name?: string;
+      html_url?: string;
+    } | null = null;
+
+    try {
+      existingRelease = await this.request<{
+        id: number;
+        tag_name: string;
+        name?: string;
+        html_url?: string;
+      }>(`/repos/${this.owner}/${this.repo}/releases/tags/${encodedTag}`);
+    } catch (error) {
+      const formatted = formatUnknownError(error);
+      if (formatted.status !== 404) {
+        throw error;
+      }
+    }
+
+    if (existingRelease) {
+      logger.verbose(`Updating release for tag ${farver.cyan(tagName)}`);
+
+      const updated = await this.request<{
+        id: number;
+        tag_name: string;
+        name?: string;
+        html_url?: string;
+      }>(`/repos/${this.owner}/${this.repo}/releases/${existingRelease.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          body,
+          prerelease,
+          draft: false,
+        }),
+      });
+
+      logger.info(`Updated GitHub release for ${farver.cyan(tagName)}`);
+      return {
+        release: {
+          id: updated.id,
+          tagName: updated.tag_name,
+          name: updated.name ?? name,
+          htmlUrl: updated.html_url,
+        },
+        created: false,
+      };
+    }
+
+    logger.verbose(`Creating release for tag ${farver.cyan(tagName)}`);
+
+    const created = await this.request<{
+      id: number;
+      tag_name: string;
+      name?: string;
+      html_url?: string;
+    }>(`/repos/${this.owner}/${this.repo}/releases`, {
+      method: "POST",
+      body: JSON.stringify({
+        tag_name: tagName,
+        name,
+        body,
+        prerelease,
+        draft: false,
+        generate_release_notes: body == null,
+      }),
+    });
+
+    logger.info(`Created GitHub release for ${farver.cyan(tagName)}`);
+    return {
+      release: {
+        id: created.id,
+        tagName: created.tag_name,
+        name: created.name ?? name,
+        htmlUrl: created.html_url,
+      },
+      created: true,
+    };
   }
 
   async resolveAuthorInfo(info: AuthorInfo): Promise<AuthorInfo> {

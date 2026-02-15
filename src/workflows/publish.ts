@@ -7,6 +7,7 @@ import { exitWithError } from "#shared/errors";
 import { logger } from "#shared/utils";
 import { buildPackageDependencyGraph, getPackagePublishOrder } from "#versioning/package";
 import farver from "farver";
+import semver from "semver";
 
 export async function publishWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {
   logger.section("📦 Publishing Packages");
@@ -99,13 +100,42 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
     // Create and push git tag
     logger.step(`Creating git tag ${farver.cyan(`${packageName}@${version}`)}...`);
     const tagResult = await createAndPushPackageTag(packageName, version, options.workspaceRoot);
+    const tagName = `${packageName}@${version}`;
 
     if (!tagResult.ok) {
       logger.error(`Failed to create/push tag: ${tagResult.error.message}`);
-      // Don't fail the whole process if tag creation fails, but warn
-      logger.warn(`Package was published but tag was not created. You may need to create it manually.`);
-    } else {
-      logger.success(`Created and pushed tag ${farver.cyan(`${packageName}@${version}`)}`);
+      status.failed.push(packageName);
+      exitWithError(
+        `Publishing failed for ${packageName}: could not create git tag`,
+        "Ensure the workflow token can push tags (contents: write) and git credentials are configured",
+        tagResult.error,
+      );
+    }
+
+    logger.success(`Created and pushed tag ${farver.cyan(tagName)}`);
+
+    logger.step(`Creating GitHub release for ${farver.cyan(tagName)}...`);
+    try {
+      const releaseResult = await options.githubClient.upsertReleaseByTag({
+        tagName,
+        name: tagName,
+        prerelease: Boolean(semver.prerelease(version)),
+      });
+
+      if (releaseResult.release.htmlUrl) {
+        logger.success(
+          `${releaseResult.created ? "Created" : "Updated"} GitHub release: ${releaseResult.release.htmlUrl}`,
+        );
+      } else {
+        logger.success(`${releaseResult.created ? "Created" : "Updated"} GitHub release for ${farver.cyan(tagName)}`);
+      }
+    } catch (error) {
+      status.failed.push(packageName);
+      exitWithError(
+        `Publishing failed for ${packageName}: could not create GitHub release`,
+        "Ensure the workflow token can write repository contents and releases",
+        error,
+      );
     }
   }
 
