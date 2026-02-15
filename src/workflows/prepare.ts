@@ -194,8 +194,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
         const allCommits = [...pkgCommits, ...globalCommits];
 
         if (allCommits.length === 0) {
-          logger.verbose(`No commits for ${update.package.name}, skipping changelog`);
-          return;
+          logger.verbose(`No commits for ${update.package.name}, writing changelog entry with no-significant-commits note`);
         }
 
         logger.verbose(`Updating changelog for ${farver.cyan(update.package.name)}`);

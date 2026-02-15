@@ -91,8 +91,11 @@ export const DEFAULT_CHANGELOG_TEMPLATE = dedent`
   ## <%= it.version %> (<%= it.date %>)
   <% } %>
 
+  <% let hasCommits = false; %>
+
   <% it.groups.forEach((group) => { %>
   <% if (group.commits.length > 0) { %>
+  <% hasCommits = true; %>
 
   ### <%= group.title %>
   <% group.commits.forEach((commit) => { %>
@@ -102,6 +105,13 @@ export const DEFAULT_CHANGELOG_TEMPLATE = dedent`
 
   <% } %>
   <% }); %>
+
+  <% if (!hasCommits) { %>
+
+  ### Notes
+
+  * No significant commits in this release.
+  <% } %>
 `;
 
 export const DEFAULT_TYPES: Record<string, CommitTypeRule> = {
