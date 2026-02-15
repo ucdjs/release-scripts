@@ -170,6 +170,7 @@ export function createDependentUpdates(
   graph: PackageDependencyGraph,
   workspacePackages: WorkspacePackage[],
   directUpdates: PackageRelease[],
+  excludedPackages: Set<string> = new Set(),
 ): PackageRelease[] {
   const allUpdates = [...directUpdates];
   const directUpdateMap = new Map(directUpdates.map((u) => [u.package.name, u]));
@@ -181,6 +182,12 @@ export function createDependentUpdates(
   // Create updates for packages that don't have direct updates
   for (const pkgName of affectedPackages) {
     logger.verbose(`Processing affected package: ${pkgName}`);
+
+    if (excludedPackages.has(pkgName)) {
+      logger.verbose(`Skipping ${pkgName}, explicitly excluded from dependent bumps`);
+      continue;
+    }
+
     // Skip if already has a direct update
     if (directUpdateMap.has(pkgName)) {
       logger.verbose(`Skipping ${pkgName}, already has a direct update`);

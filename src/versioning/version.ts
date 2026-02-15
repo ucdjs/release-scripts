@@ -105,10 +105,12 @@ async function calculateVersionUpdates({
 }: CalculateVersionUpdatesOptions): Promise<{
   updates: PackageRelease[];
   overrides: VersionOverrides;
+  excludedPackages: Set<string>;
 }> {
   const versionUpdates: PackageRelease[] = [];
   const processedPackages = new Set<string>();
   const newOverrides: VersionOverrides = { ...initialOverrides };
+  const excludedPackages = new Set<string>();
 
   const bumpRanks: Record<BumpKind, number> = { major: 3, minor: 2, patch: 1, none: 0 };
 
@@ -160,6 +162,8 @@ async function calculateVersionUpdates({
       finalBumpType = userBump;
 
       if (selectedVersion === pkg.version) {
+        excludedPackages.add(pkgName);
+
         // Persist explicit "as-is" only when automatic bump exists.
         // Prompted reruns can still change this because we don't short-circuit when prompting.
         if (determinedBump !== "none") {
@@ -169,6 +173,16 @@ async function calculateVersionUpdates({
           delete newOverrides[pkgName];
           logger.info(`Version override removed for ${pkgName}.`);
         }
+
+        // Keep an explicit update entry so downstream flows (changelog generation,
+        // release summary, PR body) still include this changed package.
+        versionUpdates.push({
+          package: pkg,
+          currentVersion: pkg.version,
+          newVersion: pkg.version,
+          bumpType: "none",
+          hasDirectChanges: allCommitsForPackage.length > 0,
+        });
         continue;
       }
 
@@ -206,21 +220,24 @@ async function calculateVersionUpdates({
       const newVersion = await selectVersionPrompt(workspaceRoot, pkg, pkg.version, pkg.version);
       if (newVersion === null) break;
 
-      if (newVersion !== pkg.version) {
-        const bumpType = calculateBumpType(pkg.version, newVersion);
-        versionUpdates.push({
-          package: pkg,
-          currentVersion: pkg.version,
-          newVersion,
-          bumpType,
-          hasDirectChanges: false,
-        });
-        // We don't record an override here as there was no automatic bump to override.
+      if (newVersion === pkg.version) {
+        excludedPackages.add(pkg.name);
+        continue;
       }
+
+      const bumpType = calculateBumpType(pkg.version, newVersion);
+      versionUpdates.push({
+        package: pkg,
+        currentVersion: pkg.version,
+        newVersion,
+        bumpType,
+        hasDirectChanges: false,
+      });
+      // We don't record an override here as there was no automatic bump to override.
     }
   }
 
-  return { updates: versionUpdates, overrides: newOverrides };
+  return { updates: versionUpdates, overrides: newOverrides, excludedPackages };
 }
 
 /**
@@ -240,7 +257,7 @@ export async function calculateAndPrepareVersionUpdates({
   overrides: VersionOverrides;
 }> {
   // Calculate direct version updates
-  const { updates: directUpdates, overrides: newOverrides } = await calculateVersionUpdates({
+  const { updates: directUpdates, overrides: newOverrides, excludedPackages: promptExcludedPackages } = await calculateVersionUpdates({
     workspacePackages,
     packageCommits,
     workspaceRoot,
@@ -251,7 +268,17 @@ export async function calculateAndPrepareVersionUpdates({
 
   // Build dependency graph and calculate dependent updates
   const graph = buildPackageDependencyGraph(workspacePackages);
-  const allUpdates = createDependentUpdates(graph, workspacePackages, directUpdates);
+  const overrideExcludedPackages = new Set(
+    Object.entries(newOverrides)
+      .filter(([, override]) => override.type === "none")
+      .map(([pkgName]) => pkgName),
+  );
+  const excludedPackages = new Set<string>([
+    ...overrideExcludedPackages,
+    ...promptExcludedPackages,
+  ]);
+
+  const allUpdates = createDependentUpdates(graph, workspacePackages, directUpdates, excludedPackages);
 
   // Create apply function that updates all package.json files
   const applyUpdates = async () => {

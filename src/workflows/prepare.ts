@@ -133,7 +133,9 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   logger.item(`Updating ${allUpdates.length} packages (including dependents)`);
 
   for (const update of allUpdates) {
-    logger.item(`${update.package.name}: ${update.currentVersion} → ${update.newVersion}`);
+    const isAsIs = update.currentVersion === update.newVersion;
+    const suffix = isAsIs ? farver.dim(" (as-is)") : "";
+    logger.item(`${update.package.name}: ${update.currentVersion} → ${update.newVersion}${suffix}`);
   }
 
   await applyUpdates();
