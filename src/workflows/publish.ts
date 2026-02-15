@@ -1,7 +1,7 @@
 import type { PublishStatus } from "#core/npm";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import { createAndPushPackageTag } from "#core/git";
-import { buildPackage, checkVersionExists, publishPackage } from "#core/npm";
+import { checkVersionExists, publishPackage } from "#core/npm";
 import { discoverWorkspacePackages } from "#core/workspace";
 import { exitWithError } from "#shared/errors";
 import { logger } from "#shared/utils";
@@ -70,22 +70,6 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
       logger.info(`Version ${farver.cyan(version)} already exists on NPM, skipping`);
       status.skipped.push(packageName);
       continue;
-    }
-
-    // Build package if enabled
-    if (options.npm.runBuild) {
-      logger.step(`Building ${farver.cyan(packageName)}...`);
-      const buildResult = await buildPackage(packageName, options.workspaceRoot, options);
-
-      if (!buildResult.ok) {
-        logger.error(`Failed to build package: ${buildResult.error.message}`);
-        status.failed.push(packageName);
-        exitWithError(
-          `Publishing failed for ${packageName}: build failed`,
-          "Check your build scripts and dependencies",
-          buildResult.error,
-        );
-      }
     }
 
     // Publish to NPM

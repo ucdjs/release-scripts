@@ -103,35 +103,6 @@ export async function checkVersionExists(
 }
 
 /**
- * Build a package before publishing
- * @param packageName - The package name to build
- * @param workspaceRoot - Path to the workspace root
- * @param options - Normalized release scripts options
- * @returns Result indicating success or failure
- */
-export async function buildPackage(
-  packageName: string,
-  workspaceRoot: string,
-  options: NormalizedReleaseScriptsOptions,
-): Promise<Result<void, NPMError>> {
-  if (!options.npm.runBuild) {
-    return ok(undefined);
-  }
-
-  try {
-    await runIfNotDry("pnpm", ["--filter", packageName, "build"], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "inherit",
-      },
-    });
-    return ok(undefined);
-  } catch (error) {
-    return err(toNPMError("buildPackage", error));
-  }
-}
-
-/**
  * Publish a package to NPM
  * Uses pnpm to handle workspace protocol and catalog: resolution automatically
  * @param packageName - The package name to publish

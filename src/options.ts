@@ -40,7 +40,6 @@ export interface ReleaseScriptsOptionsInput {
     otp?: string;
     provenance?: boolean;
     access?: "public" | "restricted";
-    runBuild?: boolean;
   };
   prompts?: {
     versions?: boolean;
@@ -58,7 +57,6 @@ export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOp
     otp?: string;
     provenance: boolean;
     access: "public" | "restricted";
-    runBuild: boolean;
   };
   prompts: {
     versions: boolean;
@@ -182,7 +180,6 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
       otp: npm.otp,
       provenance: npm.provenance ?? true,
       access: npm.access ?? "public",
-      runBuild: npm.runBuild ?? true,
     },
     prompts: {
       versions: prompts.versions ?? !isCI,
