@@ -130,15 +130,22 @@ async function calculateVersionUpdates({
     const determinedBump = determineHighestBump(allCommitsForPackage);
     const override = newOverrides[pkgName];
     const effectiveBump = override?.type || determinedBump;
+    const canPrompt = !isCI && showPrompt;
 
-    if (effectiveBump === "none") {
+    if (override?.type === "none" && override.version === pkg.version) {
+      // "as-is" should not lock future runs. Keep this run behavior, but drop stale override.
+      delete newOverrides[pkgName];
+      logger.verbose(`Removed stale "none" override for ${pkgName}`);
+    }
+
+    if (effectiveBump === "none" && !canPrompt) {
       continue;
     }
 
     let newVersion = override?.version || getNextVersion(pkg.version, effectiveBump);
     let finalBumpType: BumpKind = effectiveBump;
 
-    if (!isCI && showPrompt) {
+    if (canPrompt) {
       logger.clearScreen();
       logger.section(`📝 Commits for ${farver.cyan(pkg.name)}`);
       const commitDisplay = formatCommitsForDisplay(allCommitsForPackage);
@@ -157,6 +164,15 @@ async function calculateVersionUpdates({
 
       const userBump = calculateBumpType(pkg.version, selectedVersion);
       finalBumpType = userBump;
+
+      if (selectedVersion === pkg.version) {
+        // Respect "as-is" for this run, but do not persist a locking override.
+        if (newOverrides[pkgName]) {
+          delete newOverrides[pkgName];
+          logger.info(`Version override removed for ${pkgName}.`);
+        }
+        continue;
+      }
 
       if (bumpRanks[userBump] < bumpRanks[determinedBump]) {
         newOverrides[pkgName] = { type: userBump, version: selectedVersion };
