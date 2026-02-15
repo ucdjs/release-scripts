@@ -307,7 +307,12 @@ export async function commitChanges(
 
     return ok(true);
   } catch (error) {
-    return err(toGitError("commitChanges", error));
+    const gitError = toGitError("commitChanges", error);
+    logger.error(`Git commit failed: ${gitError.message}`);
+    if (gitError.stderr) {
+      logger.error(`Git stderr: ${gitError.stderr}`);
+    }
+    return err(gitError);
   }
 }
 
