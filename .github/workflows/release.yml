@@ -28,6 +28,7 @@ jobs:
         with:
           registry-url: "https://registry.npmjs.org"
           node-version: lts/*
+          package-manager-cache: false
 
       - name: update npm (oidc)
         run: npm install -g npm@latest
