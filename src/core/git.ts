@@ -193,6 +193,7 @@ export async function checkoutBranch(
       return ok(true);
     }
 
+    console.warn(`Unexpected git checkout output: ${output}`);
     return ok(false);
   } catch (error) {
     const gitError = toGitError("checkoutBranch", error);

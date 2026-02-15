@@ -34,7 +34,6 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   if (originalBranch.value !== defaultBranch) {
     const checkout = await checkoutBranch(defaultBranch, options.workspaceRoot);
     if (!checkout.ok || !checkout.value) {
-      console.error(checkout.ok === false && checkout.error);
       exitWithError(`Failed to checkout branch: ${defaultBranch}`);
     }
   }
