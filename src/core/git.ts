@@ -430,6 +430,7 @@ export async function getGroupedFilesByCommitSha(
       // If the line is NOT a hash, it must be a file path.
 
       // The file path is added to the array associated with the most recent hash.
+      // Note: In case of merge commits, an empty line might appear which is already filtered.
       commitsMap.get(currentSha)!.push(trimmedLine);
     }
 
@@ -437,4 +438,77 @@ export async function getGroupedFilesByCommitSha(
   } catch (error) {
     return err(toGitError("getGroupedFilesByCommitSha", error));
   }
+}
+
+/**
+ * Create a git tag for a package release
+ * @param packageName - The package name (e.g., "@scope/name")
+ * @param version - The version to tag (e.g., "1.2.3")
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Result indicating success or failure
+ */
+export async function createPackageTag(
+  packageName: string,
+  version: string,
+  workspaceRoot: string,
+): Promise<Result<void, GitError>> {
+  const tagName = `${packageName}@${version}`;
+
+  try {
+    logger.info(`Creating tag: ${farver.green(tagName)}`);
+    await runIfNotDry("git", ["tag", tagName], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+    return ok(undefined);
+  } catch (error) {
+    return err(toGitError("createPackageTag", error));
+  }
+}
+
+/**
+ * Push a specific tag to the remote repository
+ * @param tagName - The tag name to push
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Result indicating success or failure
+ */
+export async function pushTag(
+  tagName: string,
+  workspaceRoot: string,
+): Promise<Result<void, GitError>> {
+  try {
+    logger.info(`Pushing tag: ${farver.green(tagName)}`);
+    await runIfNotDry("git", ["push", "origin", tagName], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+    return ok(undefined);
+  } catch (error) {
+    return err(toGitError("pushTag", error));
+  }
+}
+
+/**
+ * Create and push a package tag in one operation
+ * @param packageName - The package name
+ * @param version - The version to tag
+ * @param workspaceRoot - The root directory of the workspace
+ * @returns Result indicating success or failure
+ */
+export async function createAndPushPackageTag(
+  packageName: string,
+  version: string,
+  workspaceRoot: string,
+): Promise<Result<void, GitError>> {
+  const createResult = await createPackageTag(packageName, version, workspaceRoot);
+  if (!createResult.ok) {
+    return createResult;
+  }
+
+  const tagName = `${packageName}@${version}`;
+  return pushTag(tagName, workspaceRoot);
 }
