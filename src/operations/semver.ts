@@ -1,8 +1,8 @@
 import type { BumpKind } from "#shared/types";
+import semver from "semver";
 
 export function isValidSemver(version: string): boolean {
-  const semverRegex = /^\d+\.\d+\.\d+(?:[-+].+)?$/;
-  return semverRegex.test(version);
+  return semver.valid(version) != null;
 }
 
 export function getNextVersion(currentVersion: string, bump: BumpKind): string {
@@ -14,33 +14,12 @@ export function getNextVersion(currentVersion: string, bump: BumpKind): string {
     throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
   }
 
-  // eslint-disable-next-line regexp/no-super-linear-backtracking
-  const match = currentVersion.match(/^(\d+)\.(\d+)\.(\d+)(.*)$/);
-  if (!match) {
-    throw new Error(`Invalid semver version: ${currentVersion}`);
+  const next = semver.inc(currentVersion, bump);
+  if (!next) {
+    throw new Error(`Failed to bump version ${currentVersion} with bump ${bump}`);
   }
 
-  const [, major, minor, patch] = match;
-  let newMajor = Number.parseInt(major!, 10);
-  let newMinor = Number.parseInt(minor!, 10);
-  let newPatch = Number.parseInt(patch!, 10);
-
-  switch (bump) {
-    case "major":
-      newMajor += 1;
-      newMinor = 0;
-      newPatch = 0;
-      break;
-    case "minor":
-      newMinor += 1;
-      newPatch = 0;
-      break;
-    case "patch":
-      newPatch += 1;
-      break;
-  }
-
-  return `${newMajor}.${newMinor}.${newPatch}`;
+  return next;
 }
 
 export function calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
@@ -48,12 +27,48 @@ export function calculateBumpType(oldVersion: string, newVersion: string): BumpK
     throw new Error(`Cannot calculate bump type for invalid semver: ${oldVersion} or ${newVersion}`);
   }
 
-  const oldParts = oldVersion.split(".").map(Number);
-  const newParts = newVersion.split(".").map(Number);
+  const diff = semver.diff(oldVersion, newVersion);
+  if (!diff) {
+    return "none";
+  }
 
-  if (newParts[0]! > oldParts[0]!) return "major";
-  if (newParts[1]! > oldParts[1]!) return "minor";
-  if (newParts[2]! > oldParts[2]!) return "patch";
+  if (diff === "major" || diff === "premajor") return "major";
+  if (diff === "minor" || diff === "preminor") return "minor";
+  if (diff === "patch" || diff === "prepatch" || diff === "prerelease") return "patch";
+
+  if (semver.gt(newVersion, oldVersion)) {
+    return "patch";
+  }
 
   return "none";
+}
+
+export function getPrereleaseIdentifier(version: string): string | undefined {
+  const parsed = semver.parse(version);
+  if (!parsed || parsed.prerelease.length === 0) {
+    return undefined;
+  }
+
+  const identifier = parsed.prerelease[0];
+  return typeof identifier === "string" ? identifier : undefined;
+}
+
+export function getNextPrereleaseVersion(
+  currentVersion: string,
+  mode: "next" | "prepatch" | "preminor" | "premajor",
+  identifier?: string,
+): string {
+  if (!isValidSemver(currentVersion)) {
+    throw new Error(`Cannot bump prerelease for invalid semver: ${currentVersion}`);
+  }
+
+  const releaseType = mode === "next" ? "prerelease" : mode;
+  const next = identifier
+    ? semver.inc(currentVersion, releaseType, identifier)
+    : semver.inc(currentVersion, releaseType);
+  if (!next) {
+    throw new Error(`Failed to compute prerelease version for ${currentVersion}`);
+  }
+
+  return next;
 }

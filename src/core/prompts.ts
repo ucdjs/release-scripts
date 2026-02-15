@@ -1,6 +1,11 @@
 import type { WorkspacePackage } from "#core/workspace";
 import type { BumpKind } from "#shared/types";
-import { getNextVersion, isValidSemver } from "#operations/semver";
+import {
+  getNextPrereleaseVersion,
+  getNextVersion,
+  getPrereleaseIdentifier,
+  isValidSemver,
+} from "#operations/semver";
 import farver from "farver";
 import prompts from "prompts";
 
@@ -42,6 +47,21 @@ export async function selectVersionPrompt(
   const suggestedSuffix = options?.suggestedHint
     ? farver.dim(` (${options.suggestedHint})`)
     : "";
+  const prereleaseIdentifier = getPrereleaseIdentifier(currentVersion);
+  const defaultPrereleaseId = prereleaseIdentifier === "alpha" || prereleaseIdentifier === "beta"
+    ? prereleaseIdentifier
+    : "beta";
+
+  const nextDefaultPrerelease = getNextPrereleaseVersion(currentVersion, "next", defaultPrereleaseId);
+  const nextBeta = getNextPrereleaseVersion(currentVersion, "next", "beta");
+  const nextAlpha = getNextPrereleaseVersion(currentVersion, "next", "alpha");
+  const prePatchBeta = getNextPrereleaseVersion(currentVersion, "prepatch", "beta");
+  const preMinorBeta = getNextPrereleaseVersion(currentVersion, "preminor", "beta");
+  const preMajorBeta = getNextPrereleaseVersion(currentVersion, "premajor", "beta");
+  const prePatchAlpha = getNextPrereleaseVersion(currentVersion, "prepatch", "alpha");
+  const preMinorAlpha = getNextPrereleaseVersion(currentVersion, "preminor", "alpha");
+  const preMajorAlpha = getNextPrereleaseVersion(currentVersion, "premajor", "alpha");
+
   const initial = defaultChoice === "skip"
     ? 0
     : defaultChoice === "suggested"
@@ -62,6 +82,15 @@ export async function selectVersionPrompt(
         { value: "major", title: `major ${farver.bold(getNextVersion(pkg.version, "major"))}` },
         { value: "minor", title: `minor ${farver.bold(getNextVersion(pkg.version, "minor"))}` },
         { value: "patch", title: `patch ${farver.bold(getNextVersion(pkg.version, "patch"))}` },
+        { value: "next", title: `next ${farver.bold(nextDefaultPrerelease)}` },
+        { value: "prepatch-beta", title: `pre-patch (beta) ${farver.bold(prePatchBeta)}` },
+        { value: "preminor-beta", title: `pre-minor (beta) ${farver.bold(preMinorBeta)}` },
+        { value: "premajor-beta", title: `pre-major (beta) ${farver.bold(preMajorBeta)}` },
+        { value: "prepatch-alpha", title: `pre-patch (alpha) ${farver.bold(prePatchAlpha)}` },
+        { value: "preminor-alpha", title: `pre-minor (alpha) ${farver.bold(preMinorAlpha)}` },
+        { value: "premajor-alpha", title: `pre-major (alpha) ${farver.bold(preMajorAlpha)}` },
+        { value: "next-beta", title: `next beta ${farver.bold(nextBeta)}` },
+        { value: "next-alpha", title: `next alpha ${farver.bold(nextAlpha)}` },
 
         { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}${suggestedSuffix}` },
         { value: "as-is", title: `as-is ${farver.dim("(keep current version)")}` },
@@ -103,6 +132,24 @@ export async function selectVersionPrompt(
   } else if (answers.version === "as-is") {
     // TODO: verify that there isn't any tags already existing for this version?
     return currentVersion;
+  } else if (answers.version === "next") {
+    return nextDefaultPrerelease;
+  } else if (answers.version === "next-beta") {
+    return nextBeta;
+  } else if (answers.version === "next-alpha") {
+    return nextAlpha;
+  } else if (answers.version === "prepatch-beta") {
+    return prePatchBeta;
+  } else if (answers.version === "preminor-beta") {
+    return preMinorBeta;
+  } else if (answers.version === "premajor-beta") {
+    return preMajorBeta;
+  } else if (answers.version === "prepatch-alpha") {
+    return prePatchAlpha;
+  } else if (answers.version === "preminor-alpha") {
+    return preMinorAlpha;
+  } else if (answers.version === "premajor-alpha") {
+    return preMajorAlpha;
   } else {
     // It's a bump type
     return getNextVersion(pkg.version, answers.version as BumpKind);

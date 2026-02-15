@@ -1,4 +1,10 @@
-import { calculateBumpType, getNextVersion, isValidSemver } from "#operations/semver";
+import {
+  calculateBumpType,
+  getNextPrereleaseVersion,
+  getNextVersion,
+  getPrereleaseIdentifier,
+  isValidSemver,
+} from "#operations/semver";
 import { describe, expect, it } from "vitest";
 
 describe("semver operations", () => {
@@ -20,5 +26,20 @@ describe("semver operations", () => {
     expect(calculateBumpType("1.0.0", "1.1.0")).toBe("minor");
     expect(calculateBumpType("1.0.0", "1.0.1")).toBe("patch");
     expect(calculateBumpType("1.0.0", "1.0.0")).toBe("none");
+  });
+
+  it("supports prerelease helpers", () => {
+    expect(getPrereleaseIdentifier("0.1.0-beta.46")).toBe("beta");
+    expect(getPrereleaseIdentifier("0.1.0")).toBeUndefined();
+
+    expect(getNextPrereleaseVersion("0.1.0-beta.46", "next", "beta")).toBe("0.1.0-beta.47");
+    expect(getNextPrereleaseVersion("0.1.0", "prepatch", "beta")).toBe("0.1.1-beta.0");
+    expect(getNextPrereleaseVersion("0.1.0", "preminor", "alpha")).toBe("0.2.0-alpha.0");
+  });
+
+  it("maps prerelease bumps to semantic bump kinds", () => {
+    expect(calculateBumpType("0.1.0-beta.46", "0.1.0-beta.47")).toBe("patch");
+    expect(calculateBumpType("0.1.0-beta.46", "0.1.1-beta.0")).toBe("patch");
+    expect(calculateBumpType("0.1.0-beta.46", "0.2.0-beta.0")).toBe("minor");
   });
 });
