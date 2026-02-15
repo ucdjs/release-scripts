@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { updateChangelog } from "#core/changelog";
 import {
   checkoutBranch,
+  getMostRecentPackageStableTag,
   isWorkingDirectoryClean,
 } from "#core/git";
 import { discoverWorkspacePackages } from "#core/workspace";
@@ -13,9 +14,9 @@ import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { syncPullRequest } from "#operations/pr";
 import { exitWithError, formatUnknownError } from "#shared/errors";
 import { logger, ucdjsReleaseOverridesPath } from "#shared/utils";
-import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
+import { getGlobalCommitsPerPackage, getPackageCommitsSinceTag, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import farver from "farver";
-import { compare } from "semver";
+import semver, { compare } from "semver";
 
 export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions): Promise<ReleaseResult | null> {
   if (options.safeguards) {
@@ -155,29 +156,73 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     );
 
     const changelogPromises = allUpdates.map((update) => {
-      const pkgCommits = groupedPackageCommits.get(update.package.name) || [];
-      const globalCommits = globalCommitsPerPackage.get(update.package.name) || [];
-      const allCommits = [...pkgCommits, ...globalCommits];
+      return (async () => {
+        let pkgCommits = groupedPackageCommits.get(update.package.name) || [];
+        let globalCommits = globalCommitsPerPackage.get(update.package.name) || [];
+        let previousVersionForChangelog: string | undefined = update.currentVersion !== "0.0.0"
+          ? update.currentVersion
+          : undefined;
 
-      if (allCommits.length === 0) {
-        logger.verbose(`No commits for ${update.package.name}, skipping changelog`);
-        return Promise.resolve();
-      }
+        const shouldCombinePrereleaseIntoStable = options.changelog.combinePrereleaseIntoFirstStable
+          && semver.prerelease(update.currentVersion) != null
+          && semver.prerelease(update.newVersion) == null;
 
-      logger.verbose(`Updating changelog for ${farver.cyan(update.package.name)}`);
+        if (shouldCombinePrereleaseIntoStable) {
+          const stableTagResult = await getMostRecentPackageStableTag(options.workspaceRoot, update.package.name);
+          if (!stableTagResult.ok) {
+            logger.warn(`Failed to resolve stable tag for ${update.package.name}: ${stableTagResult.error.message}`);
+          } else {
+            const stableTag = stableTagResult.value;
+            if (stableTag) {
+              logger.verbose(`Combining prerelease changelog entries into stable release for ${update.package.name} using base tag ${stableTag}`);
 
-      return updateChangelog({
-        normalizedOptions: {
-          ...options,
-          workspaceRoot: options.workspaceRoot,
-        },
-        githubClient: options.githubClient,
-        workspacePackage: update.package,
-        version: update.newVersion,
-        previousVersion: update.currentVersion !== "0.0.0" ? update.currentVersion : undefined,
-        commits: allCommits,
-        date: new Date().toISOString().split("T")[0]!,
-      });
+              const stableBaseCommits = await getPackageCommitsSinceTag(
+                options.workspaceRoot,
+                update.package,
+                stableTag,
+              );
+
+              pkgCommits = stableBaseCommits;
+
+              const stableBaseGlobals = await getGlobalCommitsPerPackage(
+                options.workspaceRoot,
+                new Map([[update.package.name, stableBaseCommits]]),
+                workspacePackages,
+                options.globalCommitMode === "none" ? false : options.globalCommitMode,
+              );
+
+              globalCommits = stableBaseGlobals.get(update.package.name) || [];
+
+              const atIndex = stableTag.lastIndexOf("@");
+              if (atIndex !== -1) {
+                previousVersionForChangelog = stableTag.slice(atIndex + 1);
+              }
+            }
+          }
+        }
+
+        const allCommits = [...pkgCommits, ...globalCommits];
+
+        if (allCommits.length === 0) {
+          logger.verbose(`No commits for ${update.package.name}, skipping changelog`);
+          return;
+        }
+
+        logger.verbose(`Updating changelog for ${farver.cyan(update.package.name)}`);
+
+        await updateChangelog({
+          normalizedOptions: {
+            ...options,
+            workspaceRoot: options.workspaceRoot,
+          },
+          githubClient: options.githubClient,
+          workspacePackage: update.package,
+          version: update.newVersion,
+          previousVersion: previousVersionForChangelog,
+          commits: allCommits,
+          date: new Date().toISOString().split("T")[0]!,
+        });
+      })();
     }).filter((p): p is Promise<void> => p != null);
 
     const updates = await Promise.all(changelogPromises);

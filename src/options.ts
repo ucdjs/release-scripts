@@ -35,6 +35,7 @@ export interface ReleaseScriptsOptionsInput {
     enabled?: boolean;
     template?: string;
     emojis?: boolean;
+    combinePrereleaseIntoFirstStable?: boolean;
   };
   npm?: {
     otp?: string;
@@ -174,6 +175,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
       enabled: changelog.enabled ?? true,
       template: changelog.template ?? DEFAULT_CHANGELOG_TEMPLATE,
       emojis: changelog.emojis ?? true,
+      combinePrereleaseIntoFirstStable: changelog.combinePrereleaseIntoFirstStable ?? false,
     },
     types: types ? { ...DEFAULT_TYPES, ...types } : DEFAULT_TYPES,
     npm: {

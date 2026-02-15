@@ -54,6 +54,25 @@ export async function getWorkspacePackageGroupedCommits(
   return changedPackages;
 }
 
+export async function getPackageCommitsSinceTag(
+  workspaceRoot: string,
+  pkg: WorkspacePackage,
+  fromTag?: string,
+): Promise<GitCommit[]> {
+  const allCommits = await getCommits({
+    from: fromTag,
+    to: "HEAD",
+    cwd: workspaceRoot,
+    folder: pkg.path,
+  });
+
+  logger.verbose(
+    `Found ${farver.cyan(allCommits.length)} commits for package ${farver.bold(pkg.name)} since ${farver.cyan(fromTag ?? "start")}`,
+  );
+
+  return allCommits;
+}
+
 /**
  * Check if a file path touches any package folder.
  * @param file - The file path to check
