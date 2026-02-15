@@ -2,7 +2,7 @@ import type {
   FindWorkspacePackagesOptions,
   PackageJson,
 } from "#shared/types";
-import type { Result } from "#types/result";
+import type { Result } from "#types";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

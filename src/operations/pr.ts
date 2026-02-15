@@ -1,8 +1,8 @@
 import type { GitHubClient, GitHubError, GitHubPullRequest } from "#core/github";
 import type { PackageRelease } from "#shared/types";
-import type { Result } from "#types/result";
+import type { Result } from "#types";
 import { generatePullRequestBody } from "#core/github";
-import { ok } from "#types/result";
+import { ok } from "#types";
 
 interface SyncPullRequestOptions {
   github: GitHubClient;

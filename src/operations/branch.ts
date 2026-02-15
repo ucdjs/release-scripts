@@ -1,5 +1,5 @@
 import type { GitError } from "#core/git";
-import type { Result } from "#types/result";
+import type { Result } from "#types";
 import {
   checkoutBranch,
   commitChanges,
@@ -12,7 +12,7 @@ import {
   rebaseBranch,
 } from "#core/git";
 import { logger } from "#shared/utils";
-import { err, ok } from "#types/result";
+import { err, ok } from "#types";
 
 interface PrepareReleaseBranchOptions {
   workspaceRoot: string;

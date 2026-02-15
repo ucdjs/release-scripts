@@ -1,8 +1,8 @@
 import type { GitError } from "#core/git";
 import type { WorkspacePackage } from "#core/workspace";
 import type { PackageRelease } from "#shared/types";
-import type { Result } from "#types/result";
-import { err } from "#types/result";
+import type { Result } from "#types";
+import { err } from "#types";
 import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 

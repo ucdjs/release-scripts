@@ -15,7 +15,7 @@
     "#workflows/*": "./src/workflows/*.ts",
     "#versioning/*": "./src/versioning/*.ts",
     "#shared/*": "./src/shared/*.ts",
-    "#types/*": "./src/types/*.ts"
+    "#types": "./src/types.ts"
   },
   "exports": {
     ".": "./dist/index.mjs",

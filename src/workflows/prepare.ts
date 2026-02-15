@@ -1,4 +1,4 @@
-import type { ReleaseResult } from "#types/release";
+import type { ReleaseResult } from "#types";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";

@@ -1,4 +1,4 @@
-import type { ReleaseResult } from "#types/release";
+import type { ReleaseResult } from "#types";
 import type { WorkspacePackage } from "./core/workspace";
 import type { ReleaseScriptsOptionsInput } from "./options";
 import { prepareWorkflow as release } from "#workflows/prepare";
