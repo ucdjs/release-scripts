@@ -33,7 +33,25 @@ export async function selectVersionPrompt(
   pkg: WorkspacePackage,
   currentVersion: string,
   suggestedVersion: string,
+  options?: {
+    defaultChoice?: "auto" | "skip" | "suggested" | "as-is";
+    suggestedHint?: string;
+  },
 ): Promise<string | null> {
+  const defaultChoice = options?.defaultChoice ?? "auto";
+  const suggestedSuffix = options?.suggestedHint
+    ? farver.dim(` (${options.suggestedHint})`)
+    : "";
+  const initial = defaultChoice === "skip"
+    ? 0
+    : defaultChoice === "suggested"
+      ? 4
+      : defaultChoice === "as-is"
+        ? 5
+        : suggestedVersion === currentVersion
+          ? 0
+          : 4;
+
   const answers = await prompts([
     {
       type: "autocomplete",
@@ -45,12 +63,12 @@ export async function selectVersionPrompt(
         { value: "minor", title: `minor ${farver.bold(getNextVersion(pkg.version, "minor"))}` },
         { value: "patch", title: `patch ${farver.bold(getNextVersion(pkg.version, "patch"))}` },
 
-        { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}` },
+        { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}${suggestedSuffix}` },
         { value: "as-is", title: `as-is ${farver.dim("(keep current version)")}` },
 
         { value: "custom", title: "custom" },
       ],
-      initial: suggestedVersion === currentVersion ? 0 : 4, // Default to "skip" if no change, otherwise "suggested"
+      initial,
     },
     {
       type: (prev) => prev === "custom" ? "text" : null,

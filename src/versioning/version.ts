@@ -154,6 +154,10 @@ async function calculateVersionUpdates({
         pkg,
         pkg.version,
         newVersion,
+        {
+          defaultChoice: override ? "suggested" : "auto",
+          suggestedHint: override ? "from override" : undefined,
+        },
       );
 
       if (selectedVersion === null) continue;
@@ -167,11 +171,14 @@ async function calculateVersionUpdates({
         // Persist explicit "as-is" only when automatic bump exists.
         // Prompted reruns can still change this because we don't short-circuit when prompting.
         if (determinedBump !== "none") {
-          newOverrides[pkgName] = { type: "none", version: pkg.version };
-          logger.info(`Version override recorded for ${pkgName}: ${determinedBump} → none`);
+          const nextOverride: VersionOverride = { type: "none", version: pkg.version };
+          if (!override || override.type !== nextOverride.type || override.version !== nextOverride.version) {
+            newOverrides[pkgName] = nextOverride;
+            logger.info(`Override set for ${pkgName}: suggested as-is (${pkg.version}) from auto ${determinedBump}`);
+          }
         } else if (newOverrides[pkgName]) {
           delete newOverrides[pkgName];
-          logger.info(`Version override removed for ${pkgName}.`);
+          logger.info(`Override cleared for ${pkgName}.`);
         }
 
         // Keep an explicit update entry so downstream flows (changelog generation,
@@ -182,18 +189,22 @@ async function calculateVersionUpdates({
           newVersion: pkg.version,
           bumpType: "none",
           hasDirectChanges: allCommitsForPackage.length > 0,
+          changeKind: "as-is",
         });
         continue;
       }
 
       if (bumpRanks[userBump] < bumpRanks[determinedBump]) {
-        newOverrides[pkgName] = { type: userBump, version: selectedVersion };
-        logger.info(`Version override recorded for ${pkgName}: ${determinedBump} → ${userBump}`);
+        const nextOverride: VersionOverride = { type: userBump, version: selectedVersion };
+        if (!override || override.type !== nextOverride.type || override.version !== nextOverride.version) {
+          newOverrides[pkgName] = nextOverride;
+          logger.info(`Override set for ${pkgName}: suggested ${userBump} (${selectedVersion}) from auto ${determinedBump}`);
+        }
       } else if (newOverrides[pkgName] && bumpRanks[userBump] >= bumpRanks[determinedBump]) {
         // If the user manually selects a version that's NOT a downgrade,
         // remove any existing override for that package.
         delete newOverrides[pkgName];
-        logger.info(`Version override removed for ${pkgName}.`);
+        logger.info(`Override cleared for ${pkgName}.`);
       }
 
       newVersion = selectedVersion;
@@ -205,6 +216,7 @@ async function calculateVersionUpdates({
       newVersion,
       bumpType: finalBumpType,
       hasDirectChanges: allCommitsForPackage.length > 0,
+      changeKind: canPrompt ? "manual" : "auto",
     });
   }
 
@@ -232,6 +244,7 @@ async function calculateVersionUpdates({
         newVersion,
         bumpType,
         hasDirectChanges: false,
+        changeKind: "manual",
       });
       // We don't record an override here as there was no automatic bump to override.
     }

@@ -74,6 +74,11 @@ export interface PackageRelease {
    * Whether this package has direct changes (vs being updated due to dependency changes)
    */
   hasDirectChanges: boolean;
+
+  /**
+   * Why/how this release entry exists.
+   */
+  changeKind: "auto" | "manual" | "as-is" | "dependent";
 }
 
 export interface AuthorInfo {

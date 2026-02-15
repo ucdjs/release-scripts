@@ -90,8 +90,9 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   }
 
   const { allUpdates, applyUpdates, overrides: newOverrides } = updatesResult.value;
+  const hasOverrideChanges = JSON.stringify(existingOverrides) !== JSON.stringify(newOverrides);
 
-  if (Object.keys(newOverrides).length > 0) {
+  if (Object.keys(newOverrides).length > 0 && hasOverrideChanges) {
     logger.info("Writing version overrides file...");
     try {
       await mkdir(join(options.workspaceRoot, ".github"), { recursive: true });
@@ -100,6 +101,8 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     } catch (e) {
       logger.error("Failed to write version overrides file:", e);
     }
+  } else if (Object.keys(newOverrides).length > 0) {
+    logger.info("Version overrides unchanged. Skipping write.");
   }
 
   if (Object.keys(newOverrides).length === 0 && Object.keys(existingOverrides).length > 0) {
@@ -133,7 +136,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   logger.item(`Updating ${allUpdates.length} packages (including dependents)`);
 
   for (const update of allUpdates) {
-    const isAsIs = update.currentVersion === update.newVersion;
+    const isAsIs = update.changeKind === "as-is";
     const suffix = isAsIs ? farver.dim(" (as-is)") : "";
     logger.item(`${update.package.name}: ${update.currentVersion} → ${update.newVersion}${suffix}`);
   }
@@ -208,6 +211,11 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
 
     if (prResult.value.pullRequest) {
       logger.item("No updates needed, PR is already up to date");
+      const checkoutResult = await checkoutBranch(options.branch.default, options.workspaceRoot);
+      if (!checkoutResult.ok) {
+        exitWithError(`Failed to checkout branch: ${options.branch.default}`, undefined, checkoutResult.error);
+      }
+
       return {
         updates: allUpdates,
         prUrl: prResult.value.pullRequest.html_url,

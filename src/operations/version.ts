@@ -40,6 +40,7 @@ export function createVersionUpdate(
     newVersion,
     bumpType: bump,
     hasDirectChanges,
+    changeKind: "dependent",
   };
 }
 
