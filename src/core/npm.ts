@@ -1,7 +1,8 @@
 import type { Result } from "#types";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import process from "node:process";
-import { formatUnknownError, runIfNotDry } from "#shared/utils";
+import { formatUnknownError } from "#shared/errors";
+import { runIfNotDry } from "#shared/utils";
 import { err, ok } from "#types";
 
 export interface NPMError {

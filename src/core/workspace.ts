@@ -7,7 +7,8 @@ import type { NormalizedReleaseScriptsOptions } from "../options";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { selectPackagePrompt } from "#core/prompts";
-import { exitWithError, isCI, logger, run } from "#shared/utils";
+import { exitWithError } from "#shared/errors";
+import { isCI, logger, run } from "#shared/utils";
 import { err, ok } from "#types";
 import farver from "farver";
 

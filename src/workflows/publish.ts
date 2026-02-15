@@ -3,7 +3,8 @@ import type { NormalizedReleaseScriptsOptions } from "../options";
 import { createAndPushPackageTag } from "#core/git";
 import { buildPackage, checkVersionExists, publishPackage } from "#core/npm";
 import { discoverWorkspacePackages } from "#core/workspace";
-import { exitWithError, logger } from "#shared/utils";
+import { exitWithError } from "#shared/errors";
+import { logger } from "#shared/utils";
 import { buildPackageDependencyGraph, getPackagePublishOrder } from "#versioning/package";
 import farver from "farver";
 

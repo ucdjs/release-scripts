@@ -1,5 +1,6 @@
 import type { AuthorInfo, PackageRelease } from "#shared/types";
-import { formatUnknownError, logger } from "#shared/utils";
+import { formatUnknownError } from "#shared/errors";
+import { logger } from "#shared/utils";
 import { Eta } from "eta";
 import farver from "farver";
 import { DEFAULT_PR_BODY_TEMPLATE } from "../options";

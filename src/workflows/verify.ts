@@ -3,7 +3,8 @@ import { join, relative } from "node:path";
 import { checkoutBranch, getCurrentBranch, isWorkingDirectoryClean, readFileFromGit } from "#core/git";
 import { discoverWorkspacePackages } from "#core/workspace";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
-import { exitWithError, formatUnknownError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
+import { exitWithError, formatUnknownError } from "#shared/errors";
+import { logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { gt } from "semver";
 
 export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {

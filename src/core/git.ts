@@ -1,6 +1,6 @@
 import type { Result } from "#types";
+import { formatUnknownError } from "#shared/errors";
 import {
-  formatUnknownError,
   logger,
   run,
   runIfNotDry,
