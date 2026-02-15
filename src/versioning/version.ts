@@ -132,12 +132,6 @@ async function calculateVersionUpdates({
     const effectiveBump = override?.type || determinedBump;
     const canPrompt = !isCI && showPrompt;
 
-    if (override?.type === "none" && override.version === pkg.version) {
-      // "as-is" should not lock future runs. Keep this run behavior, but drop stale override.
-      delete newOverrides[pkgName];
-      logger.verbose(`Removed stale "none" override for ${pkgName}`);
-    }
-
     if (effectiveBump === "none" && !canPrompt) {
       continue;
     }
@@ -166,8 +160,12 @@ async function calculateVersionUpdates({
       finalBumpType = userBump;
 
       if (selectedVersion === pkg.version) {
-        // Respect "as-is" for this run, but do not persist a locking override.
-        if (newOverrides[pkgName]) {
+        // Persist explicit "as-is" only when automatic bump exists.
+        // Prompted reruns can still change this because we don't short-circuit when prompting.
+        if (determinedBump !== "none") {
+          newOverrides[pkgName] = { type: "none", version: pkg.version };
+          logger.info(`Version override recorded for ${pkgName}: ${determinedBump} → none`);
+        } else if (newOverrides[pkgName]) {
           delete newOverrides[pkgName];
           logger.info(`Version override removed for ${pkgName}.`);
         }
