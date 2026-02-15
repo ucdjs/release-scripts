@@ -16,7 +16,40 @@ import { exitWithError, formatUnknownError } from "#shared/errors";
 import { logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { getGlobalCommitsPerPackage, getPackageCommitsSinceTag, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import farver from "farver";
-import semver, { compare } from "semver";
+import semver from "semver";
+
+function pruneStaleOverrides(
+  overrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>,
+  workspacePackages: { name: string; version: string }[],
+): {
+  activeOverrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>;
+  removed: string[];
+} {
+  const packageVersions = new Map(workspacePackages.map((pkg) => [pkg.name, pkg.version]));
+  const activeOverrides: Record<string, { version: string; type: import("#shared/types").BumpKind }> = {};
+  const removed: string[] = [];
+
+  for (const [pkgName, override] of Object.entries(overrides)) {
+    const currentVersion = packageVersions.get(pkgName);
+
+    if (!currentVersion) {
+      removed.push(pkgName);
+      continue;
+    }
+
+    const current = semver.valid(currentVersion);
+    const target = semver.valid(override.version);
+
+    if (current && target && semver.gte(current, target)) {
+      removed.push(pkgName);
+      continue;
+    }
+
+    activeOverrides[pkgName] = override;
+  }
+
+  return { activeOverrides, removed };
+}
 
 export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions): Promise<ReleaseResult | null> {
   if (options.safeguards) {
@@ -78,12 +111,23 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     logger.verbose(`Reading overrides file failed: ${formatUnknownError(error).message}`);
   }
 
+  const { activeOverrides: calculatedOverrides, removed: removedOverrides } = pruneStaleOverrides(
+    existingOverrides,
+    workspacePackages,
+  );
+
+  if (removedOverrides.length > 0) {
+    logger.info(
+      `Pruned ${removedOverrides.length} stale override${removedOverrides.length === 1 ? "" : "s"}: ${removedOverrides.join(", ")}`,
+    );
+  }
+
   const updatesResult = await calculateUpdates({
     workspacePackages,
     workspaceRoot: options.workspaceRoot,
     showPrompt: options.prompts?.versions !== false,
     globalCommitMode: options.globalCommitMode === "none" ? false : options.globalCommitMode,
-    overrides: existingOverrides,
+    overrides: calculatedOverrides,
   });
 
   if (!updatesResult.ok) {
@@ -106,24 +150,14 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     logger.step("Version overrides unchanged. Skipping write.");
   }
 
-  if (Object.keys(newOverrides).length === 0 && Object.keys(existingOverrides).length > 0) {
-    let shouldRemoveOverrides = false;
-    for (const update of allUpdates) {
-      const overriddenVersion = existingOverrides[update.package.name];
-      if (overriddenVersion) {
-        if (compare(update.newVersion, overriddenVersion.version) > 0) {
-          shouldRemoveOverrides = true;
-          break;
-        }
-      }
-    }
-
-    if (shouldRemoveOverrides) {
-      logger.info("Removing obsolete version overrides file...");
-      try {
-        await rm(overridesPath);
-        logger.success("Successfully removed obsolete version overrides file.");
-      } catch (e) {
+  if (Object.keys(newOverrides).length === 0 && hasOverrideChanges) {
+    logger.info("Removing obsolete version overrides file...");
+    try {
+      await rm(overridesPath);
+      logger.success("Successfully removed obsolete version overrides file.");
+    } catch (e) {
+      const formatted = formatUnknownError(e);
+      if (formatted.code !== "ENOENT") {
         logger.error("Failed to remove obsolete version overrides file:", e);
       }
     }
