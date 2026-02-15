@@ -195,7 +195,26 @@ export async function checkoutBranch(
 
     return ok(false);
   } catch (error) {
-    return err(toGitError("checkoutBranch", error));
+    const gitError = toGitError("checkoutBranch", error);
+    logger.error(`Git checkout failed: ${gitError.message}`);
+    if (gitError.stderr) {
+      logger.error(`Git stderr: ${gitError.stderr}`);
+    }
+    
+    // Show available branches for debugging
+    try {
+      const branchResult = await run("git", ["branch", "-a"], {
+        nodeOptions: {
+          cwd: workspaceRoot,
+          stdio: "pipe",
+        },
+      });
+      logger.verbose(`Available branches:\n${branchResult.stdout}`);
+    } catch {
+      logger.verbose("Could not list available branches");
+    }
+    
+    return err(gitError);
   }
 }
 
