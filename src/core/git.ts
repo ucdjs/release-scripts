@@ -7,6 +7,7 @@ import {
 } from "#shared/utils";
 import { err, ok } from "#types";
 import farver from "farver";
+import semver from "semver";
 
 /**
  * Check if the working directory is clean (no uncommitted changes)
@@ -410,6 +411,42 @@ export async function getMostRecentPackageTag(
     return ok(tags.reverse()[0]);
   } catch (error) {
     return err(toGitError("getMostRecentPackageTag", error));
+  }
+}
+
+export async function getMostRecentPackageStableTag(
+  workspaceRoot: string,
+  packageName: string,
+): Promise<Result<string | undefined, GitError>> {
+  try {
+    const { stdout } = await run("git", ["tag", "--list", `${packageName}@*`], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    const tags = stdout
+      .split("\n")
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .reverse();
+
+    for (const tag of tags) {
+      const atIndex = tag.lastIndexOf("@");
+      if (atIndex === -1) {
+        continue;
+      }
+
+      const version = tag.slice(atIndex + 1);
+      if (semver.valid(version) && semver.prerelease(version) == null) {
+        return ok(tag);
+      }
+    }
+
+    return ok(undefined);
+  } catch (error) {
+    return err(toGitError("getMostRecentPackageStableTag", error));
   }
 }
 
