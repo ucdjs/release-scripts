@@ -1,4 +1,5 @@
 import type { Result } from "#types";
+import process from "node:process";
 import { formatUnknownError } from "#shared/errors";
 import {
   logger,
@@ -29,6 +30,85 @@ function toGitError(operation: string, error: unknown): GitError {
     message: formatted.message,
     stderr: formatted.stderr,
   };
+}
+
+function isMissingGitIdentityError(error: unknown): boolean {
+  const formatted = formatUnknownError(error);
+  const combined = `${formatted.message}\n${formatted.stderr ?? ""}`;
+
+  return combined.includes("Author identity unknown")
+    || combined.includes("empty ident name")
+    || combined.includes("Please tell me who you are");
+}
+
+async function ensureLocalGitIdentity(workspaceRoot: string): Promise<Result<void, GitError>> {
+  try {
+    const actor = process.env.GITHUB_ACTOR?.trim();
+
+    const name = process.env.GIT_AUTHOR_NAME?.trim()
+      || process.env.GIT_COMMITTER_NAME?.trim()
+      || actor
+      || "github-actions[bot]";
+
+    const email = process.env.GIT_AUTHOR_EMAIL?.trim()
+      || process.env.GIT_COMMITTER_EMAIL?.trim()
+      || (actor ? `${actor}@users.noreply.github.com` : "github-actions[bot]@users.noreply.github.com");
+
+    logger.warn("Git author identity missing. Configuring repository-local git identity for this run.");
+
+    await runIfNotDry("git", ["config", "user.name", name], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    await runIfNotDry("git", ["config", "user.email", email], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    logger.info(`Configured git identity: ${farver.dim(`${name} <${email}>`)}`);
+    return ok(undefined);
+  } catch (error) {
+    return err(toGitError("ensureLocalGitIdentity", error));
+  }
+}
+
+async function commitWithRetryOnMissingIdentity(
+  message: string,
+  workspaceRoot: string,
+  operation: "commitChanges" | "commitPaths",
+): Promise<Result<void, GitError>> {
+  const runCommit = async () => runIfNotDry("git", ["commit", "-m", message], {
+    nodeOptions: {
+      cwd: workspaceRoot,
+      stdio: "pipe",
+    },
+  });
+
+  try {
+    await runCommit();
+    return ok(undefined);
+  } catch (error) {
+    if (!isMissingGitIdentityError(error)) {
+      return err(toGitError(operation, error));
+    }
+
+    const configured = await ensureLocalGitIdentity(workspaceRoot);
+    if (!configured.ok) {
+      return configured;
+    }
+
+    try {
+      await runCommit();
+      return ok(undefined);
+    } catch (retryError) {
+      return err(toGitError(operation, retryError));
+    }
+  }
 }
 
 export async function isWorkingDirectoryClean(
@@ -300,12 +380,10 @@ export async function commitChanges(
 
     // Commit
     logger.info(`Committing changes: ${farver.dim(message)}`);
-    await runIfNotDry("git", ["commit", "-m", message], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
+    const committed = await commitWithRetryOnMissingIdentity(message, workspaceRoot, "commitChanges");
+    if (!committed.ok) {
+      return committed;
+    }
 
     return ok(true);
   } catch (error) {
@@ -347,12 +425,10 @@ export async function commitPaths(
     }
 
     logger.info(`Committing changes: ${farver.dim(message)}`);
-    await runIfNotDry("git", ["commit", "-m", message], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
+    const committed = await commitWithRetryOnMissingIdentity(message, workspaceRoot, "commitPaths");
+    if (!committed.ok) {
+      return committed;
+    }
 
     return ok(true);
   } catch (error) {
