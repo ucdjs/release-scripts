@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { err, isErr, isOk, ok } from "../../src/types/result";
+import { err, isErr, isOk, ok } from "../../src/types";
 
 describe("result", () => {
   it("creates ok values", () => {
