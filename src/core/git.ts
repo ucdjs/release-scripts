@@ -187,7 +187,10 @@ export async function checkoutBranch(
     });
 
     const output = result.stderr.trim();
-    const match = output.match(/Switched to branch '(.+)'/);
+
+    // Switching Branches "Switched to branch '[name]'"
+    // New Branch "Switched to a new branch '[name]'"
+    const match = output.match(/Switched to (?:a new )?branch '(.+)'/);
     if (match && match[1] === branch) {
       logger.info(`Successfully switched to branch: ${farver.green(branch)}`);
       return ok(true);
