@@ -2,7 +2,7 @@ import type { GitError } from "#core/git";
 import type { WorkspacePackage } from "#core/workspace";
 import type { PackageRelease } from "#shared/types";
 import type { Result } from "#types";
-import { err } from "#types";
+import { err, ok } from "#types";
 import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 
@@ -45,7 +45,7 @@ export async function calculateUpdates(options: CalculateUpdatesOptions): Promis
       overrides,
     });
 
-    return { ok: true, value: updates };
+    return ok(updates);
   } catch (error) {
     return err({
       type: "git",
@@ -64,5 +64,5 @@ export function ensureHasPackages(packages: WorkspacePackage[]): Result<Workspac
     });
   }
 
-  return { ok: true, value: packages };
+  return ok(packages);
 }

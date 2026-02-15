@@ -8,6 +8,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { selectPackagePrompt } from "#core/prompts";
 import { exitWithError, isCI, logger, run } from "#shared/utils";
+import { err, ok } from "#types";
 import farver from "farver";
 
 interface RawProject {
@@ -70,7 +71,7 @@ export async function discoverWorkspacePackages(
       workspaceOptions,
     );
   } catch (error) {
-    return { ok: false, error: toWorkspaceError("discoverWorkspacePackages", error) };
+    return err(toWorkspaceError("discoverWorkspacePackages", error));
   }
 
   // If specific packages were requested, validate they were all found
@@ -98,7 +99,7 @@ export async function discoverWorkspacePackages(
     );
   }
 
-  return { ok: true, value: workspacePackages };
+  return ok(workspacePackages);
 }
 
 async function findWorkspacePackages(

@@ -4,6 +4,7 @@ import {
   run,
   runIfNotDry,
 } from "#shared/utils";
+import { err, ok } from "#types";
 import farver from "farver";
 
 /**
@@ -41,9 +42,9 @@ export async function isWorkingDirectoryClean(
         stdio: "pipe",
       },
     });
-    return { ok: true, value: result.stdout.trim() === "" };
+    return ok(result.stdout.trim() === "");
   } catch (error) {
-    return { ok: false, error: toGitError("isWorkingDirectoryClean", error) };
+    return err(toGitError("isWorkingDirectoryClean", error));
   }
 }
 
@@ -65,9 +66,9 @@ export async function doesBranchExist(
       },
     });
 
-    return { ok: true, value: true };
+    return ok(true);
   } catch {
-    return { ok: true, value: false };
+    return ok(false);
   }
 }
 
@@ -88,12 +89,12 @@ export async function getDefaultBranch(workspaceRoot: string): Promise<Result<st
     const ref = result.stdout.trim();
     const match = ref.match(/^refs\/remotes\/origin\/(.+)$/);
     if (match && match[1]) {
-      return { ok: true, value: match[1] };
+      return ok(match[1]);
     }
 
-    return { ok: true, value: "main" }; // Fallback
+    return ok("main"); // Fallback
   } catch {
-    return { ok: true, value: "main" }; // Fallback
+    return ok("main"); // Fallback
   }
 }
 
@@ -113,9 +114,9 @@ export async function getCurrentBranch(
       },
     });
 
-    return { ok: true, value: result.stdout.trim() };
+    return ok(result.stdout.trim());
   } catch (error) {
-    return { ok: false, error: toGitError("getCurrentBranch", error) };
+    return err(toGitError("getCurrentBranch", error));
   }
 }
 
@@ -140,9 +141,9 @@ export async function getAvailableBranches(
       .map((line) => line.replace("*", "").trim())
       .filter((line) => line.length > 0);
 
-    return { ok: true, value: branches };
+    return ok(branches);
   } catch (error) {
-    return { ok: false, error: toGitError("getAvailableBranches", error) };
+    return err(toGitError("getAvailableBranches", error));
   }
 }
 
@@ -166,9 +167,9 @@ export async function createBranch(
         stdio: "pipe",
       },
     });
-    return { ok: true, value: undefined };
+    return ok(undefined);
   } catch (error) {
-    return { ok: false, error: toGitError("createBranch", error) };
+    return err(toGitError("createBranch", error));
   }
 }
 
@@ -189,12 +190,12 @@ export async function checkoutBranch(
     const match = output.match(/Switched to branch '(.+)'/);
     if (match && match[1] === branch) {
       logger.info(`Successfully switched to branch: ${farver.green(branch)}`);
-      return { ok: true, value: true };
+      return ok(true);
     }
 
-    return { ok: true, value: false };
+    return ok(false);
   } catch (error) {
-    return { ok: false, error: toGitError("checkoutBranch", error) };
+    return err(toGitError("checkoutBranch", error));
   }
 }
 
@@ -209,9 +210,9 @@ export async function pullLatestChanges(
         stdio: "pipe",
       },
     });
-    return { ok: true, value: true };
+    return ok(true);
   } catch (error) {
-    return { ok: false, error: toGitError("pullLatestChanges", error) };
+    return err(toGitError("pullLatestChanges", error));
   }
 }
 
@@ -228,9 +229,9 @@ export async function rebaseBranch(
       },
     });
 
-    return { ok: true, value: undefined };
+    return ok(undefined);
   } catch (error) {
-    return { ok: false, error: toGitError("rebaseBranch", error) };
+    return err(toGitError("rebaseBranch", error));
   }
 }
 
@@ -247,9 +248,9 @@ export async function isBranchAheadOfRemote(
     });
 
     const commitCount = Number.parseInt(result.stdout.trim(), 10);
-    return { ok: true, value: commitCount > 0 };
+    return ok(commitCount > 0);
   } catch {
-    return { ok: true, value: true };
+    return ok(true);
   }
 }
 
@@ -269,7 +270,7 @@ export async function commitChanges(
     // Check if there are changes to commit
     const isClean = await isWorkingDirectoryClean(workspaceRoot);
     if (!isClean.ok || isClean.value) {
-      return { ok: true, value: false };
+      return ok(false);
     }
 
     // Commit
@@ -281,9 +282,9 @@ export async function commitChanges(
       },
     });
 
-    return { ok: true, value: true };
+    return ok(true);
   } catch (error) {
-    return { ok: false, error: toGitError("commitChanges", error) };
+    return err(toGitError("commitChanges", error));
   }
 }
 
@@ -318,9 +319,9 @@ export async function pushBranch(
       },
     });
 
-    return { ok: true, value: true };
+    return ok(true);
   } catch (error) {
-    return { ok: false, error: toGitError("pushBranch", error) };
+    return err(toGitError("pushBranch", error));
   }
 }
 
@@ -337,9 +338,9 @@ export async function readFileFromGit(
       },
     });
 
-    return { ok: true, value: result.stdout };
+    return ok(result.stdout);
   } catch {
-    return { ok: true, value: null };
+    return ok(null);
   }
 }
 
@@ -358,13 +359,13 @@ export async function getMostRecentPackageTag(
 
     const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
     if (tags.length === 0) {
-      return { ok: true, value: undefined };
+      return ok(undefined);
     }
 
     // Find the last tag for the specified package
-    return { ok: true, value: tags.reverse()[0] };
+    return ok(tags.reverse()[0]);
   } catch (error) {
-    return { ok: false, error: toGitError("getMostRecentPackageTag", error) };
+    return err(toGitError("getMostRecentPackageTag", error));
   }
 }
 
@@ -432,8 +433,8 @@ export async function getGroupedFilesByCommitSha(
       commitsMap.get(currentSha)!.push(trimmedLine);
     }
 
-    return { ok: true, value: commitsMap };
+    return ok(commitsMap);
   } catch (error) {
-    return { ok: false, error: toGitError("getGroupedFilesByCommitSha", error) };
+    return err(toGitError("getGroupedFilesByCommitSha", error));
   }
 }
