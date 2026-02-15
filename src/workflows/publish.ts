@@ -2,6 +2,7 @@ import type { PublishStatus } from "#core/npm";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { parseChangelog } from "#core/changelog";
 import { commitPaths, createAndPushPackageTag, getCurrentBranch, pushBranch } from "#core/git";
 import { checkVersionExists, publishPackage } from "#core/npm";
 import { discoverWorkspacePackages } from "#core/workspace";
@@ -10,6 +11,42 @@ import { logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { buildPackageDependencyGraph, getPackagePublishOrder } from "#versioning/package";
 import farver from "farver";
 import semver from "semver";
+
+async function getReleaseBodyFromChangelog(
+  workspaceRoot: string,
+  packageName: string,
+  packagePath: string,
+  version: string,
+): Promise<string | undefined> {
+  const changelogPath = join(packagePath, "CHANGELOG.md");
+
+  try {
+    const changelogContent = await readFile(changelogPath, "utf-8");
+    const parsed = parseChangelog(changelogContent);
+    const entry = parsed.versions.find((v) => v.version === version);
+
+    if (!entry) {
+      return [
+        `## ${packageName}@${version}`,
+        "",
+        "⚠️ Could not find a matching changelog entry for this version.",
+        "",
+        `Expected version ${version} in ${changelogPath}.`,
+      ].join("\n");
+    }
+
+    return entry.content.trim();
+  } catch {
+    logger.verbose(`Could not read changelog entry for ${version} at ${changelogPath}`);
+    return [
+      `## ${packageName}@${version}`,
+      "",
+      "⚠️ Could not read package changelog while creating this release.",
+      "",
+      `Expected changelog file: ${changelogPath}`,
+    ].join("\n");
+  }
+}
 
 async function cleanupPublishedOverrides(
   options: NormalizedReleaseScriptsOptions,
@@ -177,9 +214,17 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
 
     logger.step(`Creating GitHub release for ${farver.cyan(tagName)}...`);
     try {
+      const releaseBody = await getReleaseBodyFromChangelog(
+        options.workspaceRoot,
+        packageName,
+        pkg.path,
+        version,
+      );
+
       const releaseResult = await options.githubClient.upsertReleaseByTag({
         tagName,
         name: tagName,
+        body: releaseBody,
         prerelease: Boolean(semver.prerelease(version)),
       });
 
