@@ -140,8 +140,8 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     );
 
     const changelogPromises = allUpdates.map((update) => {
-        const pkgCommits = groupedPackageCommits.get(update.package.name) || [];
-        const globalCommits = globalCommitsPerPackage.get(update.package.name) || [];
+      const pkgCommits = groupedPackageCommits.get(update.package.name) || [];
+      const globalCommits = globalCommitsPerPackage.get(update.package.name) || [];
       const allCommits = [...pkgCommits, ...globalCommits];
 
       if (allCommits.length === 0) {

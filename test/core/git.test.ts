@@ -85,7 +85,7 @@ describe("git utilities", () => {
           exitCode: 0,
         });
 
-      const result = await doesBranchExist("feature-branch", "/workspace");
+        const result = await doesBranchExist("feature-branch", "/workspace");
         expect(mockExec).toHaveBeenCalledWith(
           "git",
           ["rev-parse", "--verify", "feature-branch"],
@@ -97,20 +97,20 @@ describe("git utilities", () => {
           }),
         );
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe(true);
-      }
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe(true);
+        }
       });
 
       it("should return false if branch does not exist", async () => {
         mockExec.mockRejectedValue(new Error("fatal: Needed a single revision"));
 
-      const result = await doesBranchExist("nonexistent-branch", "/workspace");
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe(false);
-      }
+        const result = await doesBranchExist("nonexistent-branch", "/workspace");
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe(false);
+        }
       });
     });
 
@@ -122,7 +122,7 @@ describe("git utilities", () => {
           exitCode: 0,
         });
 
-      const result = await getDefaultBranch("/workspace");
+        const result = await getDefaultBranch("/workspace");
 
         expect(mockExec).toHaveBeenCalledWith(
           "git",
@@ -134,10 +134,10 @@ describe("git utilities", () => {
           }),
         );
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe("main");
-      }
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe("main");
+        }
       });
 
       it("should return different branch name", async () => {
@@ -147,23 +147,23 @@ describe("git utilities", () => {
           exitCode: 0,
         });
 
-      const result = await getDefaultBranch("/workspace");
+        const result = await getDefaultBranch("/workspace");
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe("develop");
-      }
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe("develop");
+        }
       });
 
       it("should return 'main' if default branch cannot be determined", async () => {
         mockExec.mockRejectedValue(new Error("Some git error"));
 
-      const result = await getDefaultBranch("/workspace");
+        const result = await getDefaultBranch("/workspace");
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe("main");
-      }
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe("main");
+        }
       });
 
       it("should return 'main' if remote show output is unexpected", async () => {
@@ -173,12 +173,12 @@ describe("git utilities", () => {
           exitCode: 0,
         });
 
-      const result = await getDefaultBranch("/workspace");
+        const result = await getDefaultBranch("/workspace");
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe("main");
-      }
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe("main");
+        }
       });
     });
 
@@ -190,7 +190,7 @@ describe("git utilities", () => {
           exitCode: 0,
         });
 
-      const result = await getCurrentBranch("/workspace");
+        const result = await getCurrentBranch("/workspace");
 
         expect(mockExec).toHaveBeenCalledWith(
           "git",
@@ -203,10 +203,10 @@ describe("git utilities", () => {
           }),
         );
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe("feature-branch");
-      }
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe("feature-branch");
+        }
       });
 
       it("should handle errors", async () => {
@@ -228,7 +228,7 @@ describe("git utilities", () => {
           exitCode: 0,
         });
 
-      const result = await getAvailableBranches("/workspace");
+        const result = await getAvailableBranches("/workspace");
 
         expect(mockExec).toHaveBeenCalledWith(
           "git",
@@ -241,10 +241,10 @@ describe("git utilities", () => {
           }),
         );
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toEqual(["main", "feature-branch", "develop"]);
-      }
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toEqual(["main", "feature-branch", "develop"]);
+        }
       });
 
       it("should handle errors", async () => {
@@ -266,30 +266,30 @@ describe("git utilities", () => {
           exitCode: 0,
         });
 
-      const result = await createBranch("new-feature", "main", "/workspace");
+        const result = await createBranch("new-feature", "main", "/workspace");
 
-      expect(mockExec).toHaveBeenCalledWith(
-        "git",
-        ["branch", "new-feature", "main"],
-        expect.objectContaining({
-          nodeOptions: expect.objectContaining({
-            cwd: "/workspace",
-            stdio: "pipe",
+        expect(mockExec).toHaveBeenCalledWith(
+          "git",
+          ["branch", "new-feature", "main"],
+          expect.objectContaining({
+            nodeOptions: expect.objectContaining({
+              cwd: "/workspace",
+              stdio: "pipe",
+            }),
           }),
-        }),
-      );
-      expect(result.ok).toBe(true);
+        );
+        expect(result.ok).toBe(true);
       });
 
-    it("should handle errors", async () => {
-      mockExec.mockRejectedValue(new Error("Some git error"));
+      it("should handle errors", async () => {
+        mockExec.mockRejectedValue(new Error("Some git error"));
 
-      const result = await createBranch("new-feature", "main", "/workspace");
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error.operation).toBe("createBranch");
-      }
-    });
+        const result = await createBranch("new-feature", "main", "/workspace");
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.operation).toBe("createBranch");
+        }
+      });
     });
   });
 

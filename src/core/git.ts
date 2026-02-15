@@ -1,10 +1,9 @@
+import type { Result } from "#types/result";
 import {
-  exitWithError,
   logger,
   run,
   runIfNotDry,
 } from "#shared/utils";
-import type { Result } from "#types/result";
 import farver from "farver";
 
 /**

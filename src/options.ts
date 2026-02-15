@@ -1,8 +1,8 @@
-import type { CommitTypeRule } from "#shared/types";
 import type { GitHubClient } from "#core/github";
+import type { CommitTypeRule } from "#shared/types";
 import process from "node:process";
-import { dedent } from "@luxass/utils";
 import { createGitHubClient } from "#core/github";
+import { dedent } from "@luxass/utils";
 
 type DeepRequired<T> = Required<{
   [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>

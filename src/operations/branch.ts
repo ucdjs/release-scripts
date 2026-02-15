@@ -1,18 +1,18 @@
-import type { Result } from "#types/result";
-import { logger } from "#shared/utils";
-import { err, ok } from "#types/result";
 import type { GitError } from "#core/git";
+import type { Result } from "#types/result";
 import {
   checkoutBranch,
+  commitChanges,
   createBranch,
   doesBranchExist,
   getCurrentBranch,
   isBranchAheadOfRemote,
   pullLatestChanges,
-  rebaseBranch,
-  commitChanges,
   pushBranch,
+  rebaseBranch,
 } from "#core/git";
+import { logger } from "#shared/utils";
+import { err, ok } from "#types/result";
 
 interface PrepareReleaseBranchOptions {
   workspaceRoot: string;
