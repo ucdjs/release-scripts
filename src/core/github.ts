@@ -1,5 +1,5 @@
 import type { AuthorInfo, PackageRelease } from "#shared/types";
-import { logger } from "#shared/utils";
+import { formatUnknownError, logger } from "#shared/utils";
 import { Eta } from "eta";
 import farver from "farver";
 import { DEFAULT_PR_BODY_TEMPLATE } from "../options";
@@ -45,6 +45,17 @@ export interface GitHubError {
   status?: number;
 }
 
+function toGitHubError(operation: string, error: unknown): GitHubError {
+  const formatted = formatUnknownError(error);
+
+  return {
+    type: "github",
+    operation,
+    message: formatted.message,
+    status: formatted.status,
+  };
+}
+
 export class GitHubClient {
   private readonly owner: string;
   private readonly repo: string;
@@ -59,20 +70,56 @@ export class GitHubClient {
 
   private async request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
     const url = path.startsWith("http") ? path : `${this.apiBase}${path}`;
+    const method = init.method ?? "GET";
 
-    const res = await fetch(url, {
-      ...init,
-      headers: {
-        ...init.headers,
-        "Accept": "application/vnd.github.v3+json",
-        "Authorization": `token ${this.githubToken}`,
-        "User-Agent": "ucdjs-release-scripts (+https://github.com/ucdjs/ucdjs-release-scripts)",
-      },
-    });
+    let res: Response;
+
+    try {
+      res = await fetch(url, {
+        ...init,
+        headers: {
+          ...init.headers,
+          "Accept": "application/vnd.github.v3+json",
+          "Authorization": `token ${this.githubToken}`,
+          "User-Agent": "ucdjs-release-scripts (+https://github.com/ucdjs/ucdjs-release-scripts)",
+        },
+      });
+    } catch (error) {
+      throw Object.assign(
+        new Error(`[${method} ${path}] GitHub request failed: ${formatUnknownError(error).message}`),
+        {
+          status: undefined,
+        },
+      );
+    }
 
     if (!res.ok) {
       const errorText = await res.text();
-      throw new Error(`GitHub API request failed with status ${res.status}: ${errorText || "No response body"}`);
+      const parsedMessage = (() => {
+        try {
+          const parsed = JSON.parse(errorText) as { message?: string; errors?: unknown };
+          if (typeof parsed.message === "string" && parsed.message.trim()) {
+            if (Array.isArray(parsed.errors) && parsed.errors.length > 0) {
+              return `${parsed.message} (${JSON.stringify(parsed.errors)})`;
+            }
+
+            return parsed.message;
+          }
+
+          return errorText;
+        } catch {
+          return errorText;
+        }
+      })();
+
+      throw Object.assign(
+        new Error(
+          `[${method} ${path}] GitHub API request failed (${res.status} ${res.statusText}): ${parsedMessage || "No response body"}`,
+        ),
+        {
+          status: res.status,
+        },
+      );
     }
 
     if (res.status === 204) {
@@ -225,7 +272,7 @@ export class GitHubClient {
 
       info.login = data.items[0]!.login;
     } catch (err) {
-      logger.warn(`Failed to resolve author info for email ${info.email}: ${(err as Error).message}`);
+      logger.warn(`Failed to resolve author info for email ${info.email}: ${formatUnknownError(err).message}`);
     }
 
     if (info.login) {
@@ -246,7 +293,7 @@ export class GitHubClient {
           info.login = data.author.login;
         }
       } catch (err) {
-        logger.warn(`Failed to resolve author info from commits for email ${info.email}: ${(err as Error).message}`);
+        logger.warn(`Failed to resolve author info from commits for email ${info.email}: ${formatUnknownError(err).message}`);
       }
     }
 
@@ -257,6 +304,8 @@ export class GitHubClient {
 export function createGitHubClient(options: SharedGitHubOptions): GitHubClient {
   return new GitHubClient(options);
 }
+
+export { toGitHubError };
 
 function dedentString(str: string): string {
   const lines = str.split("\n");

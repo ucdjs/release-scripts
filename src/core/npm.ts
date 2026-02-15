@@ -1,7 +1,7 @@
 import type { Result } from "#types";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import process from "node:process";
-import { runIfNotDry } from "#shared/utils";
+import { formatUnknownError, runIfNotDry } from "#shared/utils";
 import { err, ok } from "#types";
 
 export interface NPMError {
@@ -9,6 +9,8 @@ export interface NPMError {
   operation: string;
   message: string;
   code?: string;
+  stderr?: string;
+  status?: number;
 }
 
 export interface NPMPackageMetadata {
@@ -19,12 +21,14 @@ export interface NPMPackageMetadata {
 }
 
 function toNPMError(operation: string, error: unknown, code?: string): NPMError {
-  const message = error instanceof Error ? error.message : String(error);
+  const formatted = formatUnknownError(error);
   return {
     type: "npm",
     operation,
-    message,
-    code,
+    message: formatted.message,
+    code: code || formatted.code,
+    stderr: formatted.stderr,
+    status: formatted.status,
   };
 }
 
@@ -177,7 +181,8 @@ export async function publishPackage(
     });
     return ok(undefined);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const formatted = formatUnknownError(error);
+    const errorMessage = formatted.message;
     // Check for specific error codes
     const code = errorMessage.includes("E403")
       ? "E403"

@@ -3,13 +3,21 @@ import { join, relative } from "node:path";
 import { checkoutBranch, getCurrentBranch, isWorkingDirectoryClean, readFileFromGit } from "#core/git";
 import { discoverWorkspacePackages } from "#core/workspace";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
-import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
+import { exitWithError, formatUnknownError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { gt } from "semver";
 
 export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {
   if (options.safeguards) {
     const clean = await isWorkingDirectoryClean(options.workspaceRoot);
-    if (!clean.ok || !clean.value) {
+    if (!clean.ok) {
+      exitWithError(
+        "Failed to verify working directory state.",
+        "Ensure this is a valid git repository and try again.",
+        clean.error,
+      );
+    }
+
+    if (!clean.value) {
       exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
     }
   }
@@ -28,12 +36,16 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
 
   const originalBranch = await getCurrentBranch(options.workspaceRoot);
   if (!originalBranch.ok) {
-    exitWithError(originalBranch.error.message);
+    exitWithError("Failed to detect current branch.", undefined, originalBranch.error);
   }
 
   if (originalBranch.value !== defaultBranch) {
     const checkout = await checkoutBranch(defaultBranch, options.workspaceRoot);
-    if (!checkout.ok || !checkout.value) {
+    if (!checkout.ok) {
+      exitWithError(`Failed to checkout branch: ${defaultBranch}`, undefined, checkout.error);
+    }
+
+    if (!checkout.value) {
       exitWithError(`Failed to checkout branch: ${defaultBranch}`);
     }
   }
@@ -45,13 +57,14 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
       existingOverrides = JSON.parse(overridesContent.value);
       logger.info("Found existing version overrides file on release branch.");
     }
-  } catch {
+  } catch (error) {
     logger.info("No version overrides file found on release branch. Continuing...");
+    logger.verbose(`Reading release overrides failed: ${formatUnknownError(error).message}`);
   }
 
   const discovered = await discoverWorkspacePackages(options.workspaceRoot, options);
   if (!discovered.ok) {
-    exitWithError(`Failed to discover packages: ${discovered.error.message}`);
+    exitWithError("Failed to discover packages.", undefined, discovered.error);
   }
 
   const ensured = ensureHasPackages(discovered.value);
@@ -71,7 +84,7 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   });
 
   if (!updatesResult.ok) {
-    exitWithError(updatesResult.error.message);
+    exitWithError("Failed to calculate expected package updates.", undefined, updatesResult.error);
   }
 
   const expectedUpdates = updatesResult.value.allUpdates;

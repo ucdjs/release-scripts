@@ -14,6 +14,8 @@ const isDryRun = !!args.dry;
 const isVerbose = !!args.verbose;
 const isForce = !!args.force;
 
+type UnknownRecord = Record<string, unknown>;
+
 export const ucdjsReleaseOverridesPath = ".github/ucdjs-release.overrides.json";
 
 export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
@@ -119,8 +121,111 @@ export async function dryRun(
 
 export const runIfNotDry = isDryRun ? dryRun : run;
 
-export function exitWithError(message: string, hint?: string): never {
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null;
+}
+
+export interface FormattedUnknownError {
+  message: string;
+  stderr?: string;
+  code?: string;
+  status?: number;
+  stack?: string;
+}
+
+export function formatUnknownError(error: unknown): FormattedUnknownError {
+  if (error instanceof Error) {
+    const base: FormattedUnknownError = {
+      message: error.message || error.name,
+      stack: error.stack,
+    };
+
+    const maybeError = error as Error & UnknownRecord;
+
+    if (typeof maybeError.code === "string") {
+      base.code = maybeError.code;
+    }
+
+    if (typeof maybeError.status === "number") {
+      base.status = maybeError.status;
+    }
+
+    if (typeof maybeError.stderr === "string" && maybeError.stderr.trim()) {
+      base.stderr = maybeError.stderr.trim();
+    }
+
+    if (!base.stderr && typeof maybeError.cause === "string" && maybeError.cause.trim()) {
+      base.stderr = maybeError.cause.trim();
+    }
+
+    return base;
+  }
+
+  if (typeof error === "string") {
+    return {
+      message: error,
+    };
+  }
+
+  if (isRecord(error)) {
+    const message = typeof error.message === "string"
+      ? error.message
+      : typeof error.error === "string"
+        ? error.error
+        : JSON.stringify(error);
+
+    const formatted: FormattedUnknownError = {
+      message,
+    };
+
+    if (typeof error.code === "string") {
+      formatted.code = error.code;
+    }
+
+    if (typeof error.status === "number") {
+      formatted.status = error.status;
+    }
+
+    if (typeof error.stderr === "string" && error.stderr.trim()) {
+      formatted.stderr = error.stderr.trim();
+    }
+
+    return formatted;
+  }
+
+  return {
+    message: String(error),
+  };
+}
+
+export function exitWithError(message: string, hint?: string, cause?: unknown): never {
   logger.error(farver.bold(message));
+
+  if (cause !== undefined) {
+    const formatted = formatUnknownError(cause);
+    if (formatted.message && formatted.message !== message) {
+      console.error(farver.gray(`  Cause: ${formatted.message}`));
+    }
+
+    if (formatted.code) {
+      console.error(farver.gray(`  Code: ${formatted.code}`));
+    }
+
+    if (typeof formatted.status === "number") {
+      console.error(farver.gray(`  Status: ${formatted.status}`));
+    }
+
+    if (formatted.stderr) {
+      console.error(farver.gray("  Stderr:"));
+      console.error(farver.gray(`  ${formatted.stderr}`));
+    }
+
+    if (isVerbose && formatted.stack) {
+      console.error(farver.gray("  Stack:"));
+      console.error(farver.gray(`  ${formatted.stack}`));
+    }
+  }
+
   if (hint) {
     console.error(farver.gray(`  ${hint}`));
   }

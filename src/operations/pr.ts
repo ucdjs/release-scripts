@@ -1,7 +1,7 @@
 import type { GitHubClient, GitHubError, GitHubPullRequest } from "#core/github";
 import type { PackageRelease } from "#shared/types";
 import type { Result } from "#types";
-import { generatePullRequestBody } from "#core/github";
+import { generatePullRequestBody, toGitHubError } from "#core/github";
 import { ok } from "#types";
 
 interface SyncPullRequestOptions {
@@ -25,11 +25,7 @@ export async function syncPullRequest(options: SyncPullRequestOptions): Promise<
   } catch (error) {
     return {
       ok: false,
-      error: {
-        type: "github",
-        operation: "getExistingPullRequest",
-        message: error instanceof Error ? error.message : String(error),
-      },
+      error: toGitHubError("getExistingPullRequest", error),
     };
   }
 
@@ -49,11 +45,7 @@ export async function syncPullRequest(options: SyncPullRequestOptions): Promise<
   } catch (error) {
     return {
       ok: false,
-      error: {
-        type: "github",
-        operation: "upsertPullRequest",
-        message: error instanceof Error ? error.message : String(error),
-      },
+      error: toGitHubError("upsertPullRequest", error),
     };
   }
 

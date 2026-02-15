@@ -13,7 +13,7 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
   // Discover workspace packages
   const discovered = await discoverWorkspacePackages(options.workspaceRoot, options);
   if (!discovered.ok) {
-    exitWithError(`Failed to discover packages: ${discovered.error.message}`);
+    exitWithError("Failed to discover packages.", undefined, discovered.error);
   }
 
   const workspacePackages = discovered.value;
@@ -59,8 +59,9 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
       status.failed.push(packageName);
       // Stop immediately on error
       exitWithError(
-        `Publishing failed for ${packageName}: ${existsResult.error.message}`,
+        `Publishing failed for ${packageName}.`,
         "Check your network connection and NPM registry access",
+        existsResult.error,
       );
     }
 
@@ -81,6 +82,7 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
         exitWithError(
           `Publishing failed for ${packageName}: build failed`,
           "Check your build scripts and dependencies",
+          buildResult.error,
         );
       }
     }
@@ -103,7 +105,7 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
         hint = "2FA/OTP required. Provide the otp option or use OIDC authentication";
       }
 
-      exitWithError(`Publishing failed for ${packageName}`, hint);
+      exitWithError(`Publishing failed for ${packageName}`, hint, publishResult.error);
     }
 
     logger.success(`Published ${farver.cyan(`${packageName}@${version}`)}`);

@@ -11,7 +11,7 @@ import { discoverWorkspacePackages } from "#core/workspace";
 import { prepareReleaseBranch, syncReleaseChanges } from "#operations/branch";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { syncPullRequest } from "#operations/pr";
-import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
+import { exitWithError, formatUnknownError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import farver from "farver";
 import { compare } from "semver";
@@ -19,14 +19,22 @@ import { compare } from "semver";
 export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions): Promise<ReleaseResult | null> {
   if (options.safeguards) {
     const clean = await isWorkingDirectoryClean(options.workspaceRoot);
-    if (!clean.ok || !clean.value) {
+    if (!clean.ok) {
+      exitWithError(
+        "Failed to verify working directory state.",
+        "Ensure this is a valid git repository and try again.",
+        clean.error,
+      );
+    }
+
+    if (!clean.value) {
       exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
     }
   }
 
   const discovered = await discoverWorkspacePackages(options.workspaceRoot, options);
   if (!discovered.ok) {
-    exitWithError(`Failed to discover packages: ${discovered.error.message}`);
+    exitWithError("Failed to discover packages.", undefined, discovered.error);
   }
 
   const ensured = ensureHasPackages(discovered.value);
@@ -54,7 +62,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   });
 
   if (!prepareBranchResult.ok) {
-    exitWithError(prepareBranchResult.error.message);
+    exitWithError("Failed to prepare release branch.", undefined, prepareBranchResult.error);
   }
 
   const overridesPath = join(options.workspaceRoot, ucdjsReleaseOverridesPath);
@@ -63,8 +71,9 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     const overridesContent = await readFile(overridesPath, "utf-8");
     existingOverrides = JSON.parse(overridesContent);
     logger.info("Found existing version overrides file.");
-  } catch {
+  } catch (error) {
     logger.info("No existing version overrides file found. Continuing...");
+    logger.verbose(`Reading overrides file failed: ${formatUnknownError(error).message}`);
   }
 
   const updatesResult = await calculateUpdates({
@@ -76,7 +85,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   });
 
   if (!updatesResult.ok) {
-    exitWithError(updatesResult.error.message);
+    exitWithError("Failed to calculate package updates.", undefined, updatesResult.error);
   }
 
   const { allUpdates, applyUpdates, overrides: newOverrides } = updatesResult.value;
@@ -177,7 +186,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   });
 
   if (!hasChangesToPush.ok) {
-    exitWithError(hasChangesToPush.error.message);
+    exitWithError("Failed to sync release changes.", undefined, hasChangesToPush.error);
   }
 
   if (!hasChangesToPush.value) {
@@ -191,7 +200,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     });
 
     if (!prResult.ok) {
-      exitWithError(prResult.error.message);
+      exitWithError("Failed to sync release pull request.", undefined, prResult.error);
     }
 
     if (prResult.value.pullRequest) {
@@ -217,7 +226,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   });
 
   if (!prResult.ok) {
-    exitWithError(prResult.error.message);
+    exitWithError("Failed to sync release pull request.", undefined, prResult.error);
   }
 
   if (prResult.value.pullRequest?.html_url) {
@@ -226,7 +235,11 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   }
 
   const returnToDefault = await checkoutBranch(options.branch.default, options.workspaceRoot);
-  if (!returnToDefault.ok || !returnToDefault.value) {
+  if (!returnToDefault.ok) {
+    exitWithError(`Failed to checkout branch: ${options.branch.default}`, undefined, returnToDefault.error);
+  }
+
+  if (!returnToDefault.value) {
     exitWithError(`Failed to checkout branch: ${options.branch.default}`);
   }
 

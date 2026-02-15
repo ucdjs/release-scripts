@@ -1,5 +1,6 @@
 import type { Result } from "#types";
 import {
+  formatUnknownError,
   logger,
   run,
   runIfNotDry,
@@ -20,15 +21,12 @@ export interface GitError {
 }
 
 function toGitError(operation: string, error: unknown): GitError {
-  const message = error instanceof Error ? error.message : String(error);
-  const stderr = typeof error === "object" && error && "stderr" in error
-    ? String((error as { stderr?: unknown }).stderr ?? "")
-    : undefined;
+  const formatted = formatUnknownError(error);
   return {
     type: "git",
     operation,
-    message,
-    stderr: stderr?.trim() || undefined,
+    message: formatted.message,
+    stderr: formatted.stderr,
   };
 }
 
@@ -67,7 +65,8 @@ export async function doesBranchExist(
     });
 
     return ok(true);
-  } catch {
+  } catch (error) {
+    logger.verbose(`Failed to verify branch "${branch}": ${formatUnknownError(error).message}`);
     return ok(false);
   }
 }
@@ -93,7 +92,8 @@ export async function getDefaultBranch(workspaceRoot: string): Promise<Result<st
     }
 
     return ok("main"); // Fallback
-  } catch {
+  } catch (error) {
+    logger.verbose(`Failed to detect default branch from origin/HEAD: ${formatUnknownError(error).message}`);
     return ok("main"); // Fallback
   }
 }
@@ -214,8 +214,8 @@ export async function checkoutBranch(
         },
       });
       logger.verbose(`Available branches:\n${branchResult.stdout}`);
-    } catch {
-      logger.verbose("Could not list available branches");
+    } catch (error) {
+      logger.verbose(`Could not list available branches: ${formatUnknownError(error).message}`);
     }
 
     return err(gitError);
@@ -272,7 +272,8 @@ export async function isBranchAheadOfRemote(
 
     const commitCount = Number.parseInt(result.stdout.trim(), 10);
     return ok(commitCount > 0);
-  } catch {
+  } catch (error) {
+    logger.verbose(`Failed to compare branch "${branch}" with remote: ${formatUnknownError(error).message}`);
     return ok(true);
   }
 }
@@ -367,7 +368,8 @@ export async function readFileFromGit(
     });
 
     return ok(result.stdout);
-  } catch {
+  } catch (error) {
+    logger.verbose(`Failed to read ${filePath} from ${ref}: ${formatUnknownError(error).message}`);
     return ok(null);
   }
 }
