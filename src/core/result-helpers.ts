@@ -1,5 +1,5 @@
-import type { Result } from "../types/result";
-import { err, ok } from "../types/result";
+import type { Result } from "#types";
+import { err, ok } from "#types";
 
 export function map<T, E, U>(result: Result<T, E>, mapper: (value: T) => U): Result<U, E> {
   if (!result.ok) {

@@ -107,7 +107,7 @@ export async function updateChangelog(options: {
     changelogRelativePath,
   );
 
-  logger.verbose("Existing content found: ", Boolean(existingContent));
+  logger.verbose("Existing content found: ", existingContent.ok && Boolean(existingContent.value));
 
   // Generate the new changelog entry
   const newEntry = await generateChangelogEntry({
@@ -125,15 +125,15 @@ export async function updateChangelog(options: {
 
   let updatedContent: string;
 
-  if (!existingContent) {
+  if (!existingContent.ok || !existingContent.value) {
     updatedContent = `# ${workspacePackage.name}\n\n${newEntry}\n`;
 
     await writeFile(changelogPath, updatedContent, "utf-8");
     return;
   }
 
-  const parsed = parseChangelog(existingContent);
-  const lines = existingContent.split("\n");
+  const parsed = parseChangelog(existingContent.value);
+  const lines = existingContent.value.split("\n");
 
   // Check if this version already exists
   const existingVersionIndex = parsed.versions.findIndex((v) => v.version === version);
