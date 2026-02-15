@@ -93,7 +93,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   const hasOverrideChanges = JSON.stringify(existingOverrides) !== JSON.stringify(newOverrides);
 
   if (Object.keys(newOverrides).length > 0 && hasOverrideChanges) {
-    logger.info("Writing version overrides file...");
+    logger.step("Writing version overrides file...");
     try {
       await mkdir(join(options.workspaceRoot, ".github"), { recursive: true });
       await writeFile(overridesPath, JSON.stringify(newOverrides, null, 2), "utf-8");
@@ -102,7 +102,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
       logger.error("Failed to write version overrides file:", e);
     }
   } else if (Object.keys(newOverrides).length > 0) {
-    logger.info("Version overrides unchanged. Skipping write.");
+    logger.step("Version overrides unchanged. Skipping write.");
   }
 
   if (Object.keys(newOverrides).length === 0 && Object.keys(existingOverrides).length > 0) {
