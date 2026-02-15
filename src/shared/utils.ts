@@ -16,6 +16,66 @@ const isForce = !!args.force;
 
 type UnknownRecord = Record<string, unknown>;
 
+function toTrimmedString(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  if (value instanceof Uint8Array) {
+    const normalized = new TextDecoder().decode(value).trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  if (isRecord(value) && typeof value.toString === "function") {
+    const rendered = value.toString();
+    if (typeof rendered === "string" && rendered !== "[object Object]") {
+      const normalized = rendered.trim();
+      return normalized.length > 0 ? normalized : undefined;
+    }
+  }
+
+  return undefined;
+}
+
+function getNestedField(record: UnknownRecord, keys: string[]): unknown {
+  let current: unknown = record;
+  for (const key of keys) {
+    if (!isRecord(current) || !(key in current)) {
+      return undefined;
+    }
+    current = current[key];
+  }
+
+  return current;
+}
+
+function extractStderrLike(record: UnknownRecord): string | undefined {
+  const candidates: unknown[] = [
+    record.stderr,
+    record.stdout,
+    record.shortMessage,
+    record.originalMessage,
+    getNestedField(record, ["result", "stderr"]),
+    getNestedField(record, ["result", "stdout"]),
+    getNestedField(record, ["output", "stderr"]),
+    getNestedField(record, ["output", "stdout"]),
+    getNestedField(record, ["cause", "stderr"]),
+    getNestedField(record, ["cause", "stdout"]),
+    getNestedField(record, ["cause", "shortMessage"]),
+    getNestedField(record, ["cause", "originalMessage"]),
+  ];
+
+  for (const candidate of candidates) {
+    const rendered = toTrimmedString(candidate);
+    if (rendered) {
+      return rendered;
+    }
+  }
+
+  return undefined;
+}
+
 export const ucdjsReleaseOverridesPath = ".github/ucdjs-release.overrides.json";
 
 export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
@@ -150,8 +210,14 @@ export function formatUnknownError(error: unknown): FormattedUnknownError {
       base.status = maybeError.status;
     }
 
-    if (typeof maybeError.stderr === "string" && maybeError.stderr.trim()) {
-      base.stderr = maybeError.stderr.trim();
+    base.stderr = extractStderrLike(maybeError);
+
+    if (
+      typeof maybeError.shortMessage === "string"
+      && maybeError.shortMessage.trim()
+      && base.message.startsWith("Process exited with non-zero status")
+    ) {
+      base.message = maybeError.shortMessage.trim();
     }
 
     if (!base.stderr && typeof maybeError.cause === "string" && maybeError.cause.trim()) {
@@ -186,9 +252,7 @@ export function formatUnknownError(error: unknown): FormattedUnknownError {
       formatted.status = error.status;
     }
 
-    if (typeof error.stderr === "string" && error.stderr.trim()) {
-      formatted.stderr = error.stderr.trim();
-    }
+    formatted.stderr = extractStderrLike(error);
 
     return formatted;
   }

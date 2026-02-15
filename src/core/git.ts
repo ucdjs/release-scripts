@@ -326,14 +326,28 @@ export async function pushBranch(
     const args = ["push", "origin", branch];
 
     if (options?.forceWithLease) {
-      await run("git", ["fetch", "origin", branch], {
-        nodeOptions: {
-          cwd: workspaceRoot,
-          stdio: "pipe",
-        },
-      });
-      args.push("--force-with-lease");
-      logger.info(`Pushing branch: ${farver.green(branch)} ${farver.dim("(with lease)")}`);
+      try {
+        await run("git", ["fetch", "origin", branch], {
+          nodeOptions: {
+            cwd: workspaceRoot,
+            stdio: "pipe",
+          },
+        });
+        args.push("--force-with-lease");
+        logger.info(`Pushing branch: ${farver.green(branch)} ${farver.dim("(with lease)")}`);
+      } catch (error) {
+        const fetchError = toGitError("pushBranch.fetch", error);
+        const isMissingRemoteRef = fetchError.stderr?.includes("couldn't find remote ref")
+          || fetchError.message.includes("couldn't find remote ref");
+
+        if (isMissingRemoteRef) {
+          logger.verbose(
+            `Remote branch origin/${branch} does not exist yet, falling back to regular push without --force-with-lease.`,
+          );
+        } else {
+          return err(fetchError);
+        }
+      }
     } else if (options?.force) {
       args.push("--force");
       logger.info(`Force pushing branch: ${farver.green(branch)}`);
