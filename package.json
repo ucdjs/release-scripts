@@ -1,6 +1,6 @@
 {
   "name": "@ucdjs/release-scripts",
-  "version": "0.1.0-beta.51",
+  "version": "0.1.0-beta.52",
   "description": "@ucdjs release scripts",
   "type": "module",
   "packageManager": "pnpm@10.29.3",
