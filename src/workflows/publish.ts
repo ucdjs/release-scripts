@@ -90,7 +90,7 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
 
     // Publish to NPM
     logger.step(`Publishing ${farver.cyan(`${packageName}@${version}`)} to NPM...`);
-    const publishResult = await publishPackage(packageName, options.workspaceRoot, options);
+    const publishResult = await publishPackage(packageName, version, options.workspaceRoot, options);
 
     if (!publishResult.ok) {
       logger.error(`Failed to publish: ${publishResult.error.message}`);

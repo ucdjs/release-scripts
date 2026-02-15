@@ -4,6 +4,7 @@ import process from "node:process";
 import { formatUnknownError } from "#shared/errors";
 import { runIfNotDry } from "#shared/utils";
 import { err, ok } from "#types";
+import semver from "semver";
 
 export interface NPMError {
   type: "npm";
@@ -134,12 +135,14 @@ export async function buildPackage(
  * Publish a package to NPM
  * Uses pnpm to handle workspace protocol and catalog: resolution automatically
  * @param packageName - The package name to publish
+ * @param version - The package version to publish
  * @param workspaceRoot - Path to the workspace root
  * @param options - Normalized release scripts options
  * @returns Result indicating success or failure
  */
 export async function publishPackage(
   packageName: string,
+  version: string,
   workspaceRoot: string,
   options: NormalizedReleaseScriptsOptions,
 ): Promise<Result<void, NPMError>> {
@@ -157,10 +160,26 @@ export async function publishPackage(
     args.push("--otp", options.npm.otp);
   }
 
-  // Add tag if specified (defaults to 'latest')
-  // Users can override via NPM_CONFIG_TAG environment variable
-  if (process.env.NPM_CONFIG_TAG) {
-    args.push("--tag", process.env.NPM_CONFIG_TAG);
+  // Add tag if specified by env, otherwise infer for prereleases.
+  // Stable releases default to npm's default tag behavior (latest).
+  const explicitTag = process.env.NPM_CONFIG_TAG;
+  const prereleaseTag = (() => {
+    const prerelease = semver.prerelease(version);
+    if (!prerelease || prerelease.length === 0) {
+      return undefined;
+    }
+
+    const identifier = prerelease[0];
+    if (identifier === "alpha" || identifier === "beta") {
+      return identifier;
+    }
+
+    return "next";
+  })();
+
+  const publishTag = explicitTag || prereleaseTag;
+  if (publishTag) {
+    args.push("--tag", publishTag);
   }
 
   // Set up environment for OIDC/provenance
