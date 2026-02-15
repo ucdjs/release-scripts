@@ -1,11 +1,11 @@
-import type { GitHubError, GitHubOperations } from "#core/types";
+import type { GitHubClient, GitHubError, GitHubPullRequest } from "#core/github";
 import type { PackageRelease } from "#shared/types";
 import type { Result } from "#types/result";
 import { generatePullRequestBody } from "#core/github";
 import { ok } from "#types/result";
 
 interface SyncPullRequestOptions {
-  github: GitHubOperations;
+  github: GitHubClient;
   releaseBranch: string;
   defaultBranch: string;
   pullRequestTitle?: string;
@@ -14,30 +14,51 @@ interface SyncPullRequestOptions {
 }
 
 export async function syncPullRequest(options: SyncPullRequestOptions): Promise<Result<{
-  pullRequest: import("#core/github").GitHubPullRequest | null;
+  pullRequest: GitHubPullRequest | null;
   created: boolean;
 }, GitHubError>> {
   const { github, releaseBranch, defaultBranch, pullRequestTitle, pullRequestBody, updates } = options;
 
-  const existing = await github.getExistingPullRequest(releaseBranch);
-  if (!existing.ok) return existing;
+  let existing: GitHubPullRequest | null = null;
+  try {
+    existing = await github.getExistingPullRequest(releaseBranch);
+  } catch (error) {
+    return {
+      ok: false,
+      error: {
+        type: "github",
+        operation: "getExistingPullRequest",
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
 
-  const doesExist = !!existing.value;
-  const title = existing.value?.title || pullRequestTitle || "chore: update package versions";
+  const doesExist = !!existing;
+  const title = existing?.title || pullRequestTitle || "chore: update package versions";
   const body = generatePullRequestBody(updates, pullRequestBody);
 
-  const pr = await github.upsertPullRequest({
-    pullNumber: existing.value?.number,
-    title,
-    body,
-    head: releaseBranch,
-    base: defaultBranch,
-  });
-
-  if (!pr.ok) return pr;
+  let pr: GitHubPullRequest | null = null;
+  try {
+    pr = await github.upsertPullRequest({
+      pullNumber: existing?.number,
+      title,
+      body,
+      head: releaseBranch,
+      base: defaultBranch,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      error: {
+        type: "github",
+        operation: "upsertPullRequest",
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
 
   return ok({
-    pullRequest: pr.value,
+    pullRequest: pr,
     created: !doesExist,
   });
 }

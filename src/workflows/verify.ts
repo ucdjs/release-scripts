@@ -1,25 +1,14 @@
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import { join, relative } from "node:path";
-import { createGitOperations } from "#core/git";
-import { createGitHubOperations } from "#core/github";
-import { createWorkspaceOperations } from "#core/workspace";
+import { checkoutBranch, getCurrentBranch, isWorkingDirectoryClean, readFileFromGit } from "#core/git";
+import { discoverWorkspacePackages } from "#core/workspace";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
-import { discoverPackages } from "#operations/discover";
 import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
-import { createVersioningOperations } from "#versioning/operations";
 import { gt } from "semver";
 
 export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {
-  const gitOps = createGitOperations();
-  const githubOps = createGitHubOperations({
-    owner: options.owner,
-    repo: options.repo,
-    githubToken: options.githubToken,
-  });
-  const workspaceOps = createWorkspaceOperations();
-
   if (options.safeguards) {
-    const clean = await gitOps.isWorkingDirectoryClean(options.workspaceRoot);
+    const clean = await isWorkingDirectoryClean(options.workspaceRoot);
     if (!clean.ok || !clean.value) {
       exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
     }
@@ -28,25 +17,22 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   const releaseBranch = options.branch.release;
   const defaultBranch = options.branch.default;
 
-  const releasePr = await githubOps.getExistingPullRequest(releaseBranch);
-  if (!releasePr.ok) {
-    exitWithError(releasePr.error.message);
-  }
+  const releasePr = await options.githubClient.getExistingPullRequest(releaseBranch);
 
-  if (!releasePr.value || !releasePr.value.head) {
+  if (!releasePr || !releasePr.head) {
     logger.warn(`No open release pull request found for branch "${releaseBranch}". Nothing to verify.`);
     return;
   }
 
-  logger.info(`Found release PR #${releasePr.value.number}. Verifying against default branch "${defaultBranch}"...`);
+  logger.info(`Found release PR #${releasePr.number}. Verifying against default branch "${defaultBranch}"...`);
 
-  const originalBranch = await gitOps.getCurrentBranch(options.workspaceRoot);
+  const originalBranch = await getCurrentBranch(options.workspaceRoot);
   if (!originalBranch.ok) {
     exitWithError(originalBranch.error.message);
   }
 
   if (originalBranch.value !== defaultBranch) {
-    const checkout = await gitOps.checkoutBranch(defaultBranch, options.workspaceRoot);
+    const checkout = await checkoutBranch(defaultBranch, options.workspaceRoot);
     if (!checkout.ok || !checkout.value) {
       exitWithError(`Failed to checkout branch: ${defaultBranch}`);
     }
@@ -54,7 +40,7 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
 
   let existingOverrides: Record<string, { version: string; type: import("#shared/types").BumpKind }> = {};
   try {
-    const overridesContent = await gitOps.readFileFromGit(options.workspaceRoot, releasePr.value.head.sha, ucdjsReleaseOverridesPath);
+    const overridesContent = await readFileFromGit(options.workspaceRoot, releasePr.head.sha, ucdjsReleaseOverridesPath);
     if (overridesContent.ok && overridesContent.value) {
       existingOverrides = JSON.parse(overridesContent.value);
       logger.info("Found existing version overrides file on release branch.");
@@ -63,11 +49,7 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
     logger.info("No version overrides file found on release branch. Continuing...");
   }
 
-  const discovered = await discoverPackages({
-    workspace: workspaceOps,
-    workspaceRoot: options.workspaceRoot,
-    options,
-  });
+  const discovered = await discoverWorkspacePackages(options.workspaceRoot, options);
   if (!discovered.ok) {
     exitWithError(`Failed to discover packages: ${discovered.error.message}`);
   }
@@ -81,7 +63,6 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   const mainPackages = ensured.value;
 
   const updatesResult = await calculateUpdates({
-    versioning: createVersioningOperations(),
     workspacePackages: mainPackages,
     workspaceRoot: options.workspaceRoot,
     showPrompt: false,
@@ -101,7 +82,7 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   const prVersionMap = new Map<string, string>();
   for (const pkg of mainPackages) {
     const pkgJsonPath = relative(options.workspaceRoot, join(pkg.path, "package.json"));
-    const pkgJsonContent = await gitOps.readFileFromGit(options.workspaceRoot, releasePr.value.head.sha, pkgJsonPath);
+    const pkgJsonContent = await readFileFromGit(options.workspaceRoot, releasePr.head.sha, pkgJsonPath);
     if (pkgJsonContent.ok && pkgJsonContent.value) {
       const pkgJson = JSON.parse(pkgJsonContent.value);
       prVersionMap.set(pkg.name, pkgJson.version);
@@ -109,7 +90,7 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   }
 
   if (originalBranch.value !== defaultBranch) {
-    await gitOps.checkoutBranch(originalBranch.value, options.workspaceRoot);
+    await checkoutBranch(originalBranch.value, options.workspaceRoot);
   }
 
   let isOutOfSync = false;
@@ -131,20 +112,20 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   const statusContext = "ucdjs/release-verify";
 
   if (isOutOfSync) {
-    await githubOps.setCommitStatus({
-      sha: releasePr.value.head.sha,
+    await options.githubClient.setCommitStatus({
+      sha: releasePr.head.sha,
       state: "failure",
       context: statusContext,
       description: "Release PR is out of sync with the default branch. Please re-run the release process.",
     });
     logger.error("Verification failed. Commit status set to 'failure'.");
   } else {
-    await githubOps.setCommitStatus({
-      sha: releasePr.value.head.sha,
+    await options.githubClient.setCommitStatus({
+      sha: releasePr.head.sha,
       state: "success",
       context: statusContext,
       description: "Release PR is up to date.",
-      targetUrl: `https://github.com/${options.owner}/${options.repo}/pull/${releasePr.value.number}`,
+      targetUrl: `https://github.com/${options.owner}/${options.repo}/pull/${releasePr.number}`,
     });
     logger.success("Verification successful. Commit status set to 'success'.");
   }

@@ -3,35 +3,28 @@ import type { NormalizedReleaseScriptsOptions } from "../options";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { updateChangelog } from "#core/changelog";
-import { createGitOperations } from "#core/git";
-import { createGitHubClient, createGitHubOperations } from "#core/github";
-import { createWorkspaceOperations } from "#core/workspace";
+import {
+  checkoutBranch,
+  isWorkingDirectoryClean,
+} from "#core/git";
+import { discoverWorkspacePackages } from "#core/workspace";
 import { prepareReleaseBranch, syncReleaseChanges } from "#operations/branch";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { syncPullRequest } from "#operations/pr";
 import { exitWithError, logger, ucdjsReleaseOverridesPath } from "#shared/utils";
-import { createVersioningOperations } from "#versioning/operations";
+import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import farver from "farver";
 import { compare } from "semver";
 
 export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions): Promise<ReleaseResult | null> {
-  const gitOps = createGitOperations();
-  const githubOps = createGitHubOperations({
-    owner: options.owner,
-    repo: options.repo,
-    githubToken: options.githubToken,
-  });
-  const workspaceOps = createWorkspaceOperations();
-  const versioningOps = createVersioningOperations();
-
   if (options.safeguards) {
-    const clean = await gitOps.isWorkingDirectoryClean(options.workspaceRoot);
+    const clean = await isWorkingDirectoryClean(options.workspaceRoot);
     if (!clean.ok || !clean.value) {
       exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
     }
   }
 
-  const discovered = await workspaceOps.discoverWorkspacePackages(options.workspaceRoot, options);
+  const discovered = await discoverWorkspacePackages(options.workspaceRoot, options);
   if (!discovered.ok) {
     exitWithError(`Failed to discover packages: ${discovered.error.message}`);
   }
@@ -55,7 +48,6 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   logger.emptyLine();
 
   const prepareBranchResult = await prepareReleaseBranch({
-    git: gitOps,
     workspaceRoot: options.workspaceRoot,
     releaseBranch: options.branch.release,
     defaultBranch: options.branch.default,
@@ -76,7 +68,6 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   }
 
   const updatesResult = await calculateUpdates({
-    versioning: versioningOps,
     workspacePackages,
     workspaceRoot: options.workspaceRoot,
     showPrompt: options.prompts?.versions !== false,
@@ -140,24 +131,17 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   if (options.changelog?.enabled) {
     logger.step("Updating changelogs");
 
-    const groupedPackageCommits = await versioningOps.getWorkspacePackageGroupedCommits(options.workspaceRoot, workspacePackages);
-    if (!groupedPackageCommits.ok) {
-      exitWithError(groupedPackageCommits.error.message);
-    }
-
-    const globalCommitsPerPackage = await versioningOps.getGlobalCommitsPerPackage(
+    const groupedPackageCommits = await getWorkspacePackageGroupedCommits(options.workspaceRoot, workspacePackages);
+    const globalCommitsPerPackage = await getGlobalCommitsPerPackage(
       options.workspaceRoot,
-      groupedPackageCommits.value,
+      groupedPackageCommits,
       workspacePackages,
       options.globalCommitMode === "none" ? false : options.globalCommitMode,
     );
-    if (!globalCommitsPerPackage.ok) {
-      exitWithError(globalCommitsPerPackage.error.message);
-    }
 
     const changelogPromises = allUpdates.map((update) => {
-      const pkgCommits = groupedPackageCommits.value.get(update.package.name) || [];
-      const globalCommits = globalCommitsPerPackage.value.get(update.package.name) || [];
+        const pkgCommits = groupedPackageCommits.get(update.package.name) || [];
+        const globalCommits = globalCommitsPerPackage.get(update.package.name) || [];
       const allCommits = [...pkgCommits, ...globalCommits];
 
       if (allCommits.length === 0) {
@@ -172,11 +156,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
           ...options,
           workspaceRoot: options.workspaceRoot,
         },
-        githubClient: createGitHubClient({
-          owner: options.owner,
-          repo: options.repo,
-          githubToken: options.githubToken,
-        }),
+        githubClient: options.githubClient,
         workspacePackage: update.package,
         version: update.newVersion,
         previousVersion: update.currentVersion !== "0.0.0" ? update.currentVersion : undefined,
@@ -190,7 +170,6 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   }
 
   const hasChangesToPush = await syncReleaseChanges({
-    git: gitOps,
     workspaceRoot: options.workspaceRoot,
     releaseBranch: options.branch.release,
     commitMessage: "chore: update release versions",
@@ -203,7 +182,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
 
   if (!hasChangesToPush.value) {
     const prResult = await syncPullRequest({
-      github: githubOps,
+      github: options.githubClient,
       releaseBranch: options.branch.release,
       defaultBranch: options.branch.default,
       pullRequestTitle: options.pullRequest?.title,
@@ -229,7 +208,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   }
 
   const prResult = await syncPullRequest({
-    github: githubOps,
+    github: options.githubClient,
     releaseBranch: options.branch.release,
     defaultBranch: options.branch.default,
     pullRequestTitle: options.pullRequest?.title,
@@ -246,7 +225,7 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     logger.success(`Pull request ${prResult.value.created ? "created" : "updated"}: ${prResult.value.pullRequest.html_url}`);
   }
 
-  const returnToDefault = await gitOps.checkoutBranch(options.branch.default, options.workspaceRoot);
+  const returnToDefault = await checkoutBranch(options.branch.default, options.workspaceRoot);
   if (!returnToDefault.ok || !returnToDefault.value) {
     exitWithError(`Failed to checkout branch: ${options.branch.default}`);
   }

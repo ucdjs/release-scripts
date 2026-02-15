@@ -1,11 +1,10 @@
-import type { GitError, GitOperations } from "#core/types";
 import {
   exitWithError,
   logger,
   run,
   runIfNotDry,
 } from "#shared/utils";
-import { err, ok } from "#types/result";
+import type { Result } from "#types/result";
 import farver from "farver";
 
 /**
@@ -13,29 +12,12 @@ import farver from "farver";
  * @param {string} workspaceRoot - The root directory of the workspace
  * @returns {Promise<boolean>} A Promise resolving to true if clean, false otherwise
  */
-export async function isWorkingDirectoryClean(
-  workspaceRoot: string,
-): Promise<boolean> {
-  try {
-    const result = await run("git", ["status", "--porcelain"], {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "pipe",
-      },
-    });
-
-    if (result.stdout.trim() !== "") {
-      return false;
-    }
-
-    return true;
-  } catch (err: any) {
-    logger.error("Error checking git status:", err);
-    return false;
-  }
+export interface GitError {
+  type: "git";
+  operation: string;
+  message: string;
+  stderr?: string;
 }
-
-type GitOperationOverrides = Partial<Record<keyof GitOperations, (...args: unknown[]) => Promise<unknown>>>;
 
 function toGitError(operation: string, error: unknown): GitError {
   const message = error instanceof Error ? error.message : String(error);
@@ -50,91 +32,20 @@ function toGitError(operation: string, error: unknown): GitError {
   };
 }
 
-async function wrapGit<T>(operation: string, fn: () => Promise<T>): Promise<ReturnType<typeof ok<T>> | ReturnType<typeof err<GitError>>> {
+export async function isWorkingDirectoryClean(
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
   try {
-    return ok(await fn());
+    const result = await run("git", ["status", "--porcelain"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+    return { ok: true, value: result.stdout.trim() === "" };
   } catch (error) {
-    return err(toGitError(operation, error));
+    return { ok: false, error: toGitError("isWorkingDirectoryClean", error) };
   }
-}
-
-export function createGitOperations(overrides: GitOperationOverrides = {}): GitOperations {
-  return {
-    isWorkingDirectoryClean: (workspaceRoot) => wrapGit("isWorkingDirectoryClean", async () => {
-      if (overrides.isWorkingDirectoryClean) {
-        return overrides.isWorkingDirectoryClean(workspaceRoot) as Promise<boolean>;
-      }
-      return isWorkingDirectoryClean(workspaceRoot);
-    }),
-    doesBranchExist: (branch, workspaceRoot) => wrapGit("doesBranchExist", async () => {
-      if (overrides.doesBranchExist) {
-        return overrides.doesBranchExist(branch, workspaceRoot) as Promise<boolean>;
-      }
-      return doesBranchExist(branch, workspaceRoot);
-    }),
-    getCurrentBranch: (workspaceRoot) => wrapGit("getCurrentBranch", async () => {
-      if (overrides.getCurrentBranch) {
-        return overrides.getCurrentBranch(workspaceRoot) as Promise<string>;
-      }
-      return getCurrentBranch(workspaceRoot);
-    }),
-    checkoutBranch: (branch, workspaceRoot) => wrapGit("checkoutBranch", async () => {
-      if (overrides.checkoutBranch) {
-        return overrides.checkoutBranch(branch, workspaceRoot) as Promise<boolean>;
-      }
-      return checkoutBranch(branch, workspaceRoot);
-    }),
-    createBranch: (branch, base, workspaceRoot) => wrapGit("createBranch", async () => {
-      if (overrides.createBranch) {
-        await overrides.createBranch(branch, base, workspaceRoot);
-        return;
-      }
-      await createBranch(branch, base, workspaceRoot);
-    }),
-    pullLatestChanges: (branch, workspaceRoot) => wrapGit("pullLatestChanges", async () => {
-      if (overrides.pullLatestChanges) {
-        return overrides.pullLatestChanges(branch, workspaceRoot) as Promise<boolean>;
-      }
-      return pullLatestChanges(branch, workspaceRoot);
-    }),
-    rebaseBranch: (ontoBranch, workspaceRoot) => wrapGit("rebaseBranch", async () => {
-      if (overrides.rebaseBranch) {
-        await overrides.rebaseBranch(ontoBranch, workspaceRoot);
-        return;
-      }
-      await rebaseBranch(ontoBranch, workspaceRoot);
-    }),
-    isBranchAheadOfRemote: (branch, workspaceRoot) => wrapGit("isBranchAheadOfRemote", async () => {
-      if (overrides.isBranchAheadOfRemote) {
-        return overrides.isBranchAheadOfRemote(branch, workspaceRoot) as Promise<boolean>;
-      }
-      return isBranchAheadOfRemote(branch, workspaceRoot);
-    }),
-    commitChanges: (message, workspaceRoot) => wrapGit("commitChanges", async () => {
-      if (overrides.commitChanges) {
-        return overrides.commitChanges(message, workspaceRoot) as Promise<boolean>;
-      }
-      return commitChanges(message, workspaceRoot);
-    }),
-    pushBranch: (branch, workspaceRoot, options) => wrapGit("pushBranch", async () => {
-      if (overrides.pushBranch) {
-        return overrides.pushBranch(branch, workspaceRoot, options) as Promise<boolean>;
-      }
-      return pushBranch(branch, workspaceRoot, options);
-    }),
-    readFileFromGit: (workspaceRoot, ref, filePath) => wrapGit("readFileFromGit", async () => {
-      if (overrides.readFileFromGit) {
-        return overrides.readFileFromGit(workspaceRoot, ref, filePath) as Promise<string | null>;
-      }
-      return readFileFromGit(workspaceRoot, ref, filePath);
-    }),
-    getMostRecentPackageTag: (workspaceRoot, packageName) => wrapGit("getMostRecentPackageTag", async () => {
-      if (overrides.getMostRecentPackageTag) {
-        return overrides.getMostRecentPackageTag(workspaceRoot, packageName) as Promise<string | undefined>;
-      }
-      return getMostRecentPackageTag(workspaceRoot, packageName);
-    }),
-  };
 }
 
 /**
@@ -146,7 +57,7 @@ export function createGitOperations(overrides: GitOperationOverrides = {}): GitO
 export async function doesBranchExist(
   branch: string,
   workspaceRoot: string,
-): Promise<boolean> {
+): Promise<Result<boolean, GitError>> {
   try {
     await run("git", ["rev-parse", "--verify", branch], {
       nodeOptions: {
@@ -155,9 +66,9 @@ export async function doesBranchExist(
       },
     });
 
-    return true;
+    return { ok: true, value: true };
   } catch {
-    return false;
+    return { ok: true, value: false };
   }
 }
 
@@ -166,7 +77,7 @@ export async function doesBranchExist(
  * Falls back to "main" if the default branch cannot be determined.
  * @returns {Promise<string>} A Promise resolving to the default branch name as a string.
  */
-export async function getDefaultBranch(workspaceRoot: string): Promise<string> {
+export async function getDefaultBranch(workspaceRoot: string): Promise<Result<string, GitError>> {
   try {
     const result = await run("git", ["symbolic-ref", "refs/remotes/origin/HEAD"], {
       nodeOptions: {
@@ -178,12 +89,12 @@ export async function getDefaultBranch(workspaceRoot: string): Promise<string> {
     const ref = result.stdout.trim();
     const match = ref.match(/^refs\/remotes\/origin\/(.+)$/);
     if (match && match[1]) {
-      return match[1];
+      return { ok: true, value: match[1] };
     }
 
-    return "main"; // Fallback
+    return { ok: true, value: "main" }; // Fallback
   } catch {
-    return "main"; // Fallback
+    return { ok: true, value: "main" }; // Fallback
   }
 }
 
@@ -194,7 +105,7 @@ export async function getDefaultBranch(workspaceRoot: string): Promise<string> {
  */
 export async function getCurrentBranch(
   workspaceRoot: string,
-): Promise<string> {
+): Promise<Result<string, GitError>> {
   try {
     const result = await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
       nodeOptions: {
@@ -203,10 +114,9 @@ export async function getCurrentBranch(
       },
     });
 
-    return result.stdout.trim();
-  } catch (err) {
-    logger.error("Error getting current branch:", err);
-    throw err;
+    return { ok: true, value: result.stdout.trim() };
+  } catch (error) {
+    return { ok: false, error: toGitError("getCurrentBranch", error) };
   }
 }
 
@@ -217,7 +127,7 @@ export async function getCurrentBranch(
  */
 export async function getAvailableBranches(
   workspaceRoot: string,
-): Promise<string[]> {
+): Promise<Result<string[], GitError>> {
   try {
     const result = await run("git", ["branch", "--list"], {
       nodeOptions: {
@@ -226,13 +136,14 @@ export async function getAvailableBranches(
       },
     });
 
-    return result.stdout
+    const branches = result.stdout
       .split("\n")
       .map((line) => line.replace("*", "").trim())
       .filter((line) => line.length > 0);
-  } catch (err) {
-    logger.error("Error getting available branches:", err);
-    throw err;
+
+    return { ok: true, value: branches };
+  } catch (error) {
+    return { ok: false, error: toGitError("getAvailableBranches", error) };
   }
 }
 
@@ -247,7 +158,7 @@ export async function createBranch(
   branch: string,
   base: string,
   workspaceRoot: string,
-): Promise<void> {
+): Promise<Result<void, GitError>> {
   try {
     logger.info(`Creating branch: ${farver.green(branch)} from ${farver.cyan(base)}`);
     await runIfNotDry("git", ["branch", branch, base], {
@@ -256,18 +167,16 @@ export async function createBranch(
         stdio: "pipe",
       },
     });
-  } catch {
-    exitWithError(
-      `Failed to create branch: ${branch}`,
-      `Make sure the branch doesn't already exist and you have a clean working directory`,
-    );
+    return { ok: true, value: undefined };
+  } catch (error) {
+    return { ok: false, error: toGitError("createBranch", error) };
   }
 }
 
 export async function checkoutBranch(
   branch: string,
   workspaceRoot: string,
-): Promise<boolean> {
+): Promise<Result<boolean, GitError>> {
   try {
     logger.info(`Switching to branch: ${farver.green(branch)}`);
     const result = await run("git", ["checkout", branch], {
@@ -281,19 +190,19 @@ export async function checkoutBranch(
     const match = output.match(/Switched to branch '(.+)'/);
     if (match && match[1] === branch) {
       logger.info(`Successfully switched to branch: ${farver.green(branch)}`);
-      return true;
+      return { ok: true, value: true };
     }
 
-    return false;
-  } catch {
-    return false;
+    return { ok: true, value: false };
+  } catch (error) {
+    return { ok: false, error: toGitError("checkoutBranch", error) };
   }
 }
 
 export async function pullLatestChanges(
   branch: string,
   workspaceRoot: string,
-): Promise<boolean> {
+): Promise<Result<boolean, GitError>> {
   try {
     await run("git", ["pull", "origin", branch], {
       nodeOptions: {
@@ -301,16 +210,16 @@ export async function pullLatestChanges(
         stdio: "pipe",
       },
     });
-    return true;
-  } catch {
-    return false;
+    return { ok: true, value: true };
+  } catch (error) {
+    return { ok: false, error: toGitError("pullLatestChanges", error) };
   }
 }
 
 export async function rebaseBranch(
   ontoBranch: string,
   workspaceRoot: string,
-): Promise<boolean> {
+): Promise<Result<void, GitError>> {
   try {
     logger.info(`Rebasing onto: ${farver.cyan(ontoBranch)}`);
     await runIfNotDry("git", ["rebase", ontoBranch], {
@@ -320,19 +229,16 @@ export async function rebaseBranch(
       },
     });
 
-    return true;
-  } catch {
-    exitWithError(
-      `Failed to rebase onto: ${ontoBranch}`,
-      `You may have merge conflicts. Run 'git rebase --abort' to undo the rebase`,
-    );
+    return { ok: true, value: undefined };
+  } catch (error) {
+    return { ok: false, error: toGitError("rebaseBranch", error) };
   }
 }
 
 export async function isBranchAheadOfRemote(
   branch: string,
   workspaceRoot: string,
-): Promise<boolean> {
+): Promise<Result<boolean, GitError>> {
   try {
     const result = await run("git", ["rev-list", `origin/${branch}..${branch}`, "--count"], {
       nodeOptions: {
@@ -342,17 +248,16 @@ export async function isBranchAheadOfRemote(
     });
 
     const commitCount = Number.parseInt(result.stdout.trim(), 10);
-    return commitCount > 0;
+    return { ok: true, value: commitCount > 0 };
   } catch {
-    // If remote branch doesn't exist, consider it as ahead
-    return true;
+    return { ok: true, value: true };
   }
 }
 
 export async function commitChanges(
   message: string,
   workspaceRoot: string,
-): Promise<boolean> {
+): Promise<Result<boolean, GitError>> {
   try {
     // Stage all changes
     await run("git", ["add", "."], {
@@ -364,8 +269,8 @@ export async function commitChanges(
 
     // Check if there are changes to commit
     const isClean = await isWorkingDirectoryClean(workspaceRoot);
-    if (isClean) {
-      return false;
+    if (!isClean.ok || isClean.value) {
+      return { ok: true, value: false };
     }
 
     // Commit
@@ -377,12 +282,9 @@ export async function commitChanges(
       },
     });
 
-    return true;
-  } catch {
-    exitWithError(
-      `Failed to commit changes`,
-      `Make sure you have git configured properly with user.name and user.email`,
-    );
+    return { ok: true, value: true };
+  } catch (error) {
+    return { ok: false, error: toGitError("commitChanges", error) };
   }
 }
 
@@ -390,11 +292,17 @@ export async function pushBranch(
   branch: string,
   workspaceRoot: string,
   options?: { force?: boolean; forceWithLease?: boolean },
-): Promise<boolean> {
+): Promise<Result<boolean, GitError>> {
   try {
     const args = ["push", "origin", branch];
 
     if (options?.forceWithLease) {
+      await run("git", ["fetch", "origin", branch], {
+        nodeOptions: {
+          cwd: workspaceRoot,
+          stdio: "pipe",
+        },
+      });
       args.push("--force-with-lease");
       logger.info(`Pushing branch: ${farver.green(branch)} ${farver.dim("(with lease)")}`);
     } else if (options?.force) {
@@ -411,12 +319,9 @@ export async function pushBranch(
       },
     });
 
-    return true;
-  } catch {
-    exitWithError(
-      `Failed to push branch: ${branch}`,
-      `Make sure you have permission to push to the remote repository`,
-    );
+    return { ok: true, value: true };
+  } catch (error) {
+    return { ok: false, error: toGitError("pushBranch", error) };
   }
 }
 
@@ -424,7 +329,7 @@ export async function readFileFromGit(
   workspaceRoot: string,
   ref: string,
   filePath: string,
-): Promise<string | null> {
+): Promise<Result<string | null, GitError>> {
   try {
     const result = await run("git", ["show", `${ref}:${filePath}`], {
       nodeOptions: {
@@ -433,16 +338,16 @@ export async function readFileFromGit(
       },
     });
 
-    return result.stdout;
+    return { ok: true, value: result.stdout };
   } catch {
-    return null;
+    return { ok: true, value: null };
   }
 }
 
 export async function getMostRecentPackageTag(
   workspaceRoot: string,
   packageName: string,
-): Promise<string | undefined> {
+): Promise<Result<string | undefined, GitError>> {
   try {
     // Tags for each package follow the format: packageName@version
     const { stdout } = await run("git", ["tag", "--list", `${packageName}@*`], {
@@ -454,16 +359,13 @@ export async function getMostRecentPackageTag(
 
     const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
     if (tags.length === 0) {
-      return undefined;
+      return { ok: true, value: undefined };
     }
 
     // Find the last tag for the specified package
-    return tags.reverse()[0];
-  } catch (err) {
-    logger.warn(
-      `Failed to get tags for package ${packageName}: ${(err as Error).message}`,
-    );
-    return undefined;
+    return { ok: true, value: tags.reverse()[0] };
+  } catch (error) {
+    return { ok: false, error: toGitError("getMostRecentPackageTag", error) };
   }
 }
 
@@ -490,7 +392,7 @@ export async function getGroupedFilesByCommitSha(
   workspaceRoot: string,
   from: string,
   to: string,
-): Promise<Map<string, string[]> | null> {
+): Promise<Result<Map<string, string[]>, GitError>> {
   //                    commit hash    file paths
   const commitsMap = new Map<string, string[]>();
 
@@ -531,8 +433,8 @@ export async function getGroupedFilesByCommitSha(
       commitsMap.get(currentSha)!.push(trimmedLine);
     }
 
-    return commitsMap;
-  } catch {
-    return null;
+    return { ok: true, value: commitsMap };
+  } catch (error) {
+    return { ok: false, error: toGitError("getGroupedFilesByCommitSha", error) };
   }
 }

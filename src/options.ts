@@ -1,6 +1,8 @@
 import type { CommitTypeRule } from "#shared/types";
+import type { GitHubClient } from "#core/github";
 import process from "node:process";
 import { dedent } from "@luxass/utils";
+import { createGitHubClient } from "#core/github";
 
 type DeepRequired<T> = Required<{
   [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>
@@ -49,6 +51,7 @@ export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOp
   repo: string;
   safeguards: boolean;
   types: Record<string, CommitTypeRule>;
+  githubClient: GitHubClient;
   npm: {
     otp?: string;
     provenance: boolean;
@@ -153,6 +156,7 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     githubToken: token,
     owner,
     repo,
+    githubClient: createGitHubClient({ owner, repo, githubToken: token }),
     packages: normalizedPackages,
     branch: {
       release: branch.release ?? "release/next",

@@ -1,11 +1,12 @@
-import type { GitError, VersioningOperations } from "#core/types";
+import type { GitError } from "#core/git";
 import type { WorkspacePackage } from "#core/workspace";
 import type { PackageRelease } from "#shared/types";
 import type { Result } from "#types/result";
 import { err } from "#types/result";
+import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
+import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 
 interface CalculateUpdatesOptions {
-  versioning: VersioningOperations;
   workspacePackages: WorkspacePackage[];
   workspaceRoot: string;
   showPrompt: boolean;
@@ -19,7 +20,6 @@ export async function calculateUpdates(options: CalculateUpdatesOptions): Promis
   overrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>;
 }, GitError>> {
   const {
-    versioning,
     workspacePackages,
     workspaceRoot,
     showPrompt,
@@ -27,36 +27,39 @@ export async function calculateUpdates(options: CalculateUpdatesOptions): Promis
     globalCommitMode,
   } = options;
 
-  const grouped = await versioning.getWorkspacePackageGroupedCommits(workspaceRoot, workspacePackages);
-  if (!grouped.ok) return grouped;
+  try {
+    const grouped = await getWorkspacePackageGroupedCommits(workspaceRoot, workspacePackages);
+    const global = await getGlobalCommitsPerPackage(
+      workspaceRoot,
+      grouped,
+      workspacePackages,
+      globalCommitMode,
+    );
 
-  const global = await versioning.getGlobalCommitsPerPackage(
-    workspaceRoot,
-    grouped.value,
-    workspacePackages,
-    globalCommitMode,
-  );
-  if (!global.ok) return global;
+    const updates = await calculateAndPrepareVersionUpdates({
+      workspacePackages,
+      packageCommits: grouped,
+      workspaceRoot,
+      showPrompt,
+      globalCommitsPerPackage: global,
+      overrides,
+    });
 
-  const updates = await versioning.calculateAndPrepareVersionUpdates({
-    workspacePackages,
-    packageCommits: grouped.value,
-    workspaceRoot,
-    showPrompt,
-    globalCommitsPerPackage: global.value,
-    overrides,
-  });
-
-  if (!updates.ok) return updates;
-
-  return updates;
+    return { ok: true, value: updates };
+  } catch (error) {
+    return err({
+      type: "git",
+      operation: "calculateUpdates",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export function ensureHasPackages(packages: WorkspacePackage[]): Result<WorkspacePackage[], GitError> {
   if (packages.length === 0) {
     return err({
       type: "git",
-      operation: "discoverPackages",
+      operation: "discoverWorkspacePackages",
       message: "No packages found to release",
     });
   }

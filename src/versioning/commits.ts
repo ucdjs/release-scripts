@@ -22,7 +22,8 @@ export async function getWorkspacePackageGroupedCommits(
   const promises = packages.map(async (pkg) => {
     // Get the latest tag that corresponds to the workspace package
     // This will ensure that we only get commits, since the last release of this package.
-    const lastTag = await getMostRecentPackageTag(workspaceRoot, pkg.name);
+    const lastTagResult = await getMostRecentPackageTag(workspaceRoot, pkg.name);
+    const lastTag = lastTagResult.ok ? lastTagResult.value : undefined;
 
     // Get all commits since the last tag, that affect this package
     const allCommits = await getCommits({
@@ -180,12 +181,12 @@ export async function getGlobalCommitsPerPackage(
   logger.verbose("Fetching files for commits range", `${farver.cyan(commitRange.oldest)}..${farver.cyan(commitRange.newest)}`);
 
   const commitFilesMap = await getGroupedFilesByCommitSha(workspaceRoot, commitRange.oldest, commitRange.newest);
-  if (!commitFilesMap) {
+  if (!commitFilesMap.ok) {
     logger.warn("Failed to get commit file list, returning empty global commits");
     return result;
   }
 
-  logger.verbose("Got file lists for commits", `${farver.cyan(commitFilesMap.size)} commits in ONE git call`);
+  logger.verbose("Got file lists for commits", `${farver.cyan(commitFilesMap.value.size)} commits in ONE git call`);
 
   const packagePaths = new Set(allPackages.map((p) => p.path));
 
@@ -195,7 +196,7 @@ export async function getGlobalCommitsPerPackage(
     logger.verbose("Filtering global commits for package", `${farver.bold(pkgName)} from ${farver.cyan(commits.length)} commits`);
 
     for (const commit of commits) {
-      const files = commitFilesMap.get(commit.shortHash);
+      const files = commitFilesMap.value.get(commit.shortHash);
       if (!files) continue;
 
       if (isGlobalCommit(workspaceRoot, files, packagePaths)) {
@@ -214,7 +215,7 @@ export async function getGlobalCommitsPerPackage(
     const dependencyCommits: GitCommit[] = [];
 
     for (const commit of globalCommitsAffectingPackage) {
-      const files = commitFilesMap.get(commit.shortHash);
+      const files = commitFilesMap.value.get(commit.shortHash);
       if (!files) continue;
 
       const affectsDeps = files.some((file) => DEPENDENCY_FILES.includes(file.startsWith("./") ? file.slice(2) : file));

@@ -36,12 +36,19 @@ export async function createReleaseScripts(options: ReleaseScriptsOptionsInput):
 
     packages: {
       async list(): Promise<WorkspacePackage[]> {
-        return discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
+        const result = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
+        if (!result.ok) {
+          throw new Error(result.error.message);
+        }
+        return result.value;
       },
 
       async get(packageName: string): Promise<WorkspacePackage | undefined> {
-        const packages = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
-        return packages.find((p) => p.name === packageName);
+        const result = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
+        if (!result.ok) {
+          throw new Error(result.error.message);
+        }
+        return result.value.find((p) => p.name === packageName);
       },
     },
   };

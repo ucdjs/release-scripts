@@ -1,4 +1,3 @@
-import type { WorkspaceError, WorkspaceOperations } from "#core/types";
 import type {
   FindWorkspacePackagesOptions,
   PackageJson,
@@ -8,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { selectPackagePrompt } from "#core/prompts";
 import { exitWithError, isCI, logger, run } from "#shared/utils";
-import { err, ok } from "#types/result";
+import type { Result } from "#types/result";
 import farver from "farver";
 
 interface RawProject {
@@ -29,10 +28,25 @@ export interface WorkspacePackage {
   workspaceDevDependencies: string[];
 }
 
+export interface WorkspaceError {
+  type: "workspace";
+  operation: string;
+  message: string;
+}
+
+function toWorkspaceError(operation: string, error: unknown): WorkspaceError {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    type: "workspace",
+    operation,
+    message,
+  };
+}
+
 export async function discoverWorkspacePackages(
   workspaceRoot: string,
   options: NormalizedReleaseScriptsOptions,
-): Promise<WorkspacePackage[]> {
+): Promise<Result<WorkspacePackage[], WorkspaceError>> {
   let workspaceOptions: FindWorkspacePackagesOptions;
   let explicitPackages: string[] | undefined;
 
@@ -49,10 +63,15 @@ export async function discoverWorkspacePackages(
     }
   }
 
-  let workspacePackages = await findWorkspacePackages(
-    workspaceRoot,
-    workspaceOptions,
-  );
+  let workspacePackages: WorkspacePackage[];
+  try {
+    workspacePackages = await findWorkspacePackages(
+      workspaceRoot,
+      workspaceOptions,
+    );
+  } catch (error) {
+    return { ok: false, error: toWorkspaceError("discoverWorkspacePackages", error) };
+  }
 
   // If specific packages were requested, validate they were all found
   if (explicitPackages) {
@@ -79,37 +98,7 @@ export async function discoverWorkspacePackages(
     );
   }
 
-  return workspacePackages;
-}
-
-type WorkspaceOperationOverrides = Partial<Record<keyof WorkspaceOperations, (...args: unknown[]) => Promise<unknown>>>;
-
-function toWorkspaceError(operation: string, error: unknown): WorkspaceError {
-  const message = error instanceof Error ? error.message : String(error);
-  return {
-    type: "workspace",
-    operation,
-    message,
-  };
-}
-
-async function wrapWorkspace<T>(operation: string, fn: () => Promise<T>): Promise<ReturnType<typeof ok<T>> | ReturnType<typeof err<WorkspaceError>>> {
-  try {
-    return ok(await fn());
-  } catch (error) {
-    return err(toWorkspaceError(operation, error));
-  }
-}
-
-export function createWorkspaceOperations(overrides: WorkspaceOperationOverrides = {}): WorkspaceOperations {
-  return {
-    discoverWorkspacePackages: (workspaceRoot, options) => wrapWorkspace("discoverWorkspacePackages", async () => {
-      if (overrides.discoverWorkspacePackages) {
-        return overrides.discoverWorkspacePackages(workspaceRoot, options) as Promise<WorkspacePackage[]>;
-      }
-      return discoverWorkspacePackages(workspaceRoot, options as NormalizedReleaseScriptsOptions);
-    }),
-  };
+  return { ok: true, value: workspacePackages };
 }
 
 async function findWorkspacePackages(
