@@ -61,11 +61,15 @@ export async function selectVersionPrompt(
   const prePatchAlpha = getNextPrereleaseVersion(currentVersion, "prepatch", "alpha");
   const preMinorAlpha = getNextPrereleaseVersion(currentVersion, "preminor", "alpha");
   const preMajorAlpha = getNextPrereleaseVersion(currentVersion, "premajor", "alpha");
+  const isCurrentPrerelease = prereleaseIdentifier != null;
 
   const choices = [
     { value: "skip", title: `skip ${farver.dim("(no change)")}` },
     { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}${suggestedSuffix}` },
     { value: "as-is", title: `as-is ${farver.dim("(keep current version)")}` },
+    ...(isCurrentPrerelease
+      ? [{ value: "next-prerelease", title: `next prerelease ${farver.bold(nextDefaultPrerelease)}` }]
+      : []),
     { value: "patch", title: `patch ${farver.bold(getNextVersion(pkg.version, "patch"))}` },
     { value: "minor", title: `minor ${farver.bold(getNextVersion(pkg.version, "minor"))}` },
     { value: "major", title: `major ${farver.bold(getNextVersion(pkg.version, "major"))}` },
@@ -79,6 +83,7 @@ export async function selectVersionPrompt(
   const initial = Math.max(0, choices.findIndex((choice) => choice.value === initialValue));
 
   const prereleaseVersionByChoice = {
+    "next-prerelease": nextDefaultPrerelease,
     "next": nextDefaultPrerelease,
     "next-beta": nextBeta,
     "next-alpha": nextAlpha,
