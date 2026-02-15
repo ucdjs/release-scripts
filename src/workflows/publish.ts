@@ -1,13 +1,74 @@
 import type { PublishStatus } from "#core/npm";
 import type { NormalizedReleaseScriptsOptions } from "../options";
-import { createAndPushPackageTag } from "#core/git";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { commitPaths, createAndPushPackageTag, getCurrentBranch, pushBranch } from "#core/git";
 import { checkVersionExists, publishPackage } from "#core/npm";
 import { discoverWorkspacePackages } from "#core/workspace";
 import { exitWithError } from "#shared/errors";
-import { logger } from "#shared/utils";
+import { logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { buildPackageDependencyGraph, getPackagePublishOrder } from "#versioning/package";
 import farver from "farver";
 import semver from "semver";
+
+async function cleanupPublishedOverrides(
+  options: NormalizedReleaseScriptsOptions,
+  workspacePackages: { name: string; version: string }[],
+  publishedPackageNames: string[],
+): Promise<boolean> {
+  if (publishedPackageNames.length === 0) {
+    return false;
+  }
+
+  if (options.dryRun) {
+    logger.verbose("Dry-run: skipping override cleanup");
+    return false;
+  }
+
+  const overridesPath = join(options.workspaceRoot, ucdjsReleaseOverridesPath);
+  let overrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>;
+
+  try {
+    overrides = JSON.parse(await readFile(overridesPath, "utf-8"));
+  } catch {
+    return false;
+  }
+
+  const versionsByPackage = new Map(workspacePackages.map((pkg) => [pkg.name, pkg.version]));
+  const publishedSet = new Set(publishedPackageNames);
+  const removed: string[] = [];
+
+  for (const [pkgName, override] of Object.entries(overrides)) {
+    if (!publishedSet.has(pkgName)) {
+      continue;
+    }
+
+    const currentVersion = versionsByPackage.get(pkgName);
+    const current = currentVersion ? semver.valid(currentVersion) : null;
+    const target = semver.valid(override.version);
+
+    if (current && target && semver.gte(current, target)) {
+      delete overrides[pkgName];
+      removed.push(pkgName);
+    }
+  }
+
+  if (removed.length === 0) {
+    return false;
+  }
+
+  logger.step(`Cleaning up satisfied overrides (${removed.length})...`);
+
+  if (Object.keys(overrides).length === 0) {
+    await rm(overridesPath, { force: true });
+    logger.success("Removed release override file (all entries satisfied)");
+    return true;
+  }
+
+  await writeFile(overridesPath, JSON.stringify(overrides, null, 2), "utf-8");
+  logger.success(`Removed satisfied overrides: ${removed.join(", ")}`);
+  return true;
+}
 
 export async function publishWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {
   logger.section("📦 Publishing Packages");
@@ -164,6 +225,35 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
 
   if (status.failed.length > 0) {
     exitWithError(`Publishing completed with ${status.failed.length} failure(s)`);
+  }
+
+  const didCleanupOverrides = await cleanupPublishedOverrides(options, workspacePackages, status.published);
+
+  if (didCleanupOverrides && !options.dryRun) {
+    logger.step("Committing override cleanup...");
+    const commitResult = await commitPaths(
+      [ucdjsReleaseOverridesPath],
+      "chore: cleanup release overrides",
+      options.workspaceRoot,
+    );
+
+    if (!commitResult.ok) {
+      exitWithError("Failed to commit override cleanup.", undefined, commitResult.error);
+    }
+
+    if (commitResult.value) {
+      const currentBranch = await getCurrentBranch(options.workspaceRoot);
+      if (!currentBranch.ok) {
+        exitWithError("Failed to detect current branch for override cleanup push.", undefined, currentBranch.error);
+      }
+
+      const pushResult = await pushBranch(currentBranch.value, options.workspaceRoot);
+      if (!pushResult.ok) {
+        exitWithError("Failed to push override cleanup commit.", undefined, pushResult.error);
+      }
+
+      logger.success(`Pushed override cleanup commit to ${farver.cyan(currentBranch.value)}`);
+    }
   }
 
   logger.success("All packages published successfully!");

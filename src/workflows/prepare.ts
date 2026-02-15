@@ -18,39 +18,6 @@ import { getGlobalCommitsPerPackage, getPackageCommitsSinceTag, getWorkspacePack
 import farver from "farver";
 import semver from "semver";
 
-function pruneStaleOverrides(
-  overrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>,
-  workspacePackages: { name: string; version: string }[],
-): {
-  activeOverrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>;
-  removed: string[];
-} {
-  const packageVersions = new Map(workspacePackages.map((pkg) => [pkg.name, pkg.version]));
-  const activeOverrides: Record<string, { version: string; type: import("#shared/types").BumpKind }> = {};
-  const removed: string[] = [];
-
-  for (const [pkgName, override] of Object.entries(overrides)) {
-    const currentVersion = packageVersions.get(pkgName);
-
-    if (!currentVersion) {
-      removed.push(pkgName);
-      continue;
-    }
-
-    const current = semver.valid(currentVersion);
-    const target = semver.valid(override.version);
-
-    if (current && target && semver.gte(current, target)) {
-      removed.push(pkgName);
-      continue;
-    }
-
-    activeOverrides[pkgName] = override;
-  }
-
-  return { activeOverrides, removed };
-}
-
 export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions): Promise<ReleaseResult | null> {
   if (options.safeguards) {
     const clean = await isWorkingDirectoryClean(options.workspaceRoot);
@@ -111,23 +78,12 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     logger.verbose(`Reading overrides file failed: ${formatUnknownError(error).message}`);
   }
 
-  const { activeOverrides: calculatedOverrides, removed: removedOverrides } = pruneStaleOverrides(
-    existingOverrides,
-    workspacePackages,
-  );
-
-  if (removedOverrides.length > 0) {
-    logger.info(
-      `Pruned ${removedOverrides.length} stale override${removedOverrides.length === 1 ? "" : "s"}: ${removedOverrides.join(", ")}`,
-    );
-  }
-
   const updatesResult = await calculateUpdates({
     workspacePackages,
     workspaceRoot: options.workspaceRoot,
     showPrompt: options.prompts?.versions !== false,
     globalCommitMode: options.globalCommitMode === "none" ? false : options.globalCommitMode,
-    overrides: calculatedOverrides,
+    overrides: existingOverrides,
   });
 
   if (!updatesResult.ok) {

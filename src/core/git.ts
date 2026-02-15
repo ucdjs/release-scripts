@@ -318,6 +318,53 @@ export async function commitChanges(
   }
 }
 
+export async function commitPaths(
+  paths: string[],
+  message: string,
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
+  try {
+    if (paths.length === 0) {
+      return ok(false);
+    }
+
+    await run("git", ["add", "--", ...paths], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    const staged = await run("git", ["diff", "--cached", "--name-only"], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    if (staged.stdout.trim() === "") {
+      return ok(false);
+    }
+
+    logger.info(`Committing changes: ${farver.dim(message)}`);
+    await runIfNotDry("git", ["commit", "-m", message], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+
+    return ok(true);
+  } catch (error) {
+    const gitError = toGitError("commitPaths", error);
+    logger.error(`Git commit failed: ${gitError.message}`);
+    if (gitError.stderr) {
+      logger.error(`Git stderr: ${gitError.stderr}`);
+    }
+    return err(gitError);
+  }
+}
+
 export async function pushBranch(
   branch: string,
   workspaceRoot: string,
