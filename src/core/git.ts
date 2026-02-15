@@ -200,7 +200,7 @@ export async function checkoutBranch(
     if (gitError.stderr) {
       logger.error(`Git stderr: ${gitError.stderr}`);
     }
-    
+
     // Show available branches for debugging
     try {
       const branchResult = await run("git", ["branch", "-a"], {
@@ -213,7 +213,7 @@ export async function checkoutBranch(
     } catch {
       logger.verbose("Could not list available branches");
     }
-    
+
     return err(gitError);
   }
 }
