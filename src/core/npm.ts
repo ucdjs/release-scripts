@@ -2,7 +2,7 @@ import type { Result } from "#types";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import process from "node:process";
 import { formatUnknownError } from "#shared/errors";
-import { runIfNotDry } from "#shared/utils";
+import { logger, runIfNotDry } from "#shared/utils";
 import { err, ok } from "#types";
 import semver from "semver";
 
@@ -32,6 +32,29 @@ function toNPMError(operation: string, error: unknown, code?: string): NPMError 
     stderr: formatted.stderr,
     status: formatted.status,
   };
+}
+
+function classifyPublishErrorCode(error: unknown): string | undefined {
+  const formatted = formatUnknownError(error);
+  const combined = [formatted.message, formatted.stderr].filter(Boolean).join("\n");
+
+  if (combined.includes("E403") || combined.toLowerCase().includes("access token expired or revoked")) {
+    return "E403";
+  }
+
+  if (combined.includes("EPUBLISHCONFLICT") || combined.includes("E409") || combined.includes("409 Conflict") || combined.includes("Failed to save packument")) {
+    return "EPUBLISHCONFLICT";
+  }
+
+  if (combined.includes("EOTP")) {
+    return "EOTP";
+  }
+
+  return undefined;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -162,29 +185,44 @@ export async function publishPackage(
     env.NPM_CONFIG_PROVENANCE = "true";
   }
 
-  try {
-    await runIfNotDry("pnpm", args, {
-      nodeOptions: {
-        cwd: workspaceRoot,
-        stdio: "inherit",
-        env,
-      },
-    });
-    return ok(undefined);
-  } catch (error) {
-    const formatted = formatUnknownError(error);
-    const errorMessage = formatted.message;
-    // Check for specific error codes
-    const code = errorMessage.includes("E403")
-      ? "E403"
-      : errorMessage.includes("EPUBLISHCONFLICT")
-        ? "EPUBLISHCONFLICT"
-        : errorMessage.includes("EOTP")
-          ? "EOTP"
-          : undefined;
+  const maxAttempts = 4;
+  const backoffMs = [3_000, 8_000, 15_000];
 
-    return err(toNPMError("publishPackage", error, code));
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await runIfNotDry("pnpm", args, {
+        nodeOptions: {
+          cwd: workspaceRoot,
+          stdio: "inherit",
+          env,
+        },
+      });
+
+      return ok(undefined);
+    } catch (error) {
+      const code = classifyPublishErrorCode(error);
+      const isRetriableConflict = code === "EPUBLISHCONFLICT" && attempt < maxAttempts;
+
+      if (isRetriableConflict) {
+        const delay = backoffMs[attempt - 1] ?? backoffMs[backoffMs.length - 1]!;
+        logger.warn(
+          `Publish conflict for ${packageName}@${version} (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.ceil(delay / 1000)}s...`,
+        );
+        await wait(delay);
+        continue;
+      }
+
+      return err(toNPMError("publishPackage", error, code));
+    }
   }
+
+  return err(
+    toNPMError(
+      "publishPackage",
+      new Error(`Failed to publish ${packageName}@${version} after ${maxAttempts} attempts`),
+      "EPUBLISHCONFLICT",
+    ),
+  );
 }
 
 /**
