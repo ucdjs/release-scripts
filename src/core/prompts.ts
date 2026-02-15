@@ -66,18 +66,10 @@ export async function selectVersionPrompt(
     { value: "skip", title: `skip ${farver.dim("(no change)")}` },
     { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}${suggestedSuffix}` },
     { value: "as-is", title: `as-is ${farver.dim("(keep current version)")}` },
-    { value: "major", title: `major ${farver.bold(getNextVersion(pkg.version, "major"))}` },
-    { value: "minor", title: `minor ${farver.bold(getNextVersion(pkg.version, "minor"))}` },
     { value: "patch", title: `patch ${farver.bold(getNextVersion(pkg.version, "patch"))}` },
-    { value: "next", title: `next ${farver.bold(nextDefaultPrerelease)}` },
-    { value: "prepatch-beta", title: `pre-patch (beta) ${farver.bold(prePatchBeta)}` },
-    { value: "preminor-beta", title: `pre-minor (beta) ${farver.bold(preMinorBeta)}` },
-    { value: "premajor-beta", title: `pre-major (beta) ${farver.bold(preMajorBeta)}` },
-    { value: "prepatch-alpha", title: `pre-patch (alpha) ${farver.bold(prePatchAlpha)}` },
-    { value: "preminor-alpha", title: `pre-minor (alpha) ${farver.bold(preMinorAlpha)}` },
-    { value: "premajor-alpha", title: `pre-major (alpha) ${farver.bold(preMajorAlpha)}` },
-    { value: "next-beta", title: `next beta ${farver.bold(nextBeta)}` },
-    { value: "next-alpha", title: `next alpha ${farver.bold(nextAlpha)}` },
+    { value: "minor", title: `minor ${farver.bold(getNextVersion(pkg.version, "minor"))}` },
+    { value: "major", title: `major ${farver.bold(getNextVersion(pkg.version, "major"))}` },
+    { value: "prerelease", title: `prerelease ${farver.dim("(choose strategy)")}` },
     { value: "custom", title: "custom" },
   ];
 
@@ -98,29 +90,14 @@ export async function selectVersionPrompt(
     "premajor-alpha": preMajorAlpha,
   } as const;
 
-  const answers = await prompts([
-    {
-      type: "autocomplete",
-      name: "version",
-      message: `${pkg.name}: ${farver.green(pkg.version)}`,
-      choices,
-      limit: choices.length,
-      initial,
-    },
-    {
-      type: (prev) => prev === "custom" ? "text" : null,
-      name: "custom",
-      message: "Enter the new version number:",
-      initial: suggestedVersion,
-      validate: (custom: string) => {
-        if (isValidSemver(custom)) {
-          return true;
-        }
-
-        return "That's not a valid version number";
-      },
-    },
-  ]);
+  const answers = await prompts({
+    type: "autocomplete",
+    name: "version",
+    message: `${pkg.name}: ${farver.green(pkg.version)}`,
+    choices,
+    limit: choices.length,
+    initial,
+  });
 
   // User cancelled (Ctrl+C)
   if (!answers.version) {
@@ -132,14 +109,57 @@ export async function selectVersionPrompt(
   } else if (answers.version === "suggested") {
     return suggestedVersion;
   } else if (answers.version === "custom") {
-    if (!answers.custom) {
+    const customAnswer = await prompts({
+      type: "text",
+      name: "custom",
+      message: "Enter the new version number:",
+      initial: suggestedVersion,
+      validate: (custom: string) => {
+        if (isValidSemver(custom)) {
+          return true;
+        }
+
+        return "That's not a valid version number";
+      },
+    });
+
+    if (!customAnswer.custom) {
       return null;
     }
 
-    return answers.custom;
+    return customAnswer.custom;
   } else if (answers.version === "as-is") {
     // TODO: verify that there isn't any tags already existing for this version?
     return currentVersion;
+  } else if (answers.version === "prerelease") {
+    const prereleaseChoices = [
+      { value: "next", title: `next ${farver.bold(nextDefaultPrerelease)}` },
+      { value: "next-beta", title: `next beta ${farver.bold(nextBeta)}` },
+      { value: "next-alpha", title: `next alpha ${farver.bold(nextAlpha)}` },
+      { value: "prepatch-beta", title: `pre-patch (beta) ${farver.bold(prePatchBeta)}` },
+      { value: "prepatch-alpha", title: `pre-patch (alpha) ${farver.bold(prePatchAlpha)}` },
+      { value: "preminor-beta", title: `pre-minor (beta) ${farver.bold(preMinorBeta)}` },
+      { value: "preminor-alpha", title: `pre-minor (alpha) ${farver.bold(preMinorAlpha)}` },
+      { value: "premajor-beta", title: `pre-major (beta) ${farver.bold(preMajorBeta)}` },
+      { value: "premajor-alpha", title: `pre-major (alpha) ${farver.bold(preMajorAlpha)}` },
+    ];
+
+    const prereleaseAnswer = await prompts({
+      type: "autocomplete",
+      name: "prerelease",
+      message: `${pkg.name}: select prerelease strategy`,
+      choices: prereleaseChoices,
+      limit: prereleaseChoices.length,
+      initial: 0,
+    });
+
+    if (!prereleaseAnswer.prerelease) {
+      return null;
+    }
+
+    return prereleaseVersionByChoice[
+      prereleaseAnswer.prerelease as keyof typeof prereleaseVersionByChoice
+    ];
   }
 
   const prereleaseVersion = prereleaseVersionByChoice[
