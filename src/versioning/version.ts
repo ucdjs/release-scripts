@@ -112,8 +112,6 @@ async function calculateVersionUpdates({
   const newOverrides: VersionOverrides = { ...initialOverrides };
   const excludedPackages = new Set<string>();
 
-  const bumpRanks: Record<BumpKind, number> = { major: 3, minor: 2, patch: 1, none: 0 };
-
   logger.verbose(`Starting version inference for ${packageCommits.size} packages with commits`);
 
   // First pass: process packages with commits
@@ -148,19 +146,26 @@ async function calculateVersionUpdates({
       const commitDisplay = formatCommitsForDisplay(allCommitsForPackage);
       const commitLines = commitDisplay.split("\n");
       commitLines.forEach((line) => logger.item(line));
+      logger.item(farver.dim(`Auto bump: ${determinedBump} → ${autoVersion}`));
       logger.emptyLine();
 
       if (override) {
         const overrideChoice = await confirmOverridePrompt(pkg, override.version);
         if (overrideChoice === null) continue;
         if (overrideChoice === "use") {
+          newOverrides[pkgName] = { type: override.type, version: override.version };
+
+          if (override.version === pkg.version) {
+            excludedPackages.add(pkgName);
+          }
+
           versionUpdates.push({
             package: pkg,
             currentVersion: pkg.version,
             newVersion: override.version,
             bumpType: override.type,
             hasDirectChanges: allCommitsForPackage.length > 0,
-            changeKind: "manual",
+            changeKind: override.version === pkg.version ? "as-is" : "manual",
           });
           continue;
         }
@@ -175,7 +180,7 @@ async function calculateVersionUpdates({
         newVersion,
         {
           defaultChoice: override ? "suggested" : "auto",
-          suggestedHint: override ? "auto" : undefined,
+          suggestedHint: `auto: ${determinedBump} → ${autoVersion}`,
         },
       );
 
@@ -187,18 +192,9 @@ async function calculateVersionUpdates({
       if (selectedVersion === pkg.version) {
         excludedPackages.add(pkgName);
 
-        // Persist explicit "as-is" only when automatic bump exists.
-        // Prompted reruns can still change this because we don't short-circuit when prompting.
-        if (determinedBump !== "none") {
-          const nextOverride: VersionOverride = { type: "none", version: pkg.version };
-          if (!override || override.type !== nextOverride.type || override.version !== nextOverride.version) {
-            newOverrides[pkgName] = nextOverride;
-            logger.info(`Override set for ${pkgName}: suggested as-is (${pkg.version}) from auto ${determinedBump}`);
-          }
-        } else if (newOverrides[pkgName]) {
-          delete newOverrides[pkgName];
-          logger.info(`Override cleared for ${pkgName}.`);
-        }
+        const nextOverride: VersionOverride = { type: "none", version: pkg.version };
+        newOverrides[pkgName] = nextOverride;
+        logger.info(`Override set for ${pkgName}: manual as-is (${pkg.version})`);
 
         // Keep an explicit update entry so downstream flows (changelog generation,
         // release summary, PR body) still include this changed package.
@@ -213,18 +209,9 @@ async function calculateVersionUpdates({
         continue;
       }
 
-      if (bumpRanks[userBump] < bumpRanks[determinedBump]) {
-        const nextOverride: VersionOverride = { type: userBump, version: selectedVersion };
-        if (!override || override.type !== nextOverride.type || override.version !== nextOverride.version) {
-          newOverrides[pkgName] = nextOverride;
-          logger.info(`Override set for ${pkgName}: suggested ${userBump} (${selectedVersion}) from auto ${determinedBump}`);
-        }
-      } else if (newOverrides[pkgName] && bumpRanks[userBump] >= bumpRanks[determinedBump]) {
-        // If the user manually selects a version that's NOT a downgrade,
-        // remove any existing override for that package.
-        delete newOverrides[pkgName];
-        logger.info(`Override cleared for ${pkgName}.`);
-      }
+      const nextOverride: VersionOverride = { type: userBump, version: selectedVersion };
+      newOverrides[pkgName] = nextOverride;
+      logger.info(`Override set for ${pkgName}: manual ${userBump} (${selectedVersion})`);
 
       newVersion = selectedVersion;
     }
@@ -247,16 +234,24 @@ async function calculateVersionUpdates({
       logger.clearScreen();
       logger.section(`📦 Package: ${pkg.name}`);
       logger.item("No direct commits found");
+      logger.item(farver.dim(`Auto bump: none → ${pkg.version}`));
 
-      const newVersion = await selectVersionPrompt(workspaceRoot, pkg, pkg.version, pkg.version);
+      const newVersion = await selectVersionPrompt(workspaceRoot, pkg, pkg.version, pkg.version, {
+        defaultChoice: "auto",
+        suggestedHint: `auto: none → ${pkg.version}`,
+      });
       if (newVersion === null) break;
 
       if (newVersion === pkg.version) {
         excludedPackages.add(pkg.name);
+        newOverrides[pkg.name] = { type: "none", version: pkg.version };
+        logger.info(`Override set for ${pkg.name}: manual as-is (${pkg.version})`);
         continue;
       }
 
       const bumpType = calculateBumpType(pkg.version, newVersion);
+      newOverrides[pkg.name] = { type: bumpType, version: newVersion };
+      logger.info(`Override set for ${pkg.name}: manual ${bumpType} (${newVersion})`);
       versionUpdates.push({
         package: pkg,
         currentVersion: pkg.version,
