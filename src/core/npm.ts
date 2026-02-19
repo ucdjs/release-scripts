@@ -190,13 +190,21 @@ export async function publishPackage(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await runIfNotDry("pnpm", args, {
+      const result = await runIfNotDry("pnpm", args, {
         nodeOptions: {
           cwd: workspaceRoot,
-          stdio: "inherit",
+          stdio: "pipe",
           env,
         },
       });
+
+      if (result?.stdout && result.stdout.trim()) {
+        logger.verbose(result.stdout.trim());
+      }
+
+      if (result?.stderr && result.stderr.trim()) {
+        logger.verbose(result.stderr.trim());
+      }
 
       return ok(undefined);
     } catch (error) {
