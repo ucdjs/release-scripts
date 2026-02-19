@@ -177,3 +177,22 @@ export async function selectVersionPrompt(
 
   return getNextVersion(pkg.version, answers.version as BumpKind);
 }
+
+export async function confirmOverridePrompt(pkg: WorkspacePackage, overrideVersion: string): Promise<"use" | "pick" | null> {
+  const response = await prompts({
+    type: "select",
+    name: "choice",
+    message: `${pkg.name}: use override version ${farver.bold(overrideVersion)}?`,
+    choices: [
+      { title: "use override", value: "use" },
+      { title: "pick another version", value: "pick" },
+    ],
+    initial: 0,
+  });
+
+  if (!response.choice) {
+    return null;
+  }
+
+  return response.choice;
+}

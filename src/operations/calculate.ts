@@ -2,6 +2,7 @@ import type { GitError } from "#core/git";
 import type { WorkspacePackage } from "#core/workspace";
 import type { PackageRelease } from "#shared/types";
 import type { Result } from "#types";
+import { formatUnknownError } from "#shared/errors";
 import { err, ok } from "#types";
 import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
@@ -47,10 +48,12 @@ export async function calculateUpdates(options: CalculateUpdatesOptions): Promis
 
     return ok(updates);
   } catch (error) {
+    const formatted = formatUnknownError(error);
     return err({
       type: "git",
       operation: "calculateUpdates",
-      message: error instanceof Error ? error.message : String(error),
+      message: formatted.message,
+      stderr: formatted.stderr,
     });
   }
 }

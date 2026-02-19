@@ -3,7 +3,7 @@ import type { BumpKind, PackageJson, PackageRelease } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { selectVersionPrompt } from "#core/prompts";
+import { confirmOverridePrompt, selectVersionPrompt } from "#core/prompts";
 import { calculateBumpType, getNextVersion } from "#operations/semver";
 import { determineHighestBump } from "#operations/version";
 import { isCI, logger } from "#shared/utils";
@@ -138,7 +138,8 @@ async function calculateVersionUpdates({
       continue;
     }
 
-    let newVersion = override?.version || getNextVersion(pkg.version, effectiveBump);
+    const autoVersion = getNextVersion(pkg.version, determinedBump);
+    let newVersion = override?.version || autoVersion;
     let finalBumpType: BumpKind = effectiveBump;
 
     if (canPrompt) {
@@ -149,6 +150,24 @@ async function calculateVersionUpdates({
       commitLines.forEach((line) => logger.item(line));
       logger.emptyLine();
 
+      if (override) {
+        const overrideChoice = await confirmOverridePrompt(pkg, override.version);
+        if (overrideChoice === null) continue;
+        if (overrideChoice === "use") {
+          versionUpdates.push({
+            package: pkg,
+            currentVersion: pkg.version,
+            newVersion: override.version,
+            bumpType: override.type,
+            hasDirectChanges: allCommitsForPackage.length > 0,
+            changeKind: "manual",
+          });
+          continue;
+        }
+
+        newVersion = autoVersion;
+      }
+
       const selectedVersion = await selectVersionPrompt(
         workspaceRoot,
         pkg,
@@ -156,7 +175,7 @@ async function calculateVersionUpdates({
         newVersion,
         {
           defaultChoice: override ? "suggested" : "auto",
-          suggestedHint: override ? "from override" : undefined,
+          suggestedHint: override ? "auto" : undefined,
         },
       );
 
