@@ -1,6 +1,7 @@
 import type { ReleaseResult } from "#types";
 import type { WorkspacePackage } from "./core/workspace";
 import type { ReleaseScriptsOptionsInput } from "./options";
+import { logger } from "#shared/utils";
 import { prepareWorkflow as release } from "#workflows/prepare";
 import { publishWorkflow as publish } from "#workflows/publish";
 import { verifyWorkflow as verify } from "#workflows/verify";
@@ -20,6 +21,23 @@ export interface ReleaseScripts {
 export async function createReleaseScripts(options: ReleaseScriptsOptionsInput): Promise<ReleaseScripts> {
   // Normalize options once for packages.list and packages.get
   const normalizedOptions = normalizeReleaseScriptsOptions(options);
+
+  logger.verbose("Release scripts config", {
+    repo: `${normalizedOptions.owner}/${normalizedOptions.repo}`,
+    workspaceRoot: normalizedOptions.workspaceRoot,
+    dryRun: normalizedOptions.dryRun,
+    safeguards: normalizedOptions.safeguards,
+    branch: normalizedOptions.branch,
+    globalCommitMode: normalizedOptions.globalCommitMode,
+    prompts: normalizedOptions.prompts,
+    packages: normalizedOptions.packages,
+    npm: {
+      access: normalizedOptions.npm.access,
+      provenance: normalizedOptions.npm.provenance,
+      otp: normalizedOptions.npm.otp ? "set" : "unset",
+    },
+    changelog: normalizedOptions.changelog,
+  });
 
   return {
     async verify(): Promise<void> {

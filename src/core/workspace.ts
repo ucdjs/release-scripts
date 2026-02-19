@@ -93,6 +93,15 @@ export async function discoverWorkspacePackages(
   // 2. Prompt is enabled
   // 3. No explicit packages were specified (user didn't pre-select specific packages)
   const isPackagePromptEnabled = options.prompts?.packages !== false;
+  logger.verbose("Package prompt gating", {
+    isCI,
+    isPackagePromptEnabled,
+    hasExplicitPackages: Boolean(explicitPackages),
+    include: workspaceOptions.include ?? [],
+    exclude: workspaceOptions.exclude ?? [],
+    excludePrivate: workspaceOptions.excludePrivate ?? false,
+  });
+
   if (!isCI && isPackagePromptEnabled && !explicitPackages) {
     const selectedNames = await selectPackagePrompt(workspacePackages);
     workspacePackages = workspacePackages.filter((pkg) =>
