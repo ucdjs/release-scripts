@@ -35,6 +35,11 @@ async function getReleaseBodyFromChangelog(
       ].join("\n");
     }
 
+    const lines = entry.content.trim().split("\n");
+    if (lines[0]?.trim().startsWith("## ")) {
+      return lines.slice(1).join("\n").trim();
+    }
+
     return entry.content.trim();
   } catch {
     logger.verbose(`Could not read changelog entry for ${version} at ${changelogPath}`);

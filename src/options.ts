@@ -90,7 +90,6 @@ export const DEFAULT_CHANGELOG_TEMPLATE = dedent`
   <% } else { -%>
   ## <%= it.version %> (<%= it.date %>)
   <% } %>
-
   <% let hasCommits = false; %>
 
   <% it.groups.forEach((group) => { %>
@@ -107,10 +106,9 @@ export const DEFAULT_CHANGELOG_TEMPLATE = dedent`
   <% }); %>
 
   <% if (!hasCommits) { %>
+  *No significant changes*
 
-  ### Notes
-
-  * No significant commits in this release.
+  ##### &nbsp;&nbsp;&nbsp;&nbsp;[View changes on GitHub](<%= it.compareUrl %>)
   <% } %>
 `;
 

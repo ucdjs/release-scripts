@@ -211,7 +211,14 @@ describe("generateChangelogEntry", () => {
       githubClient: createGitHubClientStub(),
     });
 
-    expect(entry).toMatchInlineSnapshot(`"## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)"`);
+    expect(entry).toMatchInlineSnapshot(`
+      "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
+
+
+      *No significant changes*
+
+      ##### &nbsp;&nbsp;&nbsp;&nbsp;[View changes on GitHub](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1)"
+    `);
   });
 });
 
