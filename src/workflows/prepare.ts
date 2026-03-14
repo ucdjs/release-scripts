@@ -78,6 +78,29 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     logger.verbose(`Reading overrides file failed: ${formatUnknownError(error).message}`);
   }
 
+  if (Object.keys(existingOverrides).length > 0) {
+    const packageNames = new Set(workspacePackages.map((p) => p.name));
+    const staleEntries: string[] = [];
+
+    for (const [pkgName, override] of Object.entries(existingOverrides)) {
+      if (!packageNames.has(pkgName)) {
+        staleEntries.push(pkgName);
+        delete existingOverrides[pkgName];
+        continue;
+      }
+
+      const pkg = workspacePackages.find((p) => p.name === pkgName);
+      if (pkg && semver.valid(override.version) && semver.gte(pkg.version, override.version)) {
+        staleEntries.push(pkgName);
+        delete existingOverrides[pkgName];
+      }
+    }
+
+    if (staleEntries.length > 0) {
+      logger.info(`Removed ${staleEntries.length} stale override(s): ${staleEntries.join(", ")}`);
+    }
+  }
+
   const updatesResult = await calculateUpdates({
     workspacePackages,
     workspaceRoot: options.workspaceRoot,

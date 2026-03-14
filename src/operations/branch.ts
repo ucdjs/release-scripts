@@ -5,6 +5,7 @@ import {
   commitChanges,
   createBranch,
   doesBranchExist,
+  doesRemoteBranchExist,
   getCurrentBranch,
   isBranchAheadOfRemote,
   pullLatestChanges,
@@ -46,10 +47,17 @@ export async function prepareReleaseBranch(options: PrepareReleaseBranchOptions)
   if (!checkedOut.ok) return checkedOut;
 
   if (branchExists.value) {
-    const pulled = await pullLatestChanges(releaseBranch, workspaceRoot);
-    if (!pulled.ok) return pulled;
-    if (!pulled.value) {
-      logger.warn("Failed to pull latest changes, continuing anyway.");
+    const remoteExists = await doesRemoteBranchExist(releaseBranch, workspaceRoot);
+    if (!remoteExists.ok) return remoteExists;
+
+    if (remoteExists.value) {
+      const pulled = await pullLatestChanges(releaseBranch, workspaceRoot);
+      if (!pulled.ok) return pulled;
+      if (!pulled.value) {
+        logger.warn("Failed to pull latest changes, continuing anyway.");
+      }
+    } else {
+      logger.info(`Remote branch "origin/${releaseBranch}" does not exist yet, skipping pull.`);
     }
   }
 

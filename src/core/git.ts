@@ -133,6 +133,30 @@ export async function isWorkingDirectoryClean(
  * @param {string} workspaceRoot - The root directory of the workspace
  * @returns {Promise<boolean>} Promise resolving to true if branch exists, false otherwise
  */
+/**
+ * Check if a remote branch exists on origin
+ * @param {string} branch - The branch name to check
+ * @param {string} workspaceRoot - The root directory of the workspace
+ * @returns {Promise<Result<boolean, GitError>>} Promise resolving to true if remote branch exists
+ */
+export async function doesRemoteBranchExist(
+  branch: string,
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
+  try {
+    await run("git", ["ls-remote", "--exit-code", "--heads", "origin", branch], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
+    return ok(true);
+  } catch (error) {
+    logger.verbose(`Remote branch "origin/${branch}" does not exist: ${formatUnknownError(error).message}`);
+    return ok(false);
+  }
+}
+
 export async function doesBranchExist(
   branch: string,
   workspaceRoot: string,

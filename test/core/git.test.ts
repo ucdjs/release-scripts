@@ -1,6 +1,7 @@
 import {
   createBranch,
   doesBranchExist,
+  doesRemoteBranchExist,
   getAvailableBranches,
   getCurrentBranch,
   getDefaultBranch,
@@ -77,6 +78,43 @@ describe("git utilities", () => {
   });
 
   describe("branch utilities", () => {
+    describe("doesRemoteBranchExist", () => {
+      it("should return true when remote branch exists", async () => {
+        mockExec.mockResolvedValue({
+          stdout: "abc123\trefs/heads/main\n",
+          stderr: "",
+          exitCode: 0,
+        });
+
+        const result = await doesRemoteBranchExist("main", "/workspace");
+        expect(mockExec).toHaveBeenCalledWith(
+          "git",
+          ["ls-remote", "--exit-code", "--heads", "origin", "main"],
+          expect.objectContaining({
+            nodeOptions: expect.objectContaining({
+              cwd: "/workspace",
+              stdio: "pipe",
+            }),
+          }),
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe(true);
+        }
+      });
+
+      it("should return false when remote branch does not exist", async () => {
+        mockExec.mockRejectedValue(new Error("exit code 2"));
+
+        const result = await doesRemoteBranchExist("release/next", "/workspace");
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value).toBe(false);
+        }
+      });
+    });
+
     describe("doesBranchExist", () => {
       it("should return true if branch exists", async () => {
         mockExec.mockResolvedValue({

@@ -52,5 +52,8 @@
     "typescript": "5.9.3",
     "vitest": "4.1.0",
     "vitest-testdirs": "4.4.3"
+  },
+  "inlinedDependencies": {
+    "eta": "4.5.1"
   }
 }
