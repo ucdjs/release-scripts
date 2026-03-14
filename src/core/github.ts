@@ -412,11 +412,13 @@ export function createGitHubClient(options: SharedGitHubOptions): GitHubClient {
 
 export { toGitHubError };
 
+const NON_WHITESPACE_RE = /\S/;
+
 function dedentString(str: string): string {
   const lines = str.split("\n");
   const minIndent = lines
     .filter((line) => line.trim().length > 0)
-    .reduce((min, line) => Math.min(min, line.search(/\S/)), Infinity);
+    .reduce((min, line) => Math.min(min, line.search(NON_WHITESPACE_RE)), Infinity);
 
   return lines
     .map((line) => (minIndent === Infinity ? line : line.slice(minIndent)))

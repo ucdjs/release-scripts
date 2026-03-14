@@ -74,20 +74,20 @@ describe("package dependency graph", () => {
     const graph = buildPackageDependencyGraph(packages);
 
     const affectedFromD = getAllAffectedPackages(graph, new Set(["pkg-d"]));
-    expect([...affectedFromD].sort()).toEqual([
+    expect([...affectedFromD].toSorted()).toEqual([
       "pkg-a",
       "pkg-b",
       "pkg-c",
       "pkg-d",
       "pkg-e",
-    ].sort());
+    ].toSorted());
 
     const affectedFromB = getAllAffectedPackages(graph, new Set(["pkg-b"]));
-    expect([...affectedFromB].sort()).toEqual([
+    expect([...affectedFromB].toSorted()).toEqual([
       "pkg-a",
       "pkg-b",
       "pkg-e",
-    ].sort());
+    ].toSorted());
   });
 
   it("orders publish list by dependency level (stable)", () => {

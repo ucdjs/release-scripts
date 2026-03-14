@@ -157,7 +157,7 @@ async function findWorkspacePackages(
 
     if (excludedPackages.size > 0) {
       logger.info(`Excluded packages: ${farver.green(
-        Array.from(excludedPackages).join(", "),
+        [...excludedPackages].join(", "),
       )}`);
     }
 

@@ -2,6 +2,8 @@ import type { AuthorInfo, CommitTypeRule } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import { groupByType } from "commit-parser";
 
+const HASH_PREFIX_RE = /^#/;
+
 interface FormatCommitLineOptions {
   commit: GitCommit;
   owner: string;
@@ -17,7 +19,7 @@ function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOpti
   for (const ref of references) {
     if (!ref.value) continue;
 
-    const number = Number.parseInt(ref.value.replace(/^#/, ""), 10);
+    const number = Number.parseInt(ref.value.replace(HASH_PREFIX_RE, ""), 10);
     if (Number.isNaN(number)) continue;
 
     if (ref.type === "issue") {

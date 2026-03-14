@@ -10,6 +10,10 @@ import { err, ok } from "#types";
 import farver from "farver";
 import semver from "semver";
 
+const DEFAULT_BRANCH_RE = /^refs\/remotes\/origin\/(.+)$/;
+const CHECKOUT_BRANCH_RE = /Switched to (?:a new )?branch '(.+)'/;
+const COMMIT_HASH_RE = /^[0-9a-f]{40}$/i;
+
 /**
  * Check if the working directory is clean (no uncommitted changes)
  * @param {string} workspaceRoot - The root directory of the workspace
@@ -191,7 +195,7 @@ export async function getDefaultBranch(workspaceRoot: string): Promise<Result<st
     });
 
     const ref = result.stdout.trim();
-    const match = ref.match(/^refs\/remotes\/origin\/(.+)$/);
+    const match = ref.match(DEFAULT_BRANCH_RE);
     if (match && match[1]) {
       return ok(match[1]);
     }
@@ -295,7 +299,7 @@ export async function checkoutBranch(
 
     // Switching Branches "Switched to branch '[name]'"
     // New Branch "Switched to a new branch '[name]'"
-    const match = output.match(/Switched to (?:a new )?branch '(.+)'/);
+    const match = output.match(CHECKOUT_BRANCH_RE);
     if (match && match[1] === branch) {
       logger.info(`Successfully switched to branch: ${farver.green(branch)}`);
       return ok(true);
@@ -635,13 +639,12 @@ export async function getGroupedFilesByCommitSha(
     const lines = stdout.trim().split("\n").filter((line) => line.trim() !== "");
 
     let currentSha: string | null = null;
-    const HASH_REGEX = /^[0-9a-f]{40}$/i;
 
     for (const line of lines) {
       const trimmedLine = line.trim();
 
       // Found a new commit hash
-      if (HASH_REGEX.test(trimmedLine)) {
+      if (COMMIT_HASH_RE.test(trimmedLine)) {
         currentSha = trimmedLine;
         commitsMap.set(currentSha, []);
 

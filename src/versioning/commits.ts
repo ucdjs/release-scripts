@@ -149,7 +149,7 @@ export function findCommitRange(packageCommits: Map<string, GitCommit[]>): { old
 
     // Commits are ordered newest to oldest
     const firstCommit = commits[0]!.shortHash;
-    const lastCommit = commits[commits.length - 1]!.shortHash;
+    const lastCommit = commits.at(-1)!.shortHash;
 
     if (!newestCommit) {
       newestCommit = firstCommit;

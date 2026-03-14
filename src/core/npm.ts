@@ -212,7 +212,7 @@ export async function publishPackage(
       const isRetriableConflict = code === "EPUBLISHCONFLICT" && attempt < maxAttempts;
 
       if (isRetriableConflict) {
-        const delay = backoffMs[attempt - 1] ?? backoffMs[backoffMs.length - 1]!;
+        const delay = backoffMs[attempt - 1] ?? backoffMs.at(-1)!;
         logger.warn(
           `Publish conflict for ${packageName}@${version} (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.ceil(delay / 1000)}s...`,
         );

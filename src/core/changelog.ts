@@ -11,6 +11,8 @@ import { Eta } from "eta";
 import { DEFAULT_CHANGELOG_TEMPLATE } from "../options";
 import { readFileFromGit } from "./git";
 
+const CHANGELOG_VERSION_RE = /##\s+(?:<small>)?\[?([^\](\s<]+)/;
+
 const excludeAuthors = [
   /\[bot\]/i,
   /dependabot/i,
@@ -156,7 +158,7 @@ export async function updateChangelog(options: {
     const after = lines.slice(insertAt);
 
     // Add empty line after header if needed
-    if (before.length > 0 && before[before.length - 1] !== "") {
+    if (before.length > 0 && before.at(-1) !== "") {
       before.push("");
     }
 
@@ -206,7 +208,7 @@ async function resolveCommitAuthors(
     commitAuthors.set(commit.hash, authorsForCommit);
   }
 
-  const authors = Array.from(authorMap.values());
+  const authors = [...authorMap.values()];
   await Promise.all(authors.map((info) => githubClient.resolveAuthorInfo(info)));
 
   return commitAuthors;
@@ -249,7 +251,7 @@ export function parseChangelog(content: string) {
       // ## 0.1.0
       // ## [0.1.0](link) (date)
       // ## <small>0.1.0</small>
-      const versionMatch = line.match(/##\s+(?:<small>)?\[?([^\](\s<]+)/);
+      const versionMatch = line.match(CHANGELOG_VERSION_RE);
 
       if (versionMatch) {
         const version = versionMatch[1]!;
