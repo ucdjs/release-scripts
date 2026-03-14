@@ -44,9 +44,11 @@ export function createNormalizedReleaseOptions(
       packages: true,
       versions: true,
     },
+    githubClient: overrides.githubClient ?? createGitHubClientStub(),
     npm: {
       provenance: true,
       otp: undefined,
+      access: "public",
     },
     workspaceRoot: overrides.workspaceRoot ?? process.cwd(),
     githubToken: "test-token",
@@ -67,6 +69,7 @@ export function createNormalizedReleaseOptions(
       enabled: true,
       template: "",
       emojis: true,
+      combinePrereleaseIntoFirstStable: false,
     },
     dryRun: false,
   };

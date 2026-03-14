@@ -4,19 +4,41 @@ import type {
 } from "tinyexec";
 import process from "node:process";
 import readline from "node:readline";
+import { parseArgs } from "node:util";
 import farver from "farver";
-import mri from "mri";
 import { exec } from "tinyexec";
-
-export const args = mri(process.argv.slice(2));
-
-const isDryRun = !!args.dry;
-const isVerbose = !!args.verbose;
-const isForce = !!args.force;
 
 export const ucdjsReleaseOverridesPath = ".github/ucdjs-release.overrides.json";
 
-export const isCI = typeof process.env.CI === "string" && process.env.CI !== "" && process.env.CI.toLowerCase() !== "false";
+function parseCLIFlags(): { dry: boolean; verbose: boolean; force: boolean } {
+  const { values } = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      dry: { type: "boolean", short: "d", default: false },
+      verbose: { type: "boolean", short: "v", default: false },
+      force: { type: "boolean", short: "f", default: false },
+    },
+    strict: false,
+  });
+  return {
+    dry: !!values.dry,
+    verbose: !!values.verbose,
+    force: !!values.force,
+  };
+}
+
+function getIsDryRun(): boolean {
+  return parseCLIFlags().dry;
+}
+
+export function getIsVerbose(): boolean {
+  return parseCLIFlags().verbose;
+}
+
+export function getIsCI(): boolean {
+  const ci = process.env.CI;
+  return typeof ci === "string" && ci !== "" && ci.toLowerCase() !== "false";
+}
 
 export const logger = {
   info: (...args: unknown[]) => {
@@ -32,7 +54,7 @@ export const logger = {
 
   // Only log if verbose mode is enabled
   verbose: (...args: unknown[]) => {
-    if (!isVerbose) {
+    if (!getIsVerbose()) {
       return;
     }
     if (args.length === 0) {
@@ -106,7 +128,7 @@ export async function run(
   });
 }
 
-export async function dryRun(
+async function dryRun(
   bin: string,
   args: string[],
   opts?: Partial<TinyExecOptions>,
@@ -117,10 +139,10 @@ export async function dryRun(
   );
 }
 
-export const runIfNotDry = isDryRun ? dryRun : run;
-
-if (isDryRun || isVerbose || isForce) {
-  logger.verbose(farver.inverse(farver.yellow(" Running with special flags ")));
-  logger.verbose({ isDryRun, isVerbose, isForce });
-  logger.verbose();
+export async function runIfNotDry(
+  bin: string,
+  args: string[],
+  opts?: Partial<TinyExecOptions>,
+): Promise<TinyExecResult | void> {
+  return getIsDryRun() ? dryRun(bin, args, opts) : run(bin, args, opts);
 }

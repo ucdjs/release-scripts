@@ -277,7 +277,7 @@ export async function checkoutBranch(
       return ok(true);
     }
 
-    console.warn(`Unexpected git checkout output: ${output}`);
+    logger.warn(`Unexpected git checkout output: ${output}`);
     return ok(false);
   } catch (error) {
     const gitError = toGitError("checkoutBranch", error);
@@ -651,7 +651,7 @@ export async function getGroupedFilesByCommitSha(
  * @param workspaceRoot - The root directory of the workspace
  * @returns Result indicating success or failure
  */
-export async function createPackageTag(
+async function createPackageTag(
   packageName: string,
   version: string,
   workspaceRoot: string,
@@ -678,7 +678,7 @@ export async function createPackageTag(
  * @param workspaceRoot - The root directory of the workspace
  * @returns Result indicating success or failure
  */
-export async function pushTag(
+async function pushTag(
   tagName: string,
   workspaceRoot: string,
 ): Promise<Result<void, GitError>> {

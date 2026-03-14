@@ -1,6 +1,8 @@
 import type { ReleaseResult } from "#types";
 import type { WorkspacePackage } from "./core/workspace";
 import type { ReleaseScriptsOptionsInput } from "./options";
+import process from "node:process";
+import { printReleaseError, ReleaseError } from "#shared/errors";
 import { logger } from "#shared/utils";
 import { prepareWorkflow as release } from "#workflows/prepare";
 import { publishWorkflow as publish } from "#workflows/publish";
@@ -16,6 +18,16 @@ export interface ReleaseScripts {
     list: () => Promise<WorkspacePackage[]>;
     get: (packageName: string) => Promise<WorkspacePackage | undefined>;
   };
+}
+
+function withErrorBoundary<T>(fn: () => Promise<T>): Promise<T> {
+  return fn().catch((e) => {
+    if (e instanceof ReleaseError) {
+      printReleaseError(e);
+      process.exit(1);
+    }
+    throw e;
+  });
 }
 
 export async function createReleaseScripts(options: ReleaseScriptsOptionsInput): Promise<ReleaseScripts> {
@@ -41,32 +53,32 @@ export async function createReleaseScripts(options: ReleaseScriptsOptionsInput):
 
   return {
     async verify(): Promise<void> {
-      return verify(normalizedOptions);
+      return withErrorBoundary(() => verify(normalizedOptions));
     },
 
     async prepare(): Promise<ReleaseResult | null> {
-      return release(normalizedOptions);
+      return withErrorBoundary(() => release(normalizedOptions));
     },
 
     async publish(): Promise<void> {
-      return publish(normalizedOptions);
+      return withErrorBoundary(() => publish(normalizedOptions));
     },
 
     packages: {
       async list(): Promise<WorkspacePackage[]> {
-        const result = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
-        if (!result.ok) {
-          throw new Error(result.error.message);
-        }
-        return result.value;
+        return withErrorBoundary(async () => {
+          const result = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
+          if (!result.ok) throw new Error(result.error.message);
+          return result.value;
+        });
       },
 
       async get(packageName: string): Promise<WorkspacePackage | undefined> {
-        const result = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
-        if (!result.ok) {
-          throw new Error(result.error.message);
-        }
-        return result.value.find((p) => p.name === packageName);
+        return withErrorBoundary(async () => {
+          const result = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
+          if (!result.ok) throw new Error(result.error.message);
+          return result.value.find((p) => p.name === packageName);
+        });
       },
     },
   };
