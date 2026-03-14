@@ -22,16 +22,16 @@ export interface GitHubPullRequest {
   };
 }
 
-export type CommitStatusState = "error" | "failure" | "pending" | "success";
+type CommitStatusState = "error" | "failure" | "pending" | "success";
 
-export interface CommitStatusOptions {
+interface CommitStatusOptions {
   state: CommitStatusState;
   targetUrl?: string;
   description?: string;
   context: string;
 }
 
-export interface UpsertPullRequestOptions {
+interface UpsertPullRequestOptions {
   title: string;
   body: string;
   head?: string;
@@ -39,14 +39,14 @@ export interface UpsertPullRequestOptions {
   pullNumber?: number;
 }
 
-export interface UpsertReleaseOptions {
+interface UpsertReleaseOptions {
   tagName: string;
   name: string;
   body?: string;
   prerelease?: boolean;
 }
 
-export interface GitHubRelease {
+interface GitHubRelease {
   id: number;
   tagName: string;
   name: string;

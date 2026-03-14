@@ -6,7 +6,7 @@ import { logger, runIfNotDry } from "#shared/utils";
 import { err, ok } from "#types";
 import semver from "semver";
 
-export interface NPMError {
+interface NPMError {
   type: "npm";
   operation: string;
   message: string;
@@ -15,7 +15,7 @@ export interface NPMError {
   status?: number;
 }
 
-export interface NPMPackageMetadata {
+interface NPMPackageMetadata {
   "name": string;
   "dist-tags": Record<string, string>;
   "versions": Record<string, unknown>;
@@ -70,7 +70,7 @@ function getRegistryURL(): string {
  * @param packageName - The package name (e.g., "lodash" or "@scope/name")
  * @returns Result with package metadata or error
  */
-export async function getPackageMetadata(
+async function getPackageMetadata(
   packageName: string,
 ): Promise<Result<NPMPackageMetadata, NPMError>> {
   try {

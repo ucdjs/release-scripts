@@ -9,7 +9,7 @@ interface FormatCommitLineOptions {
   authors: AuthorInfo[];
 }
 
-export function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOptions): string {
+function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOptions): string {
   const commitUrl = `https://github.com/${owner}/${repo}/commit/${commit.hash}`;
   let line = `${commit.description}`;
   const references = commit.references ?? [];
