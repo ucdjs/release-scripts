@@ -80,7 +80,7 @@ export async function getPackageCommitsSinceTag(
  * @param workspaceRoot - The workspace root for path normalization
  * @returns true if the file is inside a package folder
  */
-function fileMatchesPackageFolder(
+export function fileMatchesPackageFolder(
   file: string,
   packagePaths: Set<string>,
   workspaceRoot: string,
@@ -113,7 +113,7 @@ function fileMatchesPackageFolder(
  * @param packagePaths - Set of normalized package paths
  * @returns true if this is a global commit
  */
-function isGlobalCommit(
+export function isGlobalCommit(
   workspaceRoot: string,
   files: string[] | undefined,
   packagePaths: Set<string>,
@@ -127,7 +127,7 @@ function isGlobalCommit(
   return !files.some((file) => fileMatchesPackageFolder(file, packagePaths, workspaceRoot));
 }
 
-const DEPENDENCY_FILES = [
+export const DEPENDENCY_FILES = [
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
@@ -140,7 +140,7 @@ const DEPENDENCY_FILES = [
  * @param packageCommits - Map of package commits
  * @returns Object with oldest and newest commit SHAs, or null if no commits
  */
-function findCommitRange(packageCommits: Map<string, GitCommit[]>): { oldest: string; newest: string } | null {
+export function findCommitRange(packageCommits: Map<string, GitCommit[]>): { oldest: string; newest: string } | null {
   let oldestCommit: string | null = null;
   let newestCommit: string | null = null;
 
@@ -159,6 +159,36 @@ function findCommitRange(packageCommits: Map<string, GitCommit[]>): { oldest: st
 
   if (!oldestCommit || !newestCommit) return null;
   return { oldest: oldestCommit, newest: newestCommit };
+}
+
+/**
+ * Filters commits to find global commits (those not touching any package folder),
+ * optionally further filtered to only dependency-related files.
+ */
+export function filterGlobalCommits(
+  commits: GitCommit[],
+  commitFilesMap: Map<string, string[]>,
+  packagePaths: Set<string>,
+  workspaceRoot: string,
+  mode: "all" | "dependencies",
+): GitCommit[] {
+  const globalCommits = commits.filter((commit) => {
+    const files = commitFilesMap.get(commit.shortHash);
+    return files ? isGlobalCommit(workspaceRoot, files, packagePaths) : false;
+  });
+
+  if (mode === "all") {
+    return globalCommits;
+  }
+
+  // mode === "dependencies" - only commits touching dependency files
+  return globalCommits.filter((commit) => {
+    const files = commitFilesMap.get(commit.shortHash);
+    if (!files) return false;
+    return files.some((file) =>
+      DEPENDENCY_FILES.includes(file.startsWith("./") ? file.slice(2) : file),
+    );
+  });
 }
 
 /**
@@ -210,43 +240,12 @@ export async function getGlobalCommitsPerPackage(
   const packagePaths = new Set(allPackages.map((p) => p.path));
 
   for (const [pkgName, commits] of packageCommits) {
-    const globalCommitsAffectingPackage: GitCommit[] = [];
-
     logger.verbose("Filtering global commits for package", `${farver.bold(pkgName)} from ${farver.cyan(commits.length)} commits`);
 
-    for (const commit of commits) {
-      const files = commitFilesMap.value.get(commit.shortHash);
-      if (!files) continue;
+    const filtered = filterGlobalCommits(commits, commitFilesMap.value, packagePaths, workspaceRoot, mode);
 
-      if (isGlobalCommit(workspaceRoot, files, packagePaths)) {
-        globalCommitsAffectingPackage.push(commit);
-      }
-    }
-
-    logger.verbose("Package global commits found", `${farver.bold(pkgName)}: ${farver.cyan(globalCommitsAffectingPackage.length)} global commits`);
-
-    if (mode === "all") {
-      result.set(pkgName, globalCommitsAffectingPackage);
-      continue;
-    }
-
-    // mode === "dependencies"
-    const dependencyCommits: GitCommit[] = [];
-
-    for (const commit of globalCommitsAffectingPackage) {
-      const files = commitFilesMap.value.get(commit.shortHash);
-      if (!files) continue;
-
-      const affectsDeps = files.some((file) => DEPENDENCY_FILES.includes(file.startsWith("./") ? file.slice(2) : file));
-
-      if (affectsDeps) {
-        logger.verbose("Global commit affects dependencies", `${farver.bold(pkgName)}: commit ${farver.cyan(commit.shortHash)} affects dependencies`);
-        dependencyCommits.push(commit);
-      }
-    }
-
-    logger.verbose("Global commits affect dependencies", `${farver.bold(pkgName)}: ${farver.cyan(dependencyCommits.length)} global commits affect dependencies`);
-    result.set(pkgName, dependencyCommits);
+    logger.verbose("Package global commits found", `${farver.bold(pkgName)}: ${farver.cyan(filtered.length)} global commits`);
+    result.set(pkgName, filtered);
   }
 
   return result;
