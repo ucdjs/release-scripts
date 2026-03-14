@@ -7,8 +7,7 @@ import type { NormalizedReleaseScriptsOptions } from "../options";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { selectPackagePrompt } from "#core/prompts";
-import { exitWithError } from "#shared/errors";
-import { isCI, logger, run } from "#shared/utils";
+import { getIsCI, logger, run } from "#shared/utils";
 import { err, ok } from "#types";
 import farver from "farver";
 
@@ -81,10 +80,11 @@ export async function discoverWorkspacePackages(
     const missing = explicitPackages.filter((p) => !foundNames.has(p));
 
     if (missing.length > 0) {
-      exitWithError(
-        `Package${missing.length > 1 ? "s" : ""} not found in workspace: ${missing.join(", ")}`,
-        "Check your package names or run 'pnpm ls' to see available packages",
-      );
+      return err(toWorkspaceError(
+        "discoverWorkspacePackages",
+        `Package${missing.length > 1 ? "s" : ""} not found in workspace: ${missing.join(", ")}. `
+        + `Check your package names or run 'pnpm ls' to see available packages`,
+      ));
     }
   }
 
@@ -94,7 +94,7 @@ export async function discoverWorkspacePackages(
   // 3. No explicit packages were specified (user didn't pre-select specific packages)
   const isPackagePromptEnabled = options.prompts?.packages !== false;
   logger.verbose("Package prompt gating", {
-    isCI,
+    isCI: getIsCI(),
     isPackagePromptEnabled,
     hasExplicitPackages: Boolean(explicitPackages),
     include: workspaceOptions.include ?? [],
@@ -102,7 +102,7 @@ export async function discoverWorkspacePackages(
     excludePrivate: workspaceOptions.excludePrivate ?? false,
   });
 
-  if (!isCI && isPackagePromptEnabled && !explicitPackages) {
+  if (!getIsCI() && isPackagePromptEnabled && !explicitPackages) {
     const selectedNames = await selectPackagePrompt(workspacePackages);
     workspacePackages = workspacePackages.filter((pkg) =>
       selectedNames.includes(pkg.name),

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { confirmOverridePrompt, selectVersionPrompt } from "#core/prompts";
 import { calculateBumpType, getNextVersion } from "#operations/semver";
 import { determineHighestBump } from "#operations/version";
-import { isCI, logger } from "#shared/utils";
+import { getIsCI, logger } from "#shared/utils";
 import { buildPackageDependencyGraph, createDependentUpdates } from "#versioning/package";
 import farver from "farver";
 
@@ -79,12 +79,57 @@ function formatCommitsForDisplay(commits: GitCommit[]): string {
   return formattedCommits;
 }
 
-export interface VersionOverride {
+interface VersionOverride {
   type: BumpKind;
   version: string;
 }
 
-export type VersionOverrides = Record<string, VersionOverride>;
+type VersionOverrides = Record<string, VersionOverride>;
+
+/**
+ * Pure function that resolves version bump from commits and overrides.
+ * No IO, no prompts - fully testable in isolation.
+ */
+export function resolveAutoVersion(
+  pkg: WorkspacePackage,
+  packageCommits: GitCommit[],
+  globalCommits: GitCommit[],
+  override?: VersionOverride,
+): {
+  determinedBump: BumpKind;
+  effectiveBump: BumpKind;
+  autoVersion: string;
+  resolvedVersion: string;
+} {
+  const allCommits = [...packageCommits, ...globalCommits];
+  const determinedBump = determineHighestBump(allCommits);
+  const effectiveBump = override?.type || determinedBump;
+  const autoVersion = getNextVersion(pkg.version, determinedBump);
+  const resolvedVersion = override?.version || autoVersion;
+
+  return { determinedBump, effectiveBump, autoVersion, resolvedVersion };
+}
+
+/**
+ * Pure function that computes the new dependency range.
+ * Returns null if the dependency should not be updated (e.g. workspace:*).
+ */
+export function computeDependencyRange(
+  currentRange: string,
+  newVersion: string,
+  isPeerDependency: boolean,
+): string | null {
+  if (currentRange === "workspace:*") {
+    return null;
+  }
+
+  if (isPeerDependency) {
+    const majorVersion = newVersion.split(".")[0];
+    return `>=${newVersion} <${Number(majorVersion) + 1}.0.0`;
+  }
+
+  return `^${newVersion}`;
+}
 
 interface CalculateVersionUpdatesOptions {
   workspacePackages: WorkspacePackage[];
@@ -127,17 +172,15 @@ async function calculateVersionUpdates({
     const globalCommits = globalCommitsPerPackage.get(pkgName) || [];
     const allCommitsForPackage = [...pkgCommits, ...globalCommits];
 
-    const determinedBump = determineHighestBump(allCommitsForPackage);
     const override = newOverrides[pkgName];
-    const effectiveBump = override?.type || determinedBump;
-    const canPrompt = !isCI && showPrompt;
+    const { determinedBump, effectiveBump, autoVersion, resolvedVersion } = resolveAutoVersion(pkg, pkgCommits, globalCommits, override);
+    const canPrompt = !getIsCI() && showPrompt;
 
     if (effectiveBump === "none" && !canPrompt) {
       continue;
     }
 
-    const autoVersion = getNextVersion(pkg.version, determinedBump);
-    let newVersion = override?.version || autoVersion;
+    let newVersion = resolvedVersion;
     let finalBumpType: BumpKind = effectiveBump;
 
     if (canPrompt) {
@@ -227,7 +270,7 @@ async function calculateVersionUpdates({
   }
 
   // Second pass for manual bumps (if not in verify mode)
-  if (!isCI && showPrompt) {
+  if (!getIsCI() && showPrompt) {
     for (const pkg of workspacePackages) {
       if (processedPackages.has(pkg.name)) continue;
 
@@ -353,23 +396,14 @@ async function updatePackageJson(
     const oldVersion = deps[depName];
     if (!oldVersion) return;
 
-    if (oldVersion === "workspace:*") {
-      // Don't update workspace protocol dependencies
-      // PNPM will handle this automatically
+    const newRange = computeDependencyRange(oldVersion, depVersion, isPeerDependency);
+    if (newRange === null) {
       logger.verbose(`  - Skipping workspace:* dependency: ${depName}`);
       return;
     }
 
-    if (isPeerDependency) {
-      // For peer dependencies, use a looser range to avoid version conflicts
-      // Match the major version to maintain compatibility
-      const majorVersion = depVersion.split(".")[0];
-      deps[depName] = `>=${depVersion} <${Number(majorVersion) + 1}.0.0`;
-    } else {
-      deps[depName] = `^${depVersion}`;
-    }
-
-    logger.verbose(`  - Updated dependency ${depName}: ${oldVersion} → ${deps[depName]}`);
+    deps[depName] = newRange;
+    logger.verbose(`  - Updated dependency ${depName}: ${oldVersion} → ${newRange}`);
   }
 
   // Update workspace dependencies

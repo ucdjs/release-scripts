@@ -1,9 +1,5 @@
-import process from "node:process";
+import { getIsVerbose } from "#shared/utils";
 import farver from "farver";
-import mri from "mri";
-
-const args = mri(process.argv.slice(2));
-const isVerbose = !!args.verbose;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -71,7 +67,7 @@ function extractStderrLike(record: UnknownRecord): string | undefined {
   return undefined;
 }
 
-export interface FormattedUnknownError {
+interface FormattedUnknownError {
   message: string;
   stderr?: string;
   code?: string;
@@ -148,12 +144,23 @@ export function formatUnknownError(error: unknown): FormattedUnknownError {
   };
 }
 
-export function exitWithError(message: string, hint?: string, cause?: unknown): never {
-  console.error(`  ${farver.red("✖")} ${farver.bold(message)}`);
+export class ReleaseError extends Error {
+  readonly hint?: string;
 
-  if (cause !== undefined) {
-    const formatted = formatUnknownError(cause);
-    if (formatted.message && formatted.message !== message) {
+  constructor(message: string, hint?: string, cause?: unknown) {
+    super(message);
+    this.name = "ReleaseError";
+    this.hint = hint;
+    this.cause = cause;
+  }
+}
+
+export function printReleaseError(error: ReleaseError): void {
+  console.error(`  ${farver.red("✖")} ${farver.bold(error.message)}`);
+
+  if (error.cause !== undefined) {
+    const formatted = formatUnknownError(error.cause);
+    if (formatted.message && formatted.message !== error.message) {
       console.error(farver.gray(`  Cause: ${formatted.message}`));
     }
 
@@ -170,15 +177,17 @@ export function exitWithError(message: string, hint?: string, cause?: unknown): 
       console.error(farver.gray(`  ${formatted.stderr}`));
     }
 
-    if (isVerbose && formatted.stack) {
+    if (getIsVerbose() && formatted.stack) {
       console.error(farver.gray("  Stack:"));
       console.error(farver.gray(`  ${formatted.stack}`));
     }
   }
 
-  if (hint) {
-    console.error(farver.gray(`  ${hint}`));
+  if (error.hint) {
+    console.error(farver.gray(`  ${error.hint}`));
   }
+}
 
-  process.exit(1);
+export function exitWithError(message: string, hint?: string, cause?: unknown): never {
+  throw new ReleaseError(message, hint, cause);
 }
