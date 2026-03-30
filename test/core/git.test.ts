@@ -9,7 +9,7 @@ import {
   isWorkingDirectoryClean,
 } from "#core/git";
 import * as tinyexec from "tinyexec";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("tinyexec");
 const mockExec = vi.mocked(tinyexec.exec);
@@ -43,10 +43,8 @@ describe("git utilities", () => {
         }),
       );
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe(true);
-      }
+      assert(result.ok);
+      expect(result.value).toBe(true);
     });
 
     it("should return false if working directory has uncommitted changes", async () => {
@@ -57,10 +55,8 @@ describe("git utilities", () => {
       });
 
       const result = await isWorkingDirectoryClean("/workspace");
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe(false);
-      }
+      assert(result.ok);
+      expect(result.value).toBe(false);
     });
 
     it("should return error when git command fails", async () => {
@@ -69,11 +65,9 @@ describe("git utilities", () => {
 
       const result = await isWorkingDirectoryClean("/workspace");
 
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error.type).toBe("git");
-        expect(result.error.operation).toBe("isWorkingDirectoryClean");
-      }
+      assert(!result.ok);
+      expect(result.error.type).toBe("git");
+      expect(result.error.operation).toBe("isWorkingDirectoryClean");
     });
   });
 
@@ -98,20 +92,16 @@ describe("git utilities", () => {
           }),
         );
 
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe(true);
-        }
+        assert(result.ok);
+        expect(result.value).toBe(true);
       });
 
       it("should return false when remote branch does not exist", async () => {
         mockExec.mockRejectedValue(new Error("exit code 2"));
 
         const result = await doesRemoteBranchExist("release/next", "/workspace");
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe(false);
-        }
+        assert(result.ok);
+        expect(result.value).toBe(false);
       });
     });
 
@@ -135,20 +125,16 @@ describe("git utilities", () => {
           }),
         );
 
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe(true);
-        }
+        assert(result.ok);
+        expect(result.value).toBe(true);
       });
 
       it("should return false if branch does not exist", async () => {
         mockExec.mockRejectedValue(new Error("fatal: Needed a single revision"));
 
         const result = await doesBranchExist("nonexistent-branch", "/workspace");
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe(false);
-        }
+        assert(result.ok);
+        expect(result.value).toBe(false);
       });
     });
 
@@ -172,10 +158,8 @@ describe("git utilities", () => {
           }),
         );
 
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe("main");
-        }
+        assert(result.ok);
+        expect(result.value).toBe("main");
       });
 
       it("should return different branch name", async () => {
@@ -187,10 +171,8 @@ describe("git utilities", () => {
 
         const result = await getDefaultBranch("/workspace");
 
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe("develop");
-        }
+        assert(result.ok);
+        expect(result.value).toBe("develop");
       });
 
       it("should return 'main' if default branch cannot be determined", async () => {
@@ -198,10 +180,8 @@ describe("git utilities", () => {
 
         const result = await getDefaultBranch("/workspace");
 
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe("main");
-        }
+        assert(result.ok);
+        expect(result.value).toBe("main");
       });
 
       it("should return 'main' if remote show output is unexpected", async () => {
@@ -213,10 +193,8 @@ describe("git utilities", () => {
 
         const result = await getDefaultBranch("/workspace");
 
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe("main");
-        }
+        assert(result.ok);
+        expect(result.value).toBe("main");
       });
     });
 
@@ -241,20 +219,16 @@ describe("git utilities", () => {
           }),
         );
 
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toBe("feature-branch");
-        }
+        assert(result.ok);
+        expect(result.value).toBe("feature-branch");
       });
 
       it("should handle errors", async () => {
         mockExec.mockRejectedValue(new Error("Some git error"));
 
         const result = await getCurrentBranch("/workspace");
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error.operation).toBe("getCurrentBranch");
-        }
+        assert(!result.ok);
+        expect(result.error.operation).toBe("getCurrentBranch");
       });
     });
 
@@ -279,20 +253,16 @@ describe("git utilities", () => {
           }),
         );
 
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          expect(result.value).toEqual(["main", "feature-branch", "develop"]);
-        }
+        assert(result.ok);
+        expect(result.value).toEqual(["main", "feature-branch", "develop"]);
       });
 
       it("should handle errors", async () => {
         mockExec.mockRejectedValue(new Error("Some git error"));
 
         const result = await getAvailableBranches("/workspace");
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error.operation).toBe("getAvailableBranches");
-        }
+        assert(!result.ok);
+        expect(result.error.operation).toBe("getAvailableBranches");
       });
     });
 
@@ -323,19 +293,17 @@ describe("git utilities", () => {
         mockExec.mockRejectedValue(new Error("Some git error"));
 
         const result = await createBranch("new-feature", "main", "/workspace");
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error.operation).toBe("createBranch");
-        }
+        assert(!result.ok);
+        expect(result.error.operation).toBe("createBranch");
       });
     });
   });
 
   describe("package tags", () => {
-    it("should return the last tag for a package", async () => {
+    it("should return the highest semver tag for a package", async () => {
       const mockExec = vi.mocked(tinyexec.exec);
       mockExec.mockResolvedValue({
-        stdout: "other-package@1.0.0\nmy-package@1.2.0\nmy-package@1.1.0\n",
+        stdout: "other-package@1.0.0\nmy-package@1.2.0\nmy-package@1.10.0\nmy-package@1.1.0\n",
         stderr: "",
         exitCode: 0,
       } as any);
@@ -352,10 +320,9 @@ describe("git utilities", () => {
           }),
         }),
       );
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe("my-package@1.1.0");
-      }
+      assert(result.ok);
+      // Should be 1.10.0, not 1.2.0 (semver order, not alphabetical)
+      expect(result.value).toBe("my-package@1.10.0");
     });
 
     it("should return undefined if no tag exists for package", async () => {
@@ -368,10 +335,8 @@ describe("git utilities", () => {
 
       const result = await getMostRecentPackageTag("/workspace", "my-package");
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBeUndefined();
-      }
+      assert(result.ok);
+      expect(result.value).toBeUndefined();
     });
 
     it("should return undefined if no tags exist", async () => {
@@ -384,10 +349,8 @@ describe("git utilities", () => {
 
       const result = await getMostRecentPackageTag("/workspace", "my-package");
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBeUndefined();
-      }
+      assert(result.ok);
+      expect(result.value).toBeUndefined();
     });
   });
 });
