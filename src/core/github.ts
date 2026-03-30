@@ -429,13 +429,18 @@ export function generatePullRequestBody(updates: PackageRelease[], body?: string
 
   const bodyTemplate = body ? dedentString(body) : DEFAULT_PR_BODY_TEMPLATE;
 
+  const allPackages = updates.map((u) => ({
+    name: u.package.name,
+    currentVersion: u.currentVersion,
+    newVersion: u.newVersion,
+    bumpType: u.bumpType,
+    hasDirectChanges: u.hasDirectChanges,
+    changeKind: u.changeKind,
+  }));
+
   return eta.renderString(bodyTemplate, {
-    packages: updates.map((u) => ({
-      name: u.package.name,
-      currentVersion: u.currentVersion,
-      newVersion: u.newVersion,
-      bumpType: u.bumpType,
-      hasDirectChanges: u.hasDirectChanges,
-    })),
+    packages: allPackages,
+    releases: allPackages.filter((p) => p.changeKind !== "as-is"),
+    asIs: allPackages.filter((p) => p.changeKind === "as-is"),
   });
 }

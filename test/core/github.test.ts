@@ -287,4 +287,44 @@ describe("generatePullRequestBody", () => {
     );
     expect(body).toContain("@scope/pkg → 1.1.0");
   });
+
+  it("separates as-is packages from real releases in the default template", () => {
+    const body = generatePullRequestBody([
+      {
+        package: { name: "@scope/released", version: "1.0.0", path: "/workspace/a", packageJson: { name: "@scope/released", version: "1.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
+        currentVersion: "1.0.0",
+        newVersion: "2.0.0",
+        bumpType: "major",
+        hasDirectChanges: true,
+        changeKind: "auto",
+      },
+      {
+        package: { name: "@scope/kept", version: "3.0.0", path: "/workspace/b", packageJson: { name: "@scope/kept", version: "3.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
+        currentVersion: "3.0.0",
+        newVersion: "3.0.0",
+        bumpType: "none",
+        hasDirectChanges: true,
+        changeKind: "as-is",
+      },
+    ]);
+    expect(body).toContain("@scope/released");
+    expect(body).toContain("1.0.0 → 2.0.0 (major)");
+    expect(body).toContain("@scope/kept");
+    expect(body).toContain("3.0.0 (as-is)");
+    expect(body).toContain("keeping their current version");
+  });
+
+  it("shows 'no packages to release' when all updates are as-is", () => {
+    const body = generatePullRequestBody([{
+      package: { name: "@scope/kept", version: "1.0.0", path: "/workspace", packageJson: { name: "@scope/kept", version: "1.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
+      currentVersion: "1.0.0",
+      newVersion: "1.0.0",
+      bumpType: "none",
+      hasDirectChanges: true,
+      changeKind: "as-is",
+    }]);
+    expect(body).toContain("no packages to release");
+    expect(body).toContain("@scope/kept");
+    expect(body).toContain("keeping their current version");
+  });
 });
