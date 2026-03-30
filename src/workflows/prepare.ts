@@ -253,6 +253,18 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   }
 
   if (!hasChangesToPush.value) {
+    // When there are no updates at all, the release branch is identical to the
+    // default branch.  Attempting to create/update a PR would fail with a 422
+    // ("No commits between main and <release-branch>"), so bail out early.
+    if (allUpdates.length === 0) {
+      logger.info("No changes to commit and no packages to release. Nothing to do.");
+      const checkoutResult = await checkoutBranch(options.branch.default, options.workspaceRoot);
+      if (!checkoutResult.ok) {
+        exitWithError(`Failed to checkout branch: ${options.branch.default}`, undefined, checkoutResult.error);
+      }
+      return null;
+    }
+
     const prResult = await syncPullRequest({
       github: options.githubClient,
       releaseBranch: options.branch.release,
