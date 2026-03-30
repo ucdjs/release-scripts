@@ -325,6 +325,20 @@ describe("git utilities", () => {
       expect(result.value).toBe("my-package@1.10.0");
     });
 
+    it("should ignore non-semver tags like @latest", async () => {
+      const mockExec = vi.mocked(tinyexec.exec);
+      mockExec.mockResolvedValue({
+        stdout: "my-package@latest\nmy-package@1.0.0\nmy-package@2.0.0\n",
+        stderr: "",
+        exitCode: 0,
+      } as any);
+
+      const result = await getMostRecentPackageTag("/workspace", "my-package");
+
+      assert(result.ok);
+      expect(result.value).toBe("my-package@2.0.0");
+    });
+
     it("should return undefined if no tag exists for package", async () => {
       const mockExec = vi.mocked(tinyexec.exec);
       mockExec.mockResolvedValue({

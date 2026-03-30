@@ -410,9 +410,13 @@ export async function commitChanges(
       },
     });
 
-    // Check if there are changes to commit
-    const isClean = await isWorkingDirectoryClean(workspaceRoot);
-    if (!isClean.ok || isClean.value) {
+    // Check if anything was actually staged (git add -u only touches tracked files;
+    // untracked files would cause isWorkingDirectoryClean to return false even when
+    // nothing is staged, leading to a "nothing to commit" error from git commit).
+    const staged = await run("git", ["diff", "--cached", "--name-only"], {
+      nodeOptions: { cwd: workspaceRoot, stdio: "pipe" },
+    });
+    if (staged.stdout.trim() === "") {
       return ok(false);
     }
 
@@ -568,12 +572,15 @@ export async function getMostRecentPackageTag(
       return ok(undefined);
     }
 
-    // Sort by semver descending so the highest version comes first
-    const sorted = tags.sort((a, b) => {
-      const va = a.slice(a.lastIndexOf("@") + 1);
-      const vb = b.slice(b.lastIndexOf("@") + 1);
-      return semver.rcompare(va, vb);
-    });
+    // Filter to valid semver only, then sort descending so the highest version comes first.
+    // Non-semver tags (e.g. "pkg@latest") would cause semver.rcompare to throw.
+    const sorted = tags
+      .filter((t) => semver.valid(t.slice(t.lastIndexOf("@") + 1)))
+      .sort((a, b) => {
+        const va = a.slice(a.lastIndexOf("@") + 1);
+        const vb = b.slice(b.lastIndexOf("@") + 1);
+        return semver.rcompare(va, vb);
+      });
     return ok(sorted[0]);
   } catch (error) {
     return err(toGitError("getMostRecentPackageTag", error));
@@ -595,7 +602,7 @@ export async function getMostRecentPackageStableTag(
     const tags = stdout
       .split("\n")
       .map((tag) => tag.trim())
-      .filter(Boolean)
+      .filter((tag) => Boolean(tag) && semver.valid(tag.slice(tag.lastIndexOf("@") + 1)))
       .sort((a, b) => {
         const va = a.slice(a.lastIndexOf("@") + 1);
         const vb = b.slice(b.lastIndexOf("@") + 1);
@@ -706,13 +713,23 @@ async function createPackageTag(
   const tagName = `${packageName}@${version}`;
 
   try {
-    // Check if this tag already exists locally — if so, skip creation (idempotent retry support)
+    // Check if this tag already exists locally and points to the same commit as HEAD.
+    // If it exists but points elsewhere, we must not silently skip — fall through and
+    // let git tag fail or be overwritten as appropriate.
     const existingTagResult = await run("git", ["tag", "--list", tagName], {
       nodeOptions: { cwd: workspaceRoot, stdio: "pipe" },
     });
     if (existingTagResult.stdout.trim() === tagName) {
-      logger.verbose(`Tag ${farver.green(tagName)} already exists locally, skipping creation`);
-      return ok(undefined);
+      // Verify the tag resolves to HEAD so we don't silently ignore a mispointed tag
+      const [tagCommit, headCommit] = await Promise.all([
+        run("git", ["rev-list", "-n1", tagName], { nodeOptions: { cwd: workspaceRoot, stdio: "pipe" } }),
+        run("git", ["rev-parse", "HEAD"], { nodeOptions: { cwd: workspaceRoot, stdio: "pipe" } }),
+      ]);
+      if (tagCommit.stdout.trim() === headCommit.stdout.trim()) {
+        logger.verbose(`Tag ${farver.green(tagName)} already exists and points to HEAD, skipping creation`);
+        return ok(undefined);
+      }
+      logger.verbose(`Tag ${farver.green(tagName)} exists but points to a different commit — proceeding`);
     }
 
     logger.info(`Creating tag: ${farver.green(tagName)}`);
