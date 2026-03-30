@@ -301,7 +301,6 @@ describe("git utilities", () => {
 
   describe("package tags", () => {
     it("should return the highest semver tag for a package", async () => {
-      const mockExec = vi.mocked(tinyexec.exec);
       mockExec.mockResolvedValue({
         stdout: "other-package@1.0.0\nmy-package@1.2.0\nmy-package@1.10.0\nmy-package@1.1.0\n",
         stderr: "",
@@ -326,7 +325,6 @@ describe("git utilities", () => {
     });
 
     it("should ignore non-semver tags like @latest", async () => {
-      const mockExec = vi.mocked(tinyexec.exec);
       mockExec.mockResolvedValue({
         stdout: "my-package@latest\nmy-package@1.0.0\nmy-package@2.0.0\n",
         stderr: "",
@@ -340,7 +338,6 @@ describe("git utilities", () => {
     });
 
     it("should return undefined if no tag exists for package", async () => {
-      const mockExec = vi.mocked(tinyexec.exec);
       mockExec.mockResolvedValue({
         stdout: "",
         stderr: "",
@@ -354,7 +351,6 @@ describe("git utilities", () => {
     });
 
     it("should return undefined if no tags exist", async () => {
-      const mockExec = vi.mocked(tinyexec.exec);
       mockExec.mockResolvedValue({
         stdout: "",
         stderr: "",

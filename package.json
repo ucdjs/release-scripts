@@ -2,13 +2,16 @@
   "name": "@ucdjs/release-scripts",
   "version": "0.1.1",
   "description": "@ucdjs release scripts",
-  "type": "module",
-  "packageManager": "pnpm@10.32.1",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ucdjs/release-scripts.git"
   },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.mts",
   "imports": {
     "#core/*": "./src/core/*.ts",
     "#operations/*": "./src/operations/*.ts",
@@ -21,16 +24,15 @@
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"
   },
-  "types": "./dist/index.d.mts",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "lint": "eslint .",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -42,19 +44,20 @@
     "tinyexec": "1.0.4"
   },
   "devDependencies": {
-    "@luxass/eslint-config": "7.3.0",
     "@luxass/msw-utils": "0.6.1",
     "@types/node": "22.18.12",
     "@types/prompts": "2.4.9",
     "@types/semver": "7.7.1",
-    "eslint": "10.0.3",
     "eta": "4.5.1",
     "msw": "2.12.14",
+    "oxfmt": "^0.42.0",
+    "oxlint": "^1.57.0",
     "tsdown": "0.21.2",
     "typescript": "5.9.3",
     "vitest": "4.1.0",
     "vitest-testdirs": "4.4.3"
   },
+  "packageManager": "pnpm@10.32.1",
   "inlinedDependencies": {
     "eta": "4.5.1"
   }
