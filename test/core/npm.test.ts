@@ -9,13 +9,20 @@ vi.mock("tinyexec");
 
 const mockExec = vi.mocked(tinyexec.exec);
 
+let previousNpmRegistry: string | undefined;
+
 beforeEach(() => {
+  previousNpmRegistry = process.env.NPM_CONFIG_REGISTRY;
   vi.clearAllMocks();
 });
 
 afterEach(() => {
   vi.resetAllMocks();
-  delete process.env.NPM_CONFIG_REGISTRY;
+  if (previousNpmRegistry === undefined) {
+    delete process.env.NPM_CONFIG_REGISTRY;
+  } else {
+    process.env.NPM_CONFIG_REGISTRY = previousNpmRegistry;
+  }
 });
 
 describe("checkVersionExists", () => {

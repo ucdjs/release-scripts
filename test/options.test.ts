@@ -125,12 +125,19 @@ describe("normalizeReleaseScriptsOptions", () => {
   });
 
   describe("ci mode", () => {
+    let previousCi: string | undefined;
+
     beforeEach(() => {
+      previousCi = process.env.CI;
       process.env.CI = "true";
     });
 
     afterEach(() => {
-      delete process.env.CI;
+      if (previousCi === undefined) {
+        delete process.env.CI;
+      } else {
+        process.env.CI = previousCi;
+      }
     });
 
     it("disables prompts when CI=true", () => {
