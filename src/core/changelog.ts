@@ -13,11 +13,7 @@ import { readFileFromGit } from "./git";
 
 const CHANGELOG_VERSION_RE = /##\s+(?:<small>)?\[?([^\](\s<]+)/;
 
-const excludeAuthors = [
-  /\[bot\]/i,
-  /dependabot/i,
-  /\(bot\)/i,
-];
+const excludeAuthors = [/\[bot\]/i, /dependabot/i, /\(bot\)/i];
 
 export async function generateChangelogEntry(options: {
   packageName: string;
@@ -31,18 +27,7 @@ export async function generateChangelogEntry(options: {
   template?: string;
   githubClient: GitHubClient;
 }): Promise<string> {
-  const {
-    packageName,
-    version,
-    previousVersion,
-    date,
-    commits,
-    owner,
-    repo,
-    types,
-    template,
-    githubClient,
-  } = options;
+  const { packageName, version, previousVersion, date, commits, owner, repo, types, template, githubClient } = options;
 
   // Build compare URL
   const compareUrl = previousVersion
@@ -84,22 +69,11 @@ export async function updateChangelog(options: {
   date: string;
   githubClient: GitHubClient;
 }): Promise<void> {
-  const {
-    version,
-    previousVersion,
-    commits,
-    date,
-    normalizedOptions,
-    workspacePackage,
-    githubClient,
-  } = options;
+  const { version, previousVersion, commits, date, normalizedOptions, workspacePackage, githubClient } = options;
 
   const changelogPath = join(workspacePackage.path, "CHANGELOG.md");
 
-  const changelogRelativePath = relative(
-    normalizedOptions.workspaceRoot,
-    join(workspacePackage.path, "CHANGELOG.md"),
-  );
+  const changelogRelativePath = relative(normalizedOptions.workspaceRoot, join(workspacePackage.path, "CHANGELOG.md"));
 
   // Read the changelog from the default branch to get clean state without unreleased entries
   // This ensures that if a previous release PR was abandoned, we don't keep the old entry

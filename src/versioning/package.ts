@@ -1,8 +1,5 @@
 import type { WorkspacePackage } from "#core/workspace";
-import type {
-  PackageRelease,
-  PackageUpdateOrder,
-} from "#shared/types";
+import type { PackageRelease, PackageUpdateOrder } from "#shared/types";
 import { createVersionUpdate } from "#operations/version";
 import { logger } from "#shared/utils";
 
@@ -21,9 +18,7 @@ interface PackageDependencyGraph {
  * @param packages - All workspace packages
  * @returns Dependency graph with packages and dependents maps
  */
-export function buildPackageDependencyGraph(
-  packages: WorkspacePackage[],
-): PackageDependencyGraph {
+export function buildPackageDependencyGraph(packages: WorkspacePackage[]): PackageDependencyGraph {
   const packagesMap = new Map<string, WorkspacePackage>();
   const dependents = new Map<string, Set<string>>();
 
@@ -33,10 +28,7 @@ export function buildPackageDependencyGraph(
   }
 
   for (const pkg of packages) {
-    const allDeps = [
-      ...pkg.workspaceDependencies,
-      ...pkg.workspaceDevDependencies,
-    ];
+    const allDeps = [...pkg.workspaceDependencies, ...pkg.workspaceDevDependencies];
 
     for (const dep of allDeps) {
       const depSet = dependents.get(dep);
@@ -63,10 +55,7 @@ export function buildPackageDependencyGraph(
  * @param changedPackages - Set of package names with direct changes
  * @returns Set of all package names that need updates
  */
-export function getAllAffectedPackages(
-  graph: PackageDependencyGraph,
-  changedPackages: Set<string>,
-): Set<string> {
+export function getAllAffectedPackages(graph: PackageDependencyGraph, changedPackages: Set<string>): Set<string> {
   const affected = new Set<string>();
 
   function visitDependents(pkgName: string) {
@@ -127,10 +116,7 @@ export function getPackagePublishOrder(
     const pkg = graph.packages.get(pkgName);
     if (!pkg) return;
 
-    const allDeps = [
-      ...pkg.workspaceDependencies,
-      ...pkg.workspaceDevDependencies,
-    ];
+    const allDeps = [...pkg.workspaceDependencies, ...pkg.workspaceDevDependencies];
 
     let maxDepLevel = level;
     for (const dep of allDeps) {

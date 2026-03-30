@@ -77,9 +77,7 @@ interface SyncChangesOptions {
 export async function syncReleaseChanges(options: SyncChangesOptions): Promise<Result<boolean, GitError>> {
   const { workspaceRoot, releaseBranch, commitMessage, hasChanges } = options;
 
-  const committed = hasChanges
-    ? await commitChanges(commitMessage, workspaceRoot)
-    : ok(false);
+  const committed = hasChanges ? await commitChanges(commitMessage, workspaceRoot) : ok(false);
 
   if (!committed.ok) return committed;
 

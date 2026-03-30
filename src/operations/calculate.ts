@@ -15,27 +15,21 @@ interface CalculateUpdatesOptions {
   globalCommitMode: false | "dependencies" | "all";
 }
 
-export async function calculateUpdates(options: CalculateUpdatesOptions): Promise<Result<{
-  allUpdates: PackageRelease[];
-  applyUpdates: () => Promise<void>;
-  overrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>;
-}, GitError>> {
-  const {
-    workspacePackages,
-    workspaceRoot,
-    showPrompt,
-    overrides,
-    globalCommitMode,
-  } = options;
+export async function calculateUpdates(options: CalculateUpdatesOptions): Promise<
+  Result<
+    {
+      allUpdates: PackageRelease[];
+      applyUpdates: () => Promise<void>;
+      overrides: Record<string, { version: string; type: import("#shared/types").BumpKind }>;
+    },
+    GitError
+  >
+> {
+  const { workspacePackages, workspaceRoot, showPrompt, overrides, globalCommitMode } = options;
 
   try {
     const grouped = await getWorkspacePackageGroupedCommits(workspaceRoot, workspacePackages);
-    const global = await getGlobalCommitsPerPackage(
-      workspaceRoot,
-      grouped,
-      workspacePackages,
-      globalCommitMode,
-    );
+    const global = await getGlobalCommitsPerPackage(workspaceRoot, grouped, workspacePackages, globalCommitMode);
 
     const updates = await calculateAndPrepareVersionUpdates({
       workspacePackages,

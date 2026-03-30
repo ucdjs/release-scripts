@@ -119,8 +119,8 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
   const currentBranch = await getCurrentBranch(options.workspaceRoot);
   if (currentBranch.ok && currentBranch.value !== options.branch.default) {
     logger.warn(
-      `Publishing from branch "${currentBranch.value}" instead of the default branch "${options.branch.default}". `
-      + `Pass --force if this is intentional.`,
+      `Publishing from branch "${currentBranch.value}" instead of the default branch "${options.branch.default}". ` +
+        `Pass --force if this is intentional.`,
     );
   }
 
@@ -243,12 +243,7 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
 
     logger.step(`Creating GitHub release for ${farver.cyan(tagName)}...`);
     try {
-      const releaseBody = await getReleaseBodyFromChangelog(
-        options.workspaceRoot,
-        packageName,
-        pkg.path,
-        version,
-      );
+      const releaseBody = await getReleaseBodyFromChangelog(options.workspaceRoot, packageName, pkg.path, version);
 
       const releaseResult = await options.githubClient.upsertReleaseByTag({
         tagName,

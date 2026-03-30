@@ -8,9 +8,7 @@ describe("generateChangelogEntry author rendering", () => {
   it("includes resolved GitHub handles for commit authors", async () => {
     const commits = [
       createCommit({
-        references: [
-          { type: "pull-request", value: "#123" },
-        ],
+        references: [{ type: "pull-request", value: "#123" }],
       }),
     ];
 

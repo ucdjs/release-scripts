@@ -27,14 +27,18 @@ describe("syncPullRequest", () => {
   it("creates a new PR when none exists and returns created: true", async () => {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () => HttpResponse.json([]));
     mockFetch("POST", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
-      HttpResponse.json({
-        number: 10,
-        title: "chore: release",
-        body: "",
-        draft: true,
-        html_url: `https://github.com/${OWNER}/${REPO}/pull/10`,
-        head: { sha: "abc1234" },
-      }, { status: 201 }));
+      HttpResponse.json(
+        {
+          number: 10,
+          title: "chore: release",
+          body: "",
+          draft: true,
+          html_url: `https://github.com/${OWNER}/${REPO}/pull/10`,
+          head: { sha: "abc1234" },
+        },
+        { status: 201 },
+      ),
+    );
 
     const result = await syncPullRequest({
       github: makeClient(),
@@ -51,14 +55,17 @@ describe("syncPullRequest", () => {
 
   it("updates an existing PR and returns created: false", async () => {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
-      HttpResponse.json([{
-        number: 5,
-        title: "chore: existing release",
-        body: "old body",
-        draft: false,
-        html_url: `https://github.com/${OWNER}/${REPO}/pull/5`,
-        head: { sha: "def5678" },
-      }]));
+      HttpResponse.json([
+        {
+          number: 5,
+          title: "chore: existing release",
+          body: "old body",
+          draft: false,
+          html_url: `https://github.com/${OWNER}/${REPO}/pull/5`,
+          head: { sha: "def5678" },
+        },
+      ]),
+    );
     mockFetch("PATCH", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls/5`, () =>
       HttpResponse.json({
         number: 5,
@@ -67,7 +74,8 @@ describe("syncPullRequest", () => {
         draft: false,
         html_url: `https://github.com/${OWNER}/${REPO}/pull/5`,
         head: { sha: "def5678" },
-      }));
+      }),
+    );
 
     const result = await syncPullRequest({
       github: makeClient(),
@@ -85,16 +93,19 @@ describe("syncPullRequest", () => {
     let capturedTitle: string | undefined;
 
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
-      HttpResponse.json([{
-        number: 7,
-        title: "chore: preserved title",
-        body: "",
-        draft: false,
-        html_url: `https://github.com/${OWNER}/${REPO}/pull/7`,
-        head: { sha: "aaa0001" },
-      }]));
+      HttpResponse.json([
+        {
+          number: 7,
+          title: "chore: preserved title",
+          body: "",
+          draft: false,
+          html_url: `https://github.com/${OWNER}/${REPO}/pull/7`,
+          head: { sha: "aaa0001" },
+        },
+      ]),
+    );
     mockFetch("PATCH", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls/7`, async ({ request }) => {
-      const body = await request.json() as { title?: string };
+      const body = (await request.json()) as { title?: string };
       capturedTitle = body.title;
       return HttpResponse.json({
         number: 7,
@@ -122,16 +133,19 @@ describe("syncPullRequest", () => {
 
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () => HttpResponse.json([]));
     mockFetch("POST", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, async ({ request }) => {
-      const body = await request.json() as { title?: string };
+      const body = (await request.json()) as { title?: string };
       capturedTitle = body.title;
-      return HttpResponse.json({
-        number: 11,
-        title: capturedTitle ?? "",
-        body: "",
-        draft: true,
-        html_url: `https://github.com/${OWNER}/${REPO}/pull/11`,
-        head: { sha: "bbb0002" },
-      }, { status: 201 });
+      return HttpResponse.json(
+        {
+          number: 11,
+          title: capturedTitle ?? "",
+          body: "",
+          draft: true,
+          html_url: `https://github.com/${OWNER}/${REPO}/pull/11`,
+          head: { sha: "bbb0002" },
+        },
+        { status: 201 },
+      );
     });
 
     await syncPullRequest({
@@ -150,16 +164,19 @@ describe("syncPullRequest", () => {
 
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () => HttpResponse.json([]));
     mockFetch("POST", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, async ({ request }) => {
-      const body = await request.json() as { title?: string };
+      const body = (await request.json()) as { title?: string };
       capturedTitle = body.title;
-      return HttpResponse.json({
-        number: 12,
-        title: capturedTitle ?? "",
-        body: "",
-        draft: true,
-        html_url: `https://github.com/${OWNER}/${REPO}/pull/12`,
-        head: { sha: "ccc0003" },
-      }, { status: 201 });
+      return HttpResponse.json(
+        {
+          number: 12,
+          title: capturedTitle ?? "",
+          body: "",
+          draft: true,
+          html_url: `https://github.com/${OWNER}/${REPO}/pull/12`,
+          head: { sha: "ccc0003" },
+        },
+        { status: 201 },
+      );
     });
 
     await syncPullRequest({
@@ -174,7 +191,8 @@ describe("syncPullRequest", () => {
 
   it("returns err when getExistingPullRequest fails", async () => {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
-      HttpResponse.json({ message: "Bad credentials" }, { status: 401 }));
+      HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
+    );
 
     const result = await syncPullRequest({
       github: makeClient(),
@@ -191,7 +209,8 @@ describe("syncPullRequest", () => {
   it("returns err when upsertPullRequest fails", async () => {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () => HttpResponse.json([]));
     mockFetch("POST", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
-      HttpResponse.json({ message: "Validation failed" }, { status: 422 }));
+      HttpResponse.json({ message: "Validation failed" }, { status: 422 }),
+    );
 
     const result = await syncPullRequest({
       github: makeClient(),

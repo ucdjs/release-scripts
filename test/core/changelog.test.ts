@@ -6,11 +6,7 @@ import * as tinyexec from "tinyexec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testdir } from "vitest-testdirs";
 import { DEFAULT_TYPES } from "../../src/options";
-import {
-  createChangelogTestContext,
-  createCommit,
-  createGitHubClientStub,
-} from "../_shared";
+import { createChangelogTestContext, createCommit, createGitHubClientStub } from "../_shared";
 
 vi.mock("tinyexec");
 const mockExec = vi.mocked(tinyexec.x);

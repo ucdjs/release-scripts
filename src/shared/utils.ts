@@ -1,7 +1,4 @@
-import type {
-  Options as TinyExecOptions,
-  Result as TinyExecResult,
-} from "tinyexec";
+import type { Options as TinyExecOptions, Result as TinyExecResult } from "tinyexec";
 import process from "node:process";
 import readline from "node:readline";
 import { parseArgs } from "node:util";
@@ -113,11 +110,7 @@ export const logger = {
   },
 };
 
-export async function run(
-  bin: string,
-  args: string[],
-  opts: Partial<TinyExecOptions> = {},
-): Promise<TinyExecResult> {
+export async function run(bin: string, args: string[], opts: Partial<TinyExecOptions> = {}): Promise<TinyExecResult> {
   return exec(bin, args, {
     throwOnError: true,
     ...opts,
@@ -128,15 +121,8 @@ export async function run(
   });
 }
 
-async function dryRun(
-  bin: string,
-  args: string[],
-  opts?: Partial<TinyExecOptions>,
-): Promise<void> {
-  return logger.verbose(
-    farver.blue(`[dryrun] ${bin} ${args.join(" ")}`),
-    opts || "",
-  );
+async function dryRun(bin: string, args: string[], opts?: Partial<TinyExecOptions>): Promise<void> {
+  return logger.verbose(farver.blue(`[dryrun] ${bin} ${args.join(" ")}`), opts || "");
 }
 
 export async function runIfNotDry(

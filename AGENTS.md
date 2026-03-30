@@ -123,6 +123,7 @@ pnpm typecheck  # TypeScript type checking
 ## Testing
 
 Tests use Vitest. Test helpers in `test/_shared.ts` provide factory functions:
+
 - `createCommit()` - Git commit fixture
 - `createWorkspacePackage()` - Package fixture
 - `createNormalizedReleaseOptions()` - Options fixture

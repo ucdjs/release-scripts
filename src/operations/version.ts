@@ -27,11 +27,7 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
   return highestBump;
 }
 
-export function createVersionUpdate(
-  pkg: WorkspacePackage,
-  bump: BumpKind,
-  hasDirectChanges: boolean,
-): PackageRelease {
+export function createVersionUpdate(pkg: WorkspacePackage, bump: BumpKind, hasDirectChanges: boolean): PackageRelease {
   const newVersion = getNextVersion(pkg.version, bump);
 
   return {

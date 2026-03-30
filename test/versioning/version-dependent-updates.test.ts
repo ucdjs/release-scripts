@@ -48,11 +48,7 @@ describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
 
     const byName = new Map(result.allUpdates.map((update) => [update.package.name, update]));
 
-    expect(result.allUpdates.map((update) => update.package.name).sort()).toEqual([
-      "pkg-a",
-      "pkg-b",
-      "pkg-c",
-    ].sort());
+    expect(result.allUpdates.map((update) => update.package.name).sort()).toEqual(["pkg-a", "pkg-b", "pkg-c"].sort());
 
     expect(byName.get("pkg-b")?.bumpType).toBe("minor");
     expect(byName.get("pkg-b")?.newVersion).toBe("1.1.0");
@@ -79,9 +75,7 @@ describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
     });
 
     const workspacePackages = [pkgA, pkgB, pkgD];
-    const packageCommits = new Map([
-      ["pkg-b", [{ type: "feat", isConventional: true, isBreaking: false } as any]],
-    ]);
+    const packageCommits = new Map([["pkg-b", [{ type: "feat", isConventional: true, isBreaking: false } as any]]]);
     const globalCommitsPerPackage = new Map();
 
     const result = await calculateAndPrepareVersionUpdates({

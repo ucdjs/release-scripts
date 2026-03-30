@@ -16,10 +16,10 @@ interface NPMError {
 }
 
 interface NPMPackageMetadata {
-  "name": string;
+  name: string;
   "dist-tags": Record<string, string>;
-  "versions": Record<string, unknown>;
-  "time"?: Record<string, string>;
+  versions: Record<string, unknown>;
+  time?: Record<string, string>;
 }
 
 function toNPMError(operation: string, error: unknown, code?: string): NPMError {
@@ -42,7 +42,12 @@ function classifyPublishErrorCode(error: unknown): string | undefined {
     return "E403";
   }
 
-  if (combined.includes("EPUBLISHCONFLICT") || combined.includes("E409") || combined.includes("409 Conflict") || combined.includes("Failed to save packument")) {
+  if (
+    combined.includes("EPUBLISHCONFLICT") ||
+    combined.includes("E409") ||
+    combined.includes("409 Conflict") ||
+    combined.includes("Failed to save packument")
+  ) {
     return "EPUBLISHCONFLICT";
   }
 
@@ -70,9 +75,7 @@ function getRegistryURL(): string {
  * @param packageName - The package name (e.g., "lodash" or "@scope/name")
  * @returns Result with package metadata or error
  */
-async function getPackageMetadata(
-  packageName: string,
-): Promise<Result<NPMPackageMetadata, NPMError>> {
+async function getPackageMetadata(packageName: string): Promise<Result<NPMPackageMetadata, NPMError>> {
   try {
     const registry = getRegistryURL();
     const encodedName = packageName.startsWith("@")
@@ -93,7 +96,7 @@ async function getPackageMetadata(
       return err(toNPMError("getPackageMetadata", `HTTP ${response.status}: ${response.statusText}`));
     }
 
-    const metadata = await response.json() as NPMPackageMetadata;
+    const metadata = (await response.json()) as NPMPackageMetadata;
     return ok(metadata);
   } catch (error) {
     return err(toNPMError("getPackageMetadata", error, "ENETWORK"));
@@ -106,10 +109,7 @@ async function getPackageMetadata(
  * @param version - The version to check (e.g., "1.2.3")
  * @returns Result with boolean (true if version exists) or error
  */
-export async function checkVersionExists(
-  packageName: string,
-  version: string,
-): Promise<Result<boolean, NPMError>> {
+export async function checkVersionExists(packageName: string, version: string): Promise<Result<boolean, NPMError>> {
   const metadataResult = await getPackageMetadata(packageName);
 
   if (!metadataResult.ok) {
@@ -141,14 +141,7 @@ export async function publishPackage(
   workspaceRoot: string,
   options: NormalizedReleaseScriptsOptions,
 ): Promise<Result<void, NPMError>> {
-  const args: string[] = [
-    "--filter",
-    packageName,
-    "publish",
-    "--access",
-    options.npm.access,
-    "--no-git-checks",
-  ];
+  const args: string[] = ["--filter", packageName, "publish", "--access", options.npm.access, "--no-git-checks"];
 
   // Add OTP if provided (for 2FA)
   if (options.npm.otp) {

@@ -94,8 +94,8 @@ export class GitHubClient {
         ...init,
         headers: {
           ...init.headers,
-          "Accept": "application/vnd.github.v3+json",
-          "Authorization": `token ${this.githubToken}`,
+          Accept: "application/vnd.github.v3+json",
+          Authorization: `token ${this.githubToken}`,
           "User-Agent": "ucdjs-release-scripts (+https://github.com/ucdjs/ucdjs-release-scripts)",
         },
       });
@@ -158,18 +158,18 @@ export class GitHubClient {
     const firstPullRequest: unknown = pulls[0];
 
     if (
-      typeof firstPullRequest !== "object"
-      || firstPullRequest === null
-      || !("number" in firstPullRequest)
-      || typeof firstPullRequest.number !== "number"
-      || !("title" in firstPullRequest)
-      || typeof firstPullRequest.title !== "string"
-      || !("body" in firstPullRequest)
-      || typeof firstPullRequest.body !== "string"
-      || !("draft" in firstPullRequest)
-      || typeof firstPullRequest.draft !== "boolean"
-      || !("html_url" in firstPullRequest)
-      || typeof firstPullRequest.html_url !== "string"
+      typeof firstPullRequest !== "object" ||
+      firstPullRequest === null ||
+      !("number" in firstPullRequest) ||
+      typeof firstPullRequest.number !== "number" ||
+      !("title" in firstPullRequest) ||
+      typeof firstPullRequest.title !== "string" ||
+      !("body" in firstPullRequest) ||
+      typeof firstPullRequest.body !== "string" ||
+      !("draft" in firstPullRequest) ||
+      typeof firstPullRequest.draft !== "boolean" ||
+      !("html_url" in firstPullRequest) ||
+      typeof firstPullRequest.html_url !== "string"
     ) {
       throw new TypeError("Pull request data validation failed");
     }
@@ -180,13 +180,14 @@ export class GitHubClient {
       body: firstPullRequest.body,
       draft: firstPullRequest.draft,
       html_url: firstPullRequest.html_url,
-      head: "head" in firstPullRequest
-        && typeof firstPullRequest.head === "object"
-        && firstPullRequest.head !== null
-        && "sha" in firstPullRequest.head
-        && typeof firstPullRequest.head.sha === "string"
-        ? { sha: firstPullRequest.head.sha }
-        : undefined,
+      head:
+        "head" in firstPullRequest &&
+        typeof firstPullRequest.head === "object" &&
+        firstPullRequest.head !== null &&
+        "sha" in firstPullRequest.head &&
+        typeof firstPullRequest.head.sha === "string"
+          ? { sha: firstPullRequest.head.sha }
+          : undefined,
     };
 
     logger.info(`Found existing pull request: ${farver.yellow(`#${pullRequest.number}`)}`);
@@ -205,9 +206,7 @@ export class GitHubClient {
       ? `/repos/${this.owner}/${this.repo}/pulls/${pullNumber}`
       : `/repos/${this.owner}/${this.repo}/pulls`;
 
-    const requestBody = isUpdate
-      ? { title, body }
-      : { title, body, head, base, draft: true };
+    const requestBody = isUpdate ? { title, body } : { title, body, head, base, draft: true };
 
     logger.verbose(`${isUpdate ? "Updating" : "Creating"} pull request (url: ${this.apiBase}${endpoint})`);
 
@@ -217,18 +216,18 @@ export class GitHubClient {
     });
 
     if (
-      typeof pr !== "object"
-      || pr === null
-      || !("number" in pr)
-      || typeof pr.number !== "number"
-      || !("title" in pr)
-      || typeof pr.title !== "string"
-      || !("body" in pr)
-      || typeof pr.body !== "string"
-      || !("draft" in pr)
-      || typeof pr.draft !== "boolean"
-      || !("html_url" in pr)
-      || typeof pr.html_url !== "string"
+      typeof pr !== "object" ||
+      pr === null ||
+      !("number" in pr) ||
+      typeof pr.number !== "number" ||
+      !("title" in pr) ||
+      typeof pr.title !== "string" ||
+      !("body" in pr) ||
+      typeof pr.body !== "string" ||
+      !("draft" in pr) ||
+      typeof pr.draft !== "boolean" ||
+      !("html_url" in pr) ||
+      typeof pr.html_url !== "string"
     ) {
       throw new TypeError("Pull request data validation failed");
     }
@@ -388,15 +387,15 @@ export class GitHubClient {
           author: {
             login: string;
           };
-        }>(
-          `/repos/${this.owner}/${this.repo}/commits/${info.commits[0]}`,
-        );
+        }>(`/repos/${this.owner}/${this.repo}/commits/${info.commits[0]}`);
 
         if (data.author && data.author.login) {
           info.login = data.author.login;
         }
       } catch (err) {
-        logger.warn(`Failed to resolve author info from commits for email ${info.email}: ${formatUnknownError(err).message}`);
+        logger.warn(
+          `Failed to resolve author info from commits for email ${info.email}: ${formatUnknownError(err).message}`,
+        );
       }
     }
 

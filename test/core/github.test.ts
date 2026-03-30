@@ -9,23 +9,33 @@ describe("gitHubClient.getExistingPullRequest", () => {
       return HttpResponse.json([]);
     });
 
-    const result = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).getExistingPullRequest("release/next");
+    const result = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).getExistingPullRequest("release/next");
     expect(result).toBeNull();
   });
 
   it("returns the first open PR for the branch", async () => {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/pulls`, () => {
-      return HttpResponse.json([{
-        number: 42,
-        title: "chore: release v1.0.0",
-        body: "Release body",
-        draft: true,
-        html_url: "https://github.com/ucdjs/test-repo/pull/42",
-        head: { sha: "abc1234" },
-      }]);
+      return HttpResponse.json([
+        {
+          number: 42,
+          title: "chore: release v1.0.0",
+          body: "Release body",
+          draft: true,
+          html_url: "https://github.com/ucdjs/test-repo/pull/42",
+          head: { sha: "abc1234" },
+        },
+      ]);
     });
 
-    const result = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).getExistingPullRequest("release/next");
+    const result = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).getExistingPullRequest("release/next");
     expect(result?.number).toBe(42);
     expect(result?.title).toBe("chore: release v1.0.0");
     expect(result?.draft).toBe(true);
@@ -38,7 +48,9 @@ describe("gitHubClient.getExistingPullRequest", () => {
     });
 
     await expect(
-      createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).getExistingPullRequest("release/next"),
+      createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).getExistingPullRequest(
+        "release/next",
+      ),
     ).rejects.toThrow("Pull request data validation failed");
   });
 
@@ -48,7 +60,9 @@ describe("gitHubClient.getExistingPullRequest", () => {
     });
 
     await expect(
-      createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).getExistingPullRequest("release/next"),
+      createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).getExistingPullRequest(
+        "release/next",
+      ),
     ).rejects.toThrow("401");
   });
 });
@@ -56,16 +70,23 @@ describe("gitHubClient.getExistingPullRequest", () => {
 describe("gitHubClient.upsertPullRequest", () => {
   it("creates a new draft PR when no pullNumber is provided", async () => {
     mockFetch("POST", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/pulls`, () => {
-      return HttpResponse.json({
-        number: 10,
-        title: "chore: new release",
-        body: "Release body",
-        draft: true,
-        html_url: "https://github.com/ucdjs/test-repo/pull/10",
-      }, { status: 201 });
+      return HttpResponse.json(
+        {
+          number: 10,
+          title: "chore: new release",
+          body: "Release body",
+          draft: true,
+          html_url: "https://github.com/ucdjs/test-repo/pull/10",
+        },
+        { status: 201 },
+      );
     });
 
-    const result = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).upsertPullRequest({
+    const result = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).upsertPullRequest({
       title: "chore: new release",
       body: "Release body",
       head: "release/next",
@@ -86,7 +107,11 @@ describe("gitHubClient.upsertPullRequest", () => {
       });
     });
 
-    const result = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).upsertPullRequest({
+    const result = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).upsertPullRequest({
       title: "chore: updated release",
       body: "Updated body",
       pullNumber: 5,
@@ -137,20 +162,35 @@ describe("gitHubClient.setCommitStatus", () => {
 describe("gitHubClient.upsertReleaseByTag", () => {
   it("creates a new release when none exists for the tag", async () => {
     mockFetch([
-      ["GET", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/releases/tags/:tag`, () => {
-        return HttpResponse.json({ message: "Not Found" }, { status: 404 });
-      }],
-      ["POST", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/releases`, () => {
-        return HttpResponse.json({
-          id: 99,
-          tag_name: "pkg@1.0.0",
-          name: "pkg@1.0.0",
-          html_url: "https://github.com/ucdjs/test-repo/releases/tag/pkg%401.0.0",
-        }, { status: 201 });
-      }],
+      [
+        "GET",
+        `${GITHUB_API_BASE}/repos/ucdjs/test-repo/releases/tags/:tag`,
+        () => {
+          return HttpResponse.json({ message: "Not Found" }, { status: 404 });
+        },
+      ],
+      [
+        "POST",
+        `${GITHUB_API_BASE}/repos/ucdjs/test-repo/releases`,
+        () => {
+          return HttpResponse.json(
+            {
+              id: 99,
+              tag_name: "pkg@1.0.0",
+              name: "pkg@1.0.0",
+              html_url: "https://github.com/ucdjs/test-repo/releases/tag/pkg%401.0.0",
+            },
+            { status: 201 },
+          );
+        },
+      ],
     ]);
 
-    const { release, created } = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).upsertReleaseByTag({
+    const { release, created } = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).upsertReleaseByTag({
       tagName: "pkg@1.0.0",
       name: "pkg@1.0.0",
       body: "Release notes",
@@ -161,15 +201,27 @@ describe("gitHubClient.upsertReleaseByTag", () => {
 
   it("updates an existing release when one already exists for the tag", async () => {
     mockFetch([
-      ["GET", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/releases/tags/:tag`, () => {
-        return HttpResponse.json({ id: 7, tag_name: "pkg@1.0.0", name: "pkg@1.0.0" });
-      }],
-      ["PATCH", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/releases/7`, () => {
-        return HttpResponse.json({ id: 7, tag_name: "pkg@1.0.0", name: "Updated" });
-      }],
+      [
+        "GET",
+        `${GITHUB_API_BASE}/repos/ucdjs/test-repo/releases/tags/:tag`,
+        () => {
+          return HttpResponse.json({ id: 7, tag_name: "pkg@1.0.0", name: "pkg@1.0.0" });
+        },
+      ],
+      [
+        "PATCH",
+        `${GITHUB_API_BASE}/repos/ucdjs/test-repo/releases/7`,
+        () => {
+          return HttpResponse.json({ id: 7, tag_name: "pkg@1.0.0", name: "Updated" });
+        },
+      ],
     ]);
 
-    const { release, created } = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).upsertReleaseByTag({
+    const { release, created } = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).upsertReleaseByTag({
       tagName: "pkg@1.0.0",
       name: "Updated",
       body: "Updated notes",
@@ -195,8 +247,11 @@ describe("gitHubClient.upsertReleaseByTag", () => {
 
 describe("gitHubClient.resolveAuthorInfo", () => {
   it("returns info unchanged when login is already set", async () => {
-    const result = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" })
-      .resolveAuthorInfo({ name: "Test", email: "t@test.com", login: "testuser", commits: [] });
+    const result = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).resolveAuthorInfo({ name: "Test", email: "t@test.com", login: "testuser", commits: [] });
     expect(result.login).toBe("testuser");
   });
 
@@ -205,23 +260,37 @@ describe("gitHubClient.resolveAuthorInfo", () => {
       return HttpResponse.json({ items: [{ login: "resolved-user" }] });
     });
 
-    const result = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" })
-      .resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: [] });
+    const result = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: [] });
     expect(result.login).toBe("resolved-user");
   });
 
   it("falls back to commit author when user search returns no results", async () => {
     mockFetch([
-      ["GET", `${GITHUB_API_BASE}/search/users`, () => {
-        return HttpResponse.json({ items: [] });
-      }],
-      ["GET", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/commits/:sha`, () => {
-        return HttpResponse.json({ author: { login: "commit-author" } });
-      }],
+      [
+        "GET",
+        `${GITHUB_API_BASE}/search/users`,
+        () => {
+          return HttpResponse.json({ items: [] });
+        },
+      ],
+      [
+        "GET",
+        `${GITHUB_API_BASE}/repos/ucdjs/test-repo/commits/:sha`,
+        () => {
+          return HttpResponse.json({ author: { login: "commit-author" } });
+        },
+      ],
     ]);
 
-    const result = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" })
-      .resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: ["abc123"] });
+    const result = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: ["abc123"] });
     expect(result.login).toBe("commit-author");
   });
 
@@ -230,22 +299,34 @@ describe("gitHubClient.resolveAuthorInfo", () => {
       return HttpResponse.json({ message: "Forbidden" }, { status: 403 });
     });
 
-    const result = await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" })
-      .resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: [] });
+    const result = await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: [] });
     expect(result.login).toBeUndefined();
   });
 });
 
 describe("generatePullRequestBody", () => {
   it("renders a body containing the package name and new version", () => {
-    const body = generatePullRequestBody([{
-      package: { name: "@scope/pkg", version: "1.0.0", path: "/workspace", packageJson: { name: "@scope/pkg", version: "1.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
-      currentVersion: "1.0.0",
-      newVersion: "1.1.0",
-      bumpType: "minor",
-      hasDirectChanges: true,
-      changeKind: "auto",
-    }]);
+    const body = generatePullRequestBody([
+      {
+        package: {
+          name: "@scope/pkg",
+          version: "1.0.0",
+          path: "/workspace",
+          packageJson: { name: "@scope/pkg", version: "1.0.0" },
+          workspaceDependencies: [],
+          workspaceDevDependencies: [],
+        },
+        currentVersion: "1.0.0",
+        newVersion: "1.1.0",
+        bumpType: "minor",
+        hasDirectChanges: true,
+        changeKind: "auto",
+      },
+    ]);
     expect(body).toContain("@scope/pkg");
     expect(body).toContain("1.1.0");
   });
@@ -253,7 +334,14 @@ describe("generatePullRequestBody", () => {
   it("renders all packages when multiple updates are provided", () => {
     const body = generatePullRequestBody([
       {
-        package: { name: "@scope/a", version: "1.0.0", path: "/workspace/a", packageJson: { name: "@scope/a", version: "1.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
+        package: {
+          name: "@scope/a",
+          version: "1.0.0",
+          path: "/workspace/a",
+          packageJson: { name: "@scope/a", version: "1.0.0" },
+          workspaceDependencies: [],
+          workspaceDevDependencies: [],
+        },
         currentVersion: "1.0.0",
         newVersion: "2.0.0",
         bumpType: "major",
@@ -261,7 +349,14 @@ describe("generatePullRequestBody", () => {
         changeKind: "auto",
       },
       {
-        package: { name: "@scope/b", version: "3.0.0", path: "/workspace/b", packageJson: { name: "@scope/b", version: "3.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
+        package: {
+          name: "@scope/b",
+          version: "3.0.0",
+          path: "/workspace/b",
+          packageJson: { name: "@scope/b", version: "3.0.0" },
+          workspaceDependencies: [],
+          workspaceDevDependencies: [],
+        },
         currentVersion: "3.0.0",
         newVersion: "3.1.0",
         bumpType: "minor",
@@ -275,14 +370,23 @@ describe("generatePullRequestBody", () => {
 
   it("uses a custom template when provided", () => {
     const body = generatePullRequestBody(
-      [{
-        package: { name: "@scope/pkg", version: "1.0.0", path: "/workspace", packageJson: { name: "@scope/pkg", version: "1.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
-        currentVersion: "1.0.0",
-        newVersion: "1.1.0",
-        bumpType: "minor",
-        hasDirectChanges: true,
-        changeKind: "auto",
-      }],
+      [
+        {
+          package: {
+            name: "@scope/pkg",
+            version: "1.0.0",
+            path: "/workspace",
+            packageJson: { name: "@scope/pkg", version: "1.0.0" },
+            workspaceDependencies: [],
+            workspaceDevDependencies: [],
+          },
+          currentVersion: "1.0.0",
+          newVersion: "1.1.0",
+          bumpType: "minor",
+          hasDirectChanges: true,
+          changeKind: "auto",
+        },
+      ],
       "<% it.packages.forEach(p => { %><%= p.name %> → <%= p.newVersion %><% }); %>",
     );
     expect(body).toContain("@scope/pkg → 1.1.0");
@@ -291,7 +395,14 @@ describe("generatePullRequestBody", () => {
   it("separates as-is packages from real releases in the default template", () => {
     const body = generatePullRequestBody([
       {
-        package: { name: "@scope/released", version: "1.0.0", path: "/workspace/a", packageJson: { name: "@scope/released", version: "1.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
+        package: {
+          name: "@scope/released",
+          version: "1.0.0",
+          path: "/workspace/a",
+          packageJson: { name: "@scope/released", version: "1.0.0" },
+          workspaceDependencies: [],
+          workspaceDevDependencies: [],
+        },
         currentVersion: "1.0.0",
         newVersion: "2.0.0",
         bumpType: "major",
@@ -299,7 +410,14 @@ describe("generatePullRequestBody", () => {
         changeKind: "auto",
       },
       {
-        package: { name: "@scope/kept", version: "3.0.0", path: "/workspace/b", packageJson: { name: "@scope/kept", version: "3.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
+        package: {
+          name: "@scope/kept",
+          version: "3.0.0",
+          path: "/workspace/b",
+          packageJson: { name: "@scope/kept", version: "3.0.0" },
+          workspaceDependencies: [],
+          workspaceDevDependencies: [],
+        },
         currentVersion: "3.0.0",
         newVersion: "3.0.0",
         bumpType: "none",
@@ -315,14 +433,23 @@ describe("generatePullRequestBody", () => {
   });
 
   it("shows 'no packages to release' when all updates are as-is", () => {
-    const body = generatePullRequestBody([{
-      package: { name: "@scope/kept", version: "1.0.0", path: "/workspace", packageJson: { name: "@scope/kept", version: "1.0.0" }, workspaceDependencies: [], workspaceDevDependencies: [] },
-      currentVersion: "1.0.0",
-      newVersion: "1.0.0",
-      bumpType: "none",
-      hasDirectChanges: true,
-      changeKind: "as-is",
-    }]);
+    const body = generatePullRequestBody([
+      {
+        package: {
+          name: "@scope/kept",
+          version: "1.0.0",
+          path: "/workspace",
+          packageJson: { name: "@scope/kept", version: "1.0.0" },
+          workspaceDependencies: [],
+          workspaceDevDependencies: [],
+        },
+        currentVersion: "1.0.0",
+        newVersion: "1.0.0",
+        bumpType: "none",
+        hasDirectChanges: true,
+        changeKind: "as-is",
+      },
+    ]);
     expect(body).toContain("no packages to release");
     expect(body).toContain("@scope/kept");
     expect(body).toContain("keeping their current version");

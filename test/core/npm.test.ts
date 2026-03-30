@@ -39,9 +39,9 @@ describe("checkVersionExists", () => {
   it("returns true when the requested version exists", async () => {
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, () => {
       return HttpResponse.json({
-        "name": "my-package",
+        name: "my-package",
         "dist-tags": { latest: "1.1.0" },
-        "versions": { "1.0.0": {}, "1.1.0": {} },
+        versions: { "1.0.0": {}, "1.1.0": {} },
       });
     });
 
@@ -53,9 +53,9 @@ describe("checkVersionExists", () => {
   it("returns false when the package exists but the requested version does not", async () => {
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, () => {
       return HttpResponse.json({
-        "name": "my-package",
+        name: "my-package",
         "dist-tags": { latest: "1.1.0" },
-        "versions": { "1.0.0": {}, "1.1.0": {} },
+        versions: { "1.0.0": {}, "1.1.0": {} },
       });
     });
 
@@ -79,9 +79,9 @@ describe("checkVersionExists", () => {
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, ({ request }) => {
       capturedUrl = request.url;
       return HttpResponse.json({
-        "name": "@scope/pkg",
+        name: "@scope/pkg",
         "dist-tags": { latest: "0.1.0" },
-        "versions": { "0.1.0": {} },
+        versions: { "0.1.0": {} },
       });
     });
 
@@ -95,9 +95,9 @@ describe("checkVersionExists", () => {
 
     mockFetch("GET", "https://my-registry.example.com/:pkg", () => {
       return HttpResponse.json({
-        "name": "my-package",
+        name: "my-package",
         "dist-tags": { latest: "3.0.0" },
-        "versions": { "3.0.0": {} },
+        versions: { "3.0.0": {} },
       });
     });
 
@@ -124,23 +124,20 @@ describe("publishPackage", () => {
 
     await publishPackage("@scope/pkg", "1.0.0-beta.1", "/workspace", createNormalizedReleaseOptions({ dryRun: false }));
 
-    expect(mockExec).toHaveBeenCalledWith(
-      "pnpm",
-      expect.arrayContaining(["--tag", "beta"]),
-      expect.anything(),
-    );
+    expect(mockExec).toHaveBeenCalledWith("pnpm", expect.arrayContaining(["--tag", "beta"]), expect.anything());
   });
 
   it("passes --tag alpha for an alpha prerelease version", async () => {
     mockExec.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as any);
 
-    await publishPackage("@scope/pkg", "1.0.0-alpha.1", "/workspace", createNormalizedReleaseOptions({ dryRun: false }));
-
-    expect(mockExec).toHaveBeenCalledWith(
-      "pnpm",
-      expect.arrayContaining(["--tag", "alpha"]),
-      expect.anything(),
+    await publishPackage(
+      "@scope/pkg",
+      "1.0.0-alpha.1",
+      "/workspace",
+      createNormalizedReleaseOptions({ dryRun: false }),
     );
+
+    expect(mockExec).toHaveBeenCalledWith("pnpm", expect.arrayContaining(["--tag", "alpha"]), expect.anything());
   });
 
   it("passes --tag next for an unrecognised prerelease identifier", async () => {
@@ -148,11 +145,7 @@ describe("publishPackage", () => {
 
     await publishPackage("@scope/pkg", "1.0.0-rc.1", "/workspace", createNormalizedReleaseOptions({ dryRun: false }));
 
-    expect(mockExec).toHaveBeenCalledWith(
-      "pnpm",
-      expect.arrayContaining(["--tag", "next"]),
-      expect.anything(),
-    );
+    expect(mockExec).toHaveBeenCalledWith("pnpm", expect.arrayContaining(["--tag", "next"]), expect.anything());
   });
 
   it("does not pass --tag for a stable release", async () => {
@@ -160,22 +153,19 @@ describe("publishPackage", () => {
 
     await publishPackage("@scope/pkg", "1.0.0", "/workspace", createNormalizedReleaseOptions({ dryRun: false }));
 
-    expect(mockExec).toHaveBeenCalledWith(
-      "pnpm",
-      expect.not.arrayContaining(["--tag"]),
-      expect.anything(),
-    );
+    expect(mockExec).toHaveBeenCalledWith("pnpm", expect.not.arrayContaining(["--tag"]), expect.anything());
   });
 
   it("passes --otp when npm.otp is set in options", async () => {
     mockExec.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as any);
 
-    await publishPackage("@scope/pkg", "1.0.0", "/workspace", createNormalizedReleaseOptions({ dryRun: false, npm: { otp: "123456", provenance: true, access: "public" } }));
-
-    expect(mockExec).toHaveBeenCalledWith(
-      "pnpm",
-      expect.arrayContaining(["--otp", "123456"]),
-      expect.anything(),
+    await publishPackage(
+      "@scope/pkg",
+      "1.0.0",
+      "/workspace",
+      createNormalizedReleaseOptions({ dryRun: false, npm: { otp: "123456", provenance: true, access: "public" } }),
     );
+
+    expect(mockExec).toHaveBeenCalledWith("pnpm", expect.arrayContaining(["--otp", "123456"]), expect.anything());
   });
 });

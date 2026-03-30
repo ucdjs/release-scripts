@@ -13,10 +13,15 @@ interface SyncPullRequestOptions {
   updates: PackageRelease[];
 }
 
-export async function syncPullRequest(options: SyncPullRequestOptions): Promise<Result<{
-  pullRequest: GitHubPullRequest | null;
-  created: boolean;
-}, GitHubError>> {
+export async function syncPullRequest(options: SyncPullRequestOptions): Promise<
+  Result<
+    {
+      pullRequest: GitHubPullRequest | null;
+      created: boolean;
+    },
+    GitHubError
+  >
+> {
   const { github, releaseBranch, defaultBranch, pullRequestTitle, pullRequestBody, updates } = options;
 
   let existing: GitHubPullRequest | null = null;

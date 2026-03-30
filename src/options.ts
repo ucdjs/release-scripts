@@ -6,7 +6,7 @@ import { ReleaseError } from "#shared/errors";
 import { dedent } from "@luxass/utils";
 
 type DeepRequired<T> = Required<{
-  [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>
+  [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>;
 }>;
 
 export interface FindWorkspacePackagesOptions {
@@ -49,7 +49,9 @@ export interface ReleaseScriptsOptionsInput {
   };
 }
 
-export type NormalizedReleaseScriptsOptions = DeepRequired<Omit<ReleaseScriptsOptionsInput, "repo" | "npm" | "prompts">> & {
+export type NormalizedReleaseScriptsOptions = DeepRequired<
+  Omit<ReleaseScriptsOptionsInput, "repo" | "npm" | "prompts">
+> & {
   owner: string;
   repo: string;
   safeguards: boolean;
@@ -152,23 +154,28 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
   }
 
   if (!fullRepo || !fullRepo.trim() || !fullRepo.includes("/")) {
-    throw new ReleaseError("Repository (repo) is required. Specify in 'owner/repo' format (e.g., 'octocat/hello-world').");
+    throw new ReleaseError(
+      "Repository (repo) is required. Specify in 'owner/repo' format (e.g., 'octocat/hello-world').",
+    );
   }
 
   const repoParts = fullRepo.trim().split("/");
   if (repoParts.length !== 2 || !repoParts[0]!.trim() || !repoParts[1]!.trim()) {
-    throw new ReleaseError(`Invalid repo format: "${fullRepo}". Expected format: "owner/repo" (e.g., "octocat/hello-world").`);
+    throw new ReleaseError(
+      `Invalid repo format: "${fullRepo}". Expected format: "owner/repo" (e.g., "octocat/hello-world").`,
+    );
   }
 
   const [owner, repo] = repoParts.map((p) => p.trim()) as [string, string];
 
-  const normalizedPackages = typeof packages === "object" && !Array.isArray(packages)
-    ? {
-        exclude: packages.exclude ?? [],
-        include: packages.include ?? [],
-        excludePrivate: packages.excludePrivate ?? false,
-      }
-    : packages;
+  const normalizedPackages =
+    typeof packages === "object" && !Array.isArray(packages)
+      ? {
+          exclude: packages.exclude ?? [],
+          include: packages.include ?? [],
+          excludePrivate: packages.excludePrivate ?? false,
+        }
+      : packages;
 
   const isCI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
 

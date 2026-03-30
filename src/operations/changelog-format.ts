@@ -34,7 +34,7 @@ function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOpti
 
   if (authors.length > 0) {
     const authorList = authors
-      .map((author) => author.login ? `[@${author.login}](https://github.com/${author.login})` : author.name)
+      .map((author) => (author.login ? `[@${author.login}](https://github.com/${author.login})` : author.name))
       .join(", ");
 
     line += ` (by ${authorList})`;
@@ -51,9 +51,7 @@ export function buildTemplateGroups(options: {
   commitAuthors: Map<string, AuthorInfo[]>;
 }): Array<{ name: string; title: string; commits: Array<{ line: string }> }> {
   const { commits, owner, repo, types, commitAuthors } = options;
-  const mergeKeys = Object.fromEntries(
-    Object.entries(types).map(([key, value]) => [key, value.types ?? [key]]),
-  );
+  const mergeKeys = Object.fromEntries(Object.entries(types).map(([key, value]) => [key, value.types ?? [key]]));
 
   const grouped = groupByType(commits, {
     includeNonConventional: false,

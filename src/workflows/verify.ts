@@ -53,7 +53,11 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
 
   let existingOverrides: Record<string, { version: string; type: import("#shared/types").BumpKind }> = {};
   try {
-    const overridesContent = await readFileFromGit(options.workspaceRoot, releasePr.head.sha, ucdjsReleaseOverridesPath);
+    const overridesContent = await readFileFromGit(
+      options.workspaceRoot,
+      releasePr.head.sha,
+      ucdjsReleaseOverridesPath,
+    );
     if (overridesContent.ok && overridesContent.value) {
       existingOverrides = JSON.parse(overridesContent.value);
       logger.info("Found existing version overrides file on release branch.");
@@ -89,9 +93,7 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   }
 
   const expectedUpdates = updatesResult.value.allUpdates;
-  const expectedVersionMap = new Map<string, string>(
-    expectedUpdates.map((u) => [u.package.name, u.newVersion]),
-  );
+  const expectedVersionMap = new Map<string, string>(expectedUpdates.map((u) => [u.package.name, u.newVersion]));
 
   const prVersionMap = new Map<string, string>();
   for (const pkg of mainPackages) {
@@ -116,7 +118,9 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
     }
 
     if (gt(expectedVersion, prVersion)) {
-      logger.error(`Package "${pkgName}" is out of sync. Expected version >= ${expectedVersion}, but PR has ${prVersion}.`);
+      logger.error(
+        `Package "${pkgName}" is out of sync. Expected version >= ${expectedVersion}, but PR has ${prVersion}.`,
+      );
       isOutOfSync = true;
     } else {
       logger.success(`Package "${pkgName}" is up to date (PR version: ${prVersion}, Expected: ${expectedVersion})`);

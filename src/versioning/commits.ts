@@ -80,25 +80,16 @@ export async function getPackageCommitsSinceTag(
  * @param workspaceRoot - The workspace root for path normalization
  * @returns true if the file is inside a package folder
  */
-export function fileMatchesPackageFolder(
-  file: string,
-  packagePaths: Set<string>,
-  workspaceRoot: string,
-): boolean {
+export function fileMatchesPackageFolder(file: string, packagePaths: Set<string>, workspaceRoot: string): boolean {
   // Normalize the file path (remove leading ./)
   const normalizedFile = file.startsWith("./") ? file.slice(2) : file;
 
   for (const pkgPath of packagePaths) {
     // Normalize package path (remove workspace root prefix if present)
-    const normalizedPkgPath = pkgPath.startsWith(workspaceRoot)
-      ? pkgPath.slice(workspaceRoot.length + 1)
-      : pkgPath;
+    const normalizedPkgPath = pkgPath.startsWith(workspaceRoot) ? pkgPath.slice(workspaceRoot.length + 1) : pkgPath;
 
     // Check if file is inside this package folder
-    if (
-      normalizedFile.startsWith(`${normalizedPkgPath}/`)
-      || normalizedFile === normalizedPkgPath
-    ) {
+    if (normalizedFile.startsWith(`${normalizedPkgPath}/`) || normalizedFile === normalizedPkgPath) {
       return true;
     }
   }
@@ -113,11 +104,7 @@ export function fileMatchesPackageFolder(
  * @param packagePaths - Set of normalized package paths
  * @returns true if this is a global commit
  */
-export function isGlobalCommit(
-  workspaceRoot: string,
-  files: string[] | undefined,
-  packagePaths: Set<string>,
-): boolean {
+export function isGlobalCommit(workspaceRoot: string, files: string[] | undefined, packagePaths: Set<string>): boolean {
   if (!files || files.length === 0) {
     // If we can't determine files, consider it non-global to be safe
     return false;
@@ -185,9 +172,7 @@ export function filterGlobalCommits(
   return globalCommits.filter((commit) => {
     const files = commitFilesMap.get(commit.shortHash);
     if (!files) return false;
-    return files.some((file) =>
-      DEPENDENCY_FILES.includes(file.startsWith("./") ? file.slice(2) : file),
-    );
+    return files.some((file) => DEPENDENCY_FILES.includes(file.startsWith("./") ? file.slice(2) : file));
   });
 }
 
@@ -227,7 +212,10 @@ export async function getGlobalCommitsPerPackage(
     return result;
   }
 
-  logger.verbose("Fetching files for commits range", `${farver.cyan(commitRange.oldest)}..${farver.cyan(commitRange.newest)}`);
+  logger.verbose(
+    "Fetching files for commits range",
+    `${farver.cyan(commitRange.oldest)}..${farver.cyan(commitRange.newest)}`,
+  );
 
   const commitFilesMap = await getGroupedFilesByCommitSha(workspaceRoot, commitRange.oldest, commitRange.newest);
   if (!commitFilesMap.ok) {
@@ -240,11 +228,17 @@ export async function getGlobalCommitsPerPackage(
   const packagePaths = new Set(allPackages.map((p) => p.path));
 
   for (const [pkgName, commits] of packageCommits) {
-    logger.verbose("Filtering global commits for package", `${farver.bold(pkgName)} from ${farver.cyan(commits.length)} commits`);
+    logger.verbose(
+      "Filtering global commits for package",
+      `${farver.bold(pkgName)} from ${farver.cyan(commits.length)} commits`,
+    );
 
     const filtered = filterGlobalCommits(commits, commitFilesMap.value, packagePaths, workspaceRoot, mode);
 
-    logger.verbose("Package global commits found", `${farver.bold(pkgName)}: ${farver.cyan(filtered.length)} global commits`);
+    logger.verbose(
+      "Package global commits found",
+      `${farver.bold(pkgName)}: ${farver.cyan(filtered.length)} global commits`,
+    );
     result.set(pkgName, filtered);
   }
 

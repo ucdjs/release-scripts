@@ -49,28 +49,30 @@ function formatCommitsForDisplay(commits: GitCommit[]): string {
   const typeLength = commits.map(({ type }) => type.length).reduce((a, b) => Math.max(a, b), 0);
   const scopeLength = commits.map(({ scope }) => scope?.length).reduce((a, b) => Math.max(a || 0, b || 0), 0) || 0;
 
-  const formattedCommits = commitsToShow.map((commit) => {
-    let color = messageColorMap[commit.type] || ((c: string) => c);
-    if (commit.isBreaking) {
-      color = (s) => farver.inverse.red(s);
-    }
+  const formattedCommits = commitsToShow
+    .map((commit) => {
+      let color = messageColorMap[commit.type] || ((c: string) => c);
+      if (commit.isBreaking) {
+        color = (s) => farver.inverse.red(s);
+      }
 
-    const paddedType = commit.type.padStart(typeLength + 1, " ");
-    const paddedScope = !commit.scope
-      ? " ".repeat(scopeLength ? scopeLength + 2 : 0)
-      : farver.dim("(") + commit.scope + farver.dim(")") + " ".repeat(scopeLength - commit.scope.length);
+      const paddedType = commit.type.padStart(typeLength + 1, " ");
+      const paddedScope = !commit.scope
+        ? " ".repeat(scopeLength ? scopeLength + 2 : 0)
+        : farver.dim("(") + commit.scope + farver.dim(")") + " ".repeat(scopeLength - commit.scope.length);
 
-    return [
-      farver.dim(commit.shortHash),
-      " ",
-      color === farver.gray ? color(paddedType) : farver.bold(color(paddedType)),
-      " ",
-      paddedScope,
-      farver.dim(":"),
-      " ",
-      color === farver.gray ? color(commit.description) : commit.description,
-    ].join("");
-  }).join("\n");
+      return [
+        farver.dim(commit.shortHash),
+        " ",
+        color === farver.gray ? color(paddedType) : farver.bold(color(paddedType)),
+        " ",
+        paddedScope,
+        farver.dim(":"),
+        " ",
+        color === farver.gray ? color(commit.description) : commit.description,
+      ].join("");
+    })
+    .join("\n");
 
   if (hasMore) {
     return `${formattedCommits}\n  ${farver.dim(`... and ${commits.length - maxCommitsToShow} more commits`)}`;
@@ -173,7 +175,12 @@ async function calculateVersionUpdates({
     const allCommitsForPackage = [...pkgCommits, ...globalCommits];
 
     const override = newOverrides[pkgName];
-    const { determinedBump, effectiveBump, autoVersion, resolvedVersion } = resolveAutoVersion(pkg, pkgCommits, globalCommits, override);
+    const { determinedBump, effectiveBump, autoVersion, resolvedVersion } = resolveAutoVersion(
+      pkg,
+      pkgCommits,
+      globalCommits,
+      override,
+    );
     const canPrompt = !getIsCI() && showPrompt;
 
     if (effectiveBump === "none" && !canPrompt) {
@@ -216,16 +223,10 @@ async function calculateVersionUpdates({
         newVersion = autoVersion;
       }
 
-      const selectedVersion = await selectVersionPrompt(
-        workspaceRoot,
-        pkg,
-        pkg.version,
-        newVersion,
-        {
-          defaultChoice: override ? "suggested" : "auto",
-          suggestedHint: `auto: ${determinedBump} → ${autoVersion}`,
-        },
-      );
+      const selectedVersion = await selectVersionPrompt(workspaceRoot, pkg, pkg.version, newVersion, {
+        defaultChoice: override ? "suggested" : "auto",
+        suggestedHint: `auto: ${determinedBump} → ${autoVersion}`,
+      });
 
       if (selectedVersion === null) continue;
 
@@ -327,7 +328,11 @@ export async function calculateAndPrepareVersionUpdates({
   overrides: VersionOverrides;
 }> {
   // Calculate direct version updates
-  const { updates: directUpdates, overrides: newOverrides, excludedPackages: promptExcludedPackages } = await calculateVersionUpdates({
+  const {
+    updates: directUpdates,
+    overrides: newOverrides,
+    excludedPackages: promptExcludedPackages,
+  } = await calculateVersionUpdates({
     workspacePackages,
     packageCommits,
     workspaceRoot,
@@ -343,10 +348,7 @@ export async function calculateAndPrepareVersionUpdates({
       .filter(([, override]) => override.type === "none")
       .map(([pkgName]) => pkgName),
   );
-  const excludedPackages = new Set<string>([
-    ...overrideExcludedPackages,
-    ...promptExcludedPackages,
-  ]);
+  const excludedPackages = new Set<string>([...overrideExcludedPackages, ...promptExcludedPackages]);
 
   const allUpdates = createDependentUpdates(graph, workspacePackages, directUpdates, excludedPackages);
 
@@ -355,11 +357,7 @@ export async function calculateAndPrepareVersionUpdates({
     await Promise.all(
       allUpdates.map(async (update: PackageRelease) => {
         const depUpdates = getDependencyUpdates(update.package, allUpdates);
-        await updatePackageJson(
-          update.package,
-          update.newVersion,
-          depUpdates,
-        );
+        await updatePackageJson(update.package, update.newVersion, depUpdates);
       }),
     );
   };
@@ -422,23 +420,19 @@ async function updatePackageJson(
 /**
  * Get all dependency updates needed for a package
  */
-function getDependencyUpdates(
-  pkg: WorkspacePackage,
-  allUpdates: PackageRelease[],
-): Map<string, string> {
+function getDependencyUpdates(pkg: WorkspacePackage, allUpdates: PackageRelease[]): Map<string, string> {
   const updates = new Map<string, string>();
 
   // Check all workspace dependencies
-  const allDeps = [
-    ...pkg.workspaceDependencies,
-    ...pkg.workspaceDevDependencies,
-  ];
+  const allDeps = [...pkg.workspaceDependencies, ...pkg.workspaceDevDependencies];
 
   for (const dep of allDeps) {
     // Find if this dependency is being updated
     const update = allUpdates.find((u) => u.package.name === dep);
     if (update) {
-      logger.verbose(`  - Dependency ${dep} will be updated: ${update.currentVersion} → ${update.newVersion} (${update.bumpType})`);
+      logger.verbose(
+        `  - Dependency ${dep} will be updated: ${update.currentVersion} → ${update.newVersion} (${update.bumpType})`,
+      );
       updates.set(dep, update.newVersion);
     }
   }

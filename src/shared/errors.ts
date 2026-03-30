@@ -95,9 +95,9 @@ export function formatUnknownError(error: unknown): FormattedUnknownError {
     base.stderr = extractStderrLike(maybeError);
 
     if (
-      typeof maybeError.shortMessage === "string"
-      && maybeError.shortMessage.trim()
-      && base.message.startsWith("Process exited with non-zero status")
+      typeof maybeError.shortMessage === "string" &&
+      maybeError.shortMessage.trim() &&
+      base.message.startsWith("Process exited with non-zero status")
     ) {
       base.message = maybeError.shortMessage.trim();
     }
@@ -116,11 +116,12 @@ export function formatUnknownError(error: unknown): FormattedUnknownError {
   }
 
   if (isRecord(error)) {
-    const message = typeof error.message === "string"
-      ? error.message
-      : typeof error.error === "string"
-        ? error.error
-        : JSON.stringify(error);
+    const message =
+      typeof error.message === "string"
+        ? error.message
+        : typeof error.error === "string"
+          ? error.error
+          : JSON.stringify(error);
 
     const formatted: FormattedUnknownError = {
       message,

@@ -28,7 +28,12 @@ describe("buildTemplateGroups", () => {
   });
 
   it("places feat commits into the feat group", () => {
-    const commit = createCommit({ type: "feat", description: "add new feature", hash: "abc123full", shortHash: "abc123f" });
+    const commit = createCommit({
+      type: "feat",
+      description: "add new feature",
+      hash: "abc123full",
+      shortHash: "abc123f",
+    });
     const groups = buildTemplateGroups({
       commits: [commit],
       owner: OWNER,
@@ -213,8 +218,18 @@ describe("buildTemplateGroups", () => {
   });
 
   it("merges aliased types into the canonical group via the types map", () => {
-    const featCommit = createCommit({ type: "feat", description: "regular feat", hash: "fff1000000000", shortHash: "fff1000" });
-    const featureCommit = createCommit({ type: "feature", description: "alias feature", hash: "fff2000000000", shortHash: "fff2000" });
+    const featCommit = createCommit({
+      type: "feat",
+      description: "regular feat",
+      hash: "fff1000000000",
+      shortHash: "fff1000",
+    });
+    const featureCommit = createCommit({
+      type: "feature",
+      description: "alias feature",
+      hash: "fff2000000000",
+      shortHash: "fff2000",
+    });
 
     const groups = buildTemplateGroups({
       commits: [featCommit, featureCommit],
@@ -226,10 +241,7 @@ describe("buildTemplateGroups", () => {
 
     expect(groups[0]!.commits).toHaveLength(2);
     expect(groups[0]!.commits.map((c) => c.line)).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("regular feat"),
-        expect.stringContaining("alias feature"),
-      ]),
+      expect.arrayContaining([expect.stringContaining("regular feat"), expect.stringContaining("alias feature")]),
     );
   });
 });

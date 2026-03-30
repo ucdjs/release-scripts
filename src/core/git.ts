@@ -1,11 +1,7 @@
 import type { Result } from "#types";
 import process from "node:process";
 import { formatUnknownError } from "#shared/errors";
-import {
-  logger,
-  run,
-  runIfNotDry,
-} from "#shared/utils";
+import { logger, run, runIfNotDry } from "#shared/utils";
 import { err, ok } from "#types";
 import farver from "farver";
 import semver from "semver";
@@ -40,23 +36,24 @@ function isMissingGitIdentityError(error: unknown): boolean {
   const formatted = formatUnknownError(error);
   const combined = `${formatted.message}\n${formatted.stderr ?? ""}`;
 
-  return combined.includes("Author identity unknown")
-    || combined.includes("empty ident name")
-    || combined.includes("Please tell me who you are");
+  return (
+    combined.includes("Author identity unknown") ||
+    combined.includes("empty ident name") ||
+    combined.includes("Please tell me who you are")
+  );
 }
 
 async function ensureLocalGitIdentity(workspaceRoot: string): Promise<Result<void, GitError>> {
   try {
     const actor = process.env.GITHUB_ACTOR?.trim();
 
-    const name = process.env.GIT_AUTHOR_NAME?.trim()
-      || process.env.GIT_COMMITTER_NAME?.trim()
-      || actor
-      || "github-actions[bot]";
+    const name =
+      process.env.GIT_AUTHOR_NAME?.trim() || process.env.GIT_COMMITTER_NAME?.trim() || actor || "github-actions[bot]";
 
-    const email = process.env.GIT_AUTHOR_EMAIL?.trim()
-      || process.env.GIT_COMMITTER_EMAIL?.trim()
-      || (actor ? `${actor}@users.noreply.github.com` : "github-actions[bot]@users.noreply.github.com");
+    const email =
+      process.env.GIT_AUTHOR_EMAIL?.trim() ||
+      process.env.GIT_COMMITTER_EMAIL?.trim() ||
+      (actor ? `${actor}@users.noreply.github.com` : "github-actions[bot]@users.noreply.github.com");
 
     logger.warn("Git author identity missing. Configuring repository-local git identity for this run.");
 
@@ -86,12 +83,13 @@ async function commitWithRetryOnMissingIdentity(
   workspaceRoot: string,
   operation: "commitChanges" | "commitPaths",
 ): Promise<Result<void, GitError>> {
-  const runCommit = async () => runIfNotDry("git", ["commit", "-m", message], {
-    nodeOptions: {
-      cwd: workspaceRoot,
-      stdio: "pipe",
-    },
-  });
+  const runCommit = async () =>
+    runIfNotDry("git", ["commit", "-m", message], {
+      nodeOptions: {
+        cwd: workspaceRoot,
+        stdio: "pipe",
+      },
+    });
 
   try {
     await runCommit();
@@ -115,9 +113,7 @@ async function commitWithRetryOnMissingIdentity(
   }
 }
 
-export async function isWorkingDirectoryClean(
-  workspaceRoot: string,
-): Promise<Result<boolean, GitError>> {
+export async function isWorkingDirectoryClean(workspaceRoot: string): Promise<Result<boolean, GitError>> {
   try {
     const result = await run("git", ["status", "--porcelain"], {
       nodeOptions: {
@@ -143,10 +139,7 @@ export async function isWorkingDirectoryClean(
  * @param {string} workspaceRoot - The root directory of the workspace
  * @returns {Promise<Result<boolean, GitError>>} Promise resolving to true if remote branch exists
  */
-export async function doesRemoteBranchExist(
-  branch: string,
-  workspaceRoot: string,
-): Promise<Result<boolean, GitError>> {
+export async function doesRemoteBranchExist(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
   try {
     await run("git", ["ls-remote", "--exit-code", "--heads", "origin", branch], {
       nodeOptions: {
@@ -161,10 +154,7 @@ export async function doesRemoteBranchExist(
   }
 }
 
-export async function doesBranchExist(
-  branch: string,
-  workspaceRoot: string,
-): Promise<Result<boolean, GitError>> {
+export async function doesBranchExist(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
   try {
     await run("git", ["rev-parse", "--verify", branch], {
       nodeOptions: {
@@ -212,9 +202,7 @@ export async function getDefaultBranch(workspaceRoot: string): Promise<Result<st
  * @param {string} workspaceRoot - The root directory of the workspace
  * @returns {Promise<string>} A Promise resolving to the current branch name as a string
  */
-export async function getCurrentBranch(
-  workspaceRoot: string,
-): Promise<Result<string, GitError>> {
+export async function getCurrentBranch(workspaceRoot: string): Promise<Result<string, GitError>> {
   try {
     const result = await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
       nodeOptions: {
@@ -234,9 +222,7 @@ export async function getCurrentBranch(
  * @param {string} workspaceRoot - The root directory of the workspace
  * @returns {Promise<string[]>} A Promise resolving to an array of branch names
  */
-export async function getAvailableBranches(
-  workspaceRoot: string,
-): Promise<Result<string[], GitError>> {
+export async function getAvailableBranches(workspaceRoot: string): Promise<Result<string[], GitError>> {
   try {
     const result = await run("git", ["branch", "--list"], {
       nodeOptions: {
@@ -282,10 +268,7 @@ export async function createBranch(
   }
 }
 
-export async function checkoutBranch(
-  branch: string,
-  workspaceRoot: string,
-): Promise<Result<boolean, GitError>> {
+export async function checkoutBranch(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
   try {
     logger.info(`Switching to branch: ${farver.green(branch)}`);
     const result = await run("git", ["checkout", branch], {
@@ -331,10 +314,7 @@ export async function checkoutBranch(
   }
 }
 
-export async function pullLatestChanges(
-  branch: string,
-  workspaceRoot: string,
-): Promise<Result<boolean, GitError>> {
+export async function pullLatestChanges(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
   try {
     await run("git", ["pull", "origin", branch], {
       nodeOptions: {
@@ -348,10 +328,7 @@ export async function pullLatestChanges(
   }
 }
 
-export async function rebaseBranch(
-  ontoBranch: string,
-  workspaceRoot: string,
-): Promise<Result<void, GitError>> {
+export async function rebaseBranch(ontoBranch: string, workspaceRoot: string): Promise<Result<void, GitError>> {
   try {
     logger.info(`Rebasing onto: ${farver.cyan(ontoBranch)}`);
     await runIfNotDry("git", ["rebase", ontoBranch], {
@@ -376,10 +353,7 @@ export async function rebaseBranch(
   }
 }
 
-export async function isBranchAheadOfRemote(
-  branch: string,
-  workspaceRoot: string,
-): Promise<Result<boolean, GitError>> {
+export async function isBranchAheadOfRemote(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
   try {
     const result = await run("git", ["rev-list", `origin/${branch}..${branch}`, "--count"], {
       nodeOptions: {
@@ -396,10 +370,7 @@ export async function isBranchAheadOfRemote(
   }
 }
 
-export async function commitChanges(
-  message: string,
-  workspaceRoot: string,
-): Promise<Result<boolean, GitError>> {
+export async function commitChanges(message: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
   try {
     // Stage modifications and deletions to already-tracked files only.
     // Using -u avoids accidentally staging untracked/unrelated files.
@@ -503,8 +474,9 @@ export async function pushBranch(
         logger.info(`Pushing branch: ${farver.green(branch)} ${farver.dim("(with lease)")}`);
       } catch (error) {
         const fetchError = toGitError("pushBranch.fetch", error);
-        const isMissingRemoteRef = fetchError.stderr?.includes("couldn't find remote ref")
-          || fetchError.message.includes("couldn't find remote ref");
+        const isMissingRemoteRef =
+          fetchError.stderr?.includes("couldn't find remote ref") ||
+          fetchError.message.includes("couldn't find remote ref");
 
         if (isMissingRemoteRef) {
           logger.verbose(
@@ -567,7 +539,10 @@ export async function getMostRecentPackageTag(
       },
     });
 
-    const tags = stdout.split("\n").map((tag) => tag.trim()).filter(Boolean);
+    const tags = stdout
+      .split("\n")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
     if (tags.length === 0) {
       return ok(undefined);
     }
@@ -663,7 +638,10 @@ export async function getGroupedFilesByCommitSha(
       },
     });
 
-    const lines = stdout.trim().split("\n").filter((line) => line.trim() !== "");
+    const lines = stdout
+      .trim()
+      .split("\n")
+      .filter((line) => line.trim() !== "");
 
     let currentSha: string | null = null;
 
@@ -751,10 +729,7 @@ async function createPackageTag(
  * @param workspaceRoot - The root directory of the workspace
  * @returns Result indicating success or failure
  */
-async function pushTag(
-  tagName: string,
-  workspaceRoot: string,
-): Promise<Result<void, GitError>> {
+async function pushTag(tagName: string, workspaceRoot: string): Promise<Result<void, GitError>> {
   try {
     logger.info(`Pushing tag: ${farver.green(tagName)}`);
     await runIfNotDry("git", ["push", "origin", tagName], {

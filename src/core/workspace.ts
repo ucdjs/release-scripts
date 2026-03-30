@@ -1,7 +1,4 @@
-import type {
-  FindWorkspacePackagesOptions,
-  PackageJson,
-} from "#shared/types";
+import type { FindWorkspacePackagesOptions, PackageJson } from "#shared/types";
 import type { Result } from "#types";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import { readFile } from "node:fs/promises";
@@ -66,10 +63,7 @@ export async function discoverWorkspacePackages(
 
   let workspacePackages: WorkspacePackage[];
   try {
-    workspacePackages = await findWorkspacePackages(
-      workspaceRoot,
-      workspaceOptions,
-    );
+    workspacePackages = await findWorkspacePackages(workspaceRoot, workspaceOptions);
   } catch (error) {
     return err(toWorkspaceError("discoverWorkspacePackages", error));
   }
@@ -80,11 +74,13 @@ export async function discoverWorkspacePackages(
     const missing = explicitPackages.filter((p) => !foundNames.has(p));
 
     if (missing.length > 0) {
-      return err(toWorkspaceError(
-        "discoverWorkspacePackages",
-        `Package${missing.length > 1 ? "s" : ""} not found in workspace: ${missing.join(", ")}. `
-        + `Check your package names or run 'pnpm ls' to see available packages`,
-      ));
+      return err(
+        toWorkspaceError(
+          "discoverWorkspacePackages",
+          `Package${missing.length > 1 ? "s" : ""} not found in workspace: ${missing.join(", ")}. ` +
+            `Check your package names or run 'pnpm ls' to see available packages`,
+        ),
+      );
     }
   }
 
@@ -104,9 +100,7 @@ export async function discoverWorkspacePackages(
 
   if (!getIsCI() && isPackagePromptEnabled && !explicitPackages) {
     const selectedNames = await selectPackagePrompt(workspacePackages);
-    workspacePackages = workspacePackages.filter((pkg) =>
-      selectedNames.includes(pkg.name),
-    );
+    workspacePackages = workspacePackages.filter((pkg) => selectedNames.includes(pkg.name));
   }
 
   return ok(workspacePackages);
@@ -156,25 +150,18 @@ async function findWorkspacePackages(
     const packages = await Promise.all(promises);
 
     if (excludedPackages.size > 0) {
-      logger.info(`Excluded packages: ${farver.green(
-        [...excludedPackages].join(", "),
-      )}`);
+      logger.info(`Excluded packages: ${farver.green([...excludedPackages].join(", "))}`);
     }
 
     // Filter out excluded packages (nulls)
-    return packages.filter(
-      (pkg): pkg is WorkspacePackage => pkg !== null,
-    );
+    return packages.filter((pkg): pkg is WorkspacePackage => pkg !== null);
   } catch (err) {
     logger.error("Error discovering workspace packages:", err);
     throw err;
   }
 }
 
-function shouldIncludePackage(
-  pkg: PackageJson,
-  options?: FindWorkspacePackagesOptions,
-): boolean {
+function shouldIncludePackage(pkg: PackageJson, options?: FindWorkspacePackagesOptions): boolean {
   if (!options) {
     return true;
   }

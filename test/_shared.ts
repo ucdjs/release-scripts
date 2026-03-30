@@ -19,9 +19,7 @@ export function createCommit(overrides: Partial<GitCommit> = {}): GitCommit {
     isBreaking: overrides.isBreaking ?? false,
     body: overrides.body,
     references: overrides.references ?? [],
-    authors: overrides.authors ?? [
-      { name: "Test Author", email: "author@example.com" },
-    ],
+    authors: overrides.authors ?? [{ name: "Test Author", email: "author@example.com" }],
     ...overrides,
   } as GitCommit;
 }
@@ -96,10 +94,7 @@ export function createNormalizedReleaseOptions(
   };
 }
 
-export function createWorkspacePackage(
-  path: string,
-  overrides: Partial<WorkspacePackage> = {},
-): WorkspacePackage {
+export function createWorkspacePackage(path: string, overrides: Partial<WorkspacePackage> = {}): WorkspacePackage {
   const name = overrides.name ?? "@ucdjs/test";
   const version = overrides.version ?? "0.0.0";
 
@@ -114,11 +109,14 @@ export function createWorkspacePackage(
   };
 }
 
-export function createChangelogTestContext(workspaceRoot: string, overrides: {
-  normalizedOptions?: Partial<NormalizedReleaseScriptsOptions>;
-  workspacePackage?: Partial<WorkspacePackage>;
-  githubClient?: Partial<GitHubClient>;
-} = {}) {
+export function createChangelogTestContext(
+  workspaceRoot: string,
+  overrides: {
+    normalizedOptions?: Partial<NormalizedReleaseScriptsOptions>;
+    workspacePackage?: Partial<WorkspacePackage>;
+    githubClient?: Partial<GitHubClient>;
+  } = {},
+) {
   const normalizedOptions = createNormalizedReleaseOptions({
     workspaceRoot,
     ...overrides.normalizedOptions,

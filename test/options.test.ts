@@ -10,23 +10,19 @@ const VALID_OPTIONS = {
 describe("normalizeReleaseScriptsOptions", () => {
   describe("validation", () => {
     it("throws ReleaseError when githubToken is empty", () => {
-      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, githubToken: "" }))
-        .toThrow(ReleaseError);
+      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, githubToken: "" })).toThrow(ReleaseError);
     });
 
     it("throws ReleaseError when githubToken is only whitespace", () => {
-      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, githubToken: "   " }))
-        .toThrow(ReleaseError);
+      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, githubToken: "   " })).toThrow(ReleaseError);
     });
 
     it("throws ReleaseError when repo has no slash", () => {
-      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, repo: "justarepo" }))
-        .toThrow(ReleaseError);
+      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, repo: "justarepo" })).toThrow(ReleaseError);
     });
 
     it("throws ReleaseError when repo is empty string", () => {
-      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, repo: "" }))
-        .toThrow(ReleaseError);
+      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, repo: "" })).toThrow(ReleaseError);
     });
   });
 

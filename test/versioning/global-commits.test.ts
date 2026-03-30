@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DEPENDENCY_FILES, fileMatchesPackageFolder, filterGlobalCommits, findCommitRange, isGlobalCommit } from "../../src/versioning/commits";
+import {
+  DEPENDENCY_FILES,
+  fileMatchesPackageFolder,
+  filterGlobalCommits,
+  findCommitRange,
+  isGlobalCommit,
+} from "../../src/versioning/commits";
 import { createCommit } from "../_shared";
 
 describe("fileMatchesPackageFolder", () => {
@@ -47,14 +53,8 @@ describe("isGlobalCommit", () => {
 describe("findCommitRange", () => {
   it("returns oldest and newest commit hashes", () => {
     const map = new Map([
-      ["pkg-a", [
-        createCommit({ shortHash: "newest1" }),
-        createCommit({ shortHash: "oldest1" }),
-      ]],
-      ["pkg-b", [
-        createCommit({ shortHash: "newest2" }),
-        createCommit({ shortHash: "oldest2" }),
-      ]],
+      ["pkg-a", [createCommit({ shortHash: "newest1" }), createCommit({ shortHash: "oldest1" })]],
+      ["pkg-b", [createCommit({ shortHash: "newest2" }), createCommit({ shortHash: "oldest2" })]],
     ]);
     const result = findCommitRange(map);
     expect(result).not.toBeNull();

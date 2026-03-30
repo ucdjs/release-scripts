@@ -10,9 +10,7 @@ import farver from "farver";
 import prompts from "prompts";
 import semver from "semver";
 
-export async function selectPackagePrompt(
-  packages: WorkspacePackage[],
-): Promise<string[]> {
+export async function selectPackagePrompt(packages: WorkspacePackage[]): Promise<string[]> {
   const response = await prompts({
     type: "multiselect",
     name: "selectedPackages",
@@ -45,13 +43,10 @@ export async function selectVersionPrompt(
   },
 ): Promise<string | null> {
   const defaultChoice = options?.defaultChoice ?? "auto";
-  const suggestedSuffix = options?.suggestedHint
-    ? farver.dim(` (${options.suggestedHint})`)
-    : "";
+  const suggestedSuffix = options?.suggestedHint ? farver.dim(` (${options.suggestedHint})`) : "";
   const prereleaseIdentifier = getPrereleaseIdentifier(currentVersion);
-  const defaultPrereleaseId = prereleaseIdentifier === "alpha" || prereleaseIdentifier === "beta"
-    ? prereleaseIdentifier
-    : "beta";
+  const defaultPrereleaseId =
+    prereleaseIdentifier === "alpha" || prereleaseIdentifier === "beta" ? prereleaseIdentifier : "beta";
 
   const nextDefaultPrerelease = getNextPrereleaseVersion(currentVersion, "next", defaultPrereleaseId);
   const nextBeta = getNextPrereleaseVersion(currentVersion, "next", "beta");
@@ -78,14 +73,16 @@ export async function selectVersionPrompt(
     { value: "custom", title: "custom" },
   ];
 
-  const initialValue = defaultChoice === "auto"
-    ? (suggestedVersion === currentVersion ? "skip" : "suggested")
-    : defaultChoice;
-  const initial = Math.max(0, choices.findIndex((choice) => choice.value === initialValue));
+  const initialValue =
+    defaultChoice === "auto" ? (suggestedVersion === currentVersion ? "skip" : "suggested") : defaultChoice;
+  const initial = Math.max(
+    0,
+    choices.findIndex((choice) => choice.value === initialValue),
+  );
 
   const prereleaseVersionByChoice = {
     "next-prerelease": nextDefaultPrerelease,
-    "next": nextDefaultPrerelease,
+    next: nextDefaultPrerelease,
     "next-beta": nextBeta,
     "next-alpha": nextAlpha,
     "prepatch-beta": prePatchBeta,
@@ -168,14 +165,10 @@ export async function selectVersionPrompt(
       return null;
     }
 
-    return prereleaseVersionByChoice[
-      prereleaseAnswer.prerelease as keyof typeof prereleaseVersionByChoice
-    ];
+    return prereleaseVersionByChoice[prereleaseAnswer.prerelease as keyof typeof prereleaseVersionByChoice];
   }
 
-  const prereleaseVersion = prereleaseVersionByChoice[
-    answers.version as keyof typeof prereleaseVersionByChoice
-  ];
+  const prereleaseVersion = prereleaseVersionByChoice[answers.version as keyof typeof prereleaseVersionByChoice];
 
   if (prereleaseVersion) {
     return prereleaseVersion;
@@ -185,7 +178,10 @@ export async function selectVersionPrompt(
   return getNextStableVersion(pkg.version, stableBump);
 }
 
-export async function confirmOverridePrompt(pkg: WorkspacePackage, overrideVersion: string): Promise<"use" | "pick" | null> {
+export async function confirmOverridePrompt(
+  pkg: WorkspacePackage,
+  overrideVersion: string,
+): Promise<"use" | "pick" | null> {
   const response = await prompts({
     type: "select",
     name: "choice",
