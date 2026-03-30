@@ -35,6 +35,24 @@ export function getNextVersion(currentVersion: string, bump: BumpKind): string {
   return next;
 }
 
+/**
+ * Like getNextVersion but always produces a stable version, even when
+ * currentVersion is a prerelease. Use this when the caller explicitly wants
+ * to promote to a stable release (e.g. patch/minor/major prompt choices).
+ */
+export function getNextStableVersion(currentVersion: string, bump: Exclude<BumpKind, "none">): string {
+  if (!isValidSemver(currentVersion)) {
+    throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
+  }
+
+  const next = semver.inc(currentVersion, bump);
+  if (!next) {
+    throw new Error(`Failed to bump version ${currentVersion} with bump ${bump}`);
+  }
+
+  return next;
+}
+
 export function calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
   if (!isValidSemver(oldVersion) || !isValidSemver(newVersion)) {
     throw new Error(`Cannot calculate bump type for invalid semver: ${oldVersion} or ${newVersion}`);

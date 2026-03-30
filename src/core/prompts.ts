@@ -2,6 +2,7 @@ import type { WorkspacePackage } from "#core/workspace";
 import type { BumpKind } from "#shared/types";
 import {
   getNextPrereleaseVersion,
+  getNextStableVersion,
   getNextVersion,
   getPrereleaseIdentifier,
   isValidSemver,
@@ -70,9 +71,9 @@ export async function selectVersionPrompt(
     ...(isCurrentPrerelease
       ? [{ value: "next-prerelease", title: `next prerelease ${farver.bold(nextDefaultPrerelease)}` }]
       : []),
-    { value: "patch", title: `patch ${farver.bold(getNextVersion(pkg.version, "patch"))}` },
-    { value: "minor", title: `minor ${farver.bold(getNextVersion(pkg.version, "minor"))}` },
-    { value: "major", title: `major ${farver.bold(getNextVersion(pkg.version, "major"))}` },
+    { value: "patch", title: `patch ${farver.bold(getNextStableVersion(pkg.version, "patch"))}` },
+    { value: "minor", title: `minor ${farver.bold(getNextStableVersion(pkg.version, "minor"))}` },
+    { value: "major", title: `major ${farver.bold(getNextStableVersion(pkg.version, "major"))}` },
     { value: "prerelease", title: `prerelease ${farver.dim("(choose strategy)")}` },
     { value: "custom", title: "custom" },
   ];
@@ -175,7 +176,8 @@ export async function selectVersionPrompt(
     return prereleaseVersion;
   }
 
-  return getNextVersion(pkg.version, answers.version as BumpKind);
+  const stableBump = answers.version as Exclude<BumpKind, "none">;
+  return getNextStableVersion(pkg.version, stableBump);
 }
 
 export async function confirmOverridePrompt(pkg: WorkspacePackage, overrideVersion: string): Promise<"use" | "pick" | null> {
