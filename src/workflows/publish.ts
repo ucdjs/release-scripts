@@ -170,35 +170,50 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
       );
     }
 
-    if (existsResult.value) {
-      logger.info(`Version ${farver.cyan(version)} already exists on NPM, skipping`);
+    const npmExists = existsResult.value;
+
+    // Check if a changelog entry exists for this version
+    let changelogEntryExists = false;
+    const changelogPath = join(pkg.path, "CHANGELOG.md");
+    try {
+      const changelogContent = await readFile(changelogPath, "utf-8");
+      const parsed = parseChangelog(changelogContent);
+      changelogEntryExists = parsed.versions.some((v) => v.version === version);
+    } catch {
+      // If changelog can't be read, treat entry as missing
+    }
+
+    if (npmExists && changelogEntryExists) {
+      logger.info(`Version ${farver.cyan(version)} already exists on NPM and in changelog, skipping`);
       status.skipped.push(packageName);
       continue;
     }
 
-    // Publish to NPM
-    logger.step(`Publishing ${farver.cyan(`${packageName}@${version}`)} to NPM...`);
-    const publishResult = await publishPackage(packageName, version, options.workspaceRoot, options);
+    if (!npmExists) {
+      // Publish to NPM
+      logger.step(`Publishing ${farver.cyan(`${packageName}@${version}`)} to NPM...`);
+      const publishResult = await publishPackage(packageName, version, options.workspaceRoot, options);
 
-    if (!publishResult.ok) {
-      logger.error(`Failed to publish: ${publishResult.error.message}`);
-      status.failed.push(packageName);
+      if (!publishResult.ok) {
+        logger.error(`Failed to publish: ${publishResult.error.message}`);
+        status.failed.push(packageName);
 
-      // Provide helpful error messages for common issues
-      let hint: string | undefined;
-      if (publishResult.error.code === "E403") {
-        hint = "Authentication failed. Ensure your NPM token or OIDC configuration is correct";
-      } else if (publishResult.error.code === "EPUBLISHCONFLICT") {
-        hint = "Version conflict. The version may have been published recently";
-      } else if (publishResult.error.code === "EOTP") {
-        hint = "2FA/OTP required. Provide the otp option or use OIDC authentication";
+        // Provide helpful error messages for common issues
+        let hint: string | undefined;
+        if (publishResult.error.code === "E403") {
+          hint = "Authentication failed. Ensure your NPM token or OIDC configuration is correct";
+        } else if (publishResult.error.code === "EPUBLISHCONFLICT") {
+          hint = "Version conflict. The version may have been published recently";
+        } else if (publishResult.error.code === "EOTP") {
+          hint = "2FA/OTP required. Provide the otp option or use OIDC authentication";
+        }
+
+        exitWithError(`Publishing failed for ${packageName}`, hint, publishResult.error);
       }
 
-      exitWithError(`Publishing failed for ${packageName}`, hint, publishResult.error);
+      logger.success(`Published ${farver.cyan(`${packageName}@${version}`)}`);
+      status.published.push(packageName);
     }
-
-    logger.success(`Published ${farver.cyan(`${packageName}@${version}`)}`);
-    status.published.push(packageName);
 
     // Create and push git tag
     logger.step(`Creating git tag ${farver.cyan(`${packageName}@${version}`)}...`);
