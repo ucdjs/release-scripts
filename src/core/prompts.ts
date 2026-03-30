@@ -124,6 +124,9 @@ export async function selectVersionPrompt(
         if (!isValidSemver(custom)) {
           return "That's not a valid version number";
         }
+        if (!isValidSemver(currentVersion)) {
+          return `Current version "${currentVersion}" is not valid semver — cannot compare`;
+        }
         if (!semver.gt(custom, currentVersion)) {
           return `Version must be greater than the current version (${currentVersion})`;
         }

@@ -147,10 +147,12 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
     throw new ReleaseError("Repository (repo) is required. Specify in 'owner/repo' format (e.g., 'octocat/hello-world').");
   }
 
-  const [owner, repo] = fullRepo.split("/");
-  if (!owner || !repo) {
+  const repoParts = fullRepo.trim().split("/");
+  if (repoParts.length !== 2 || !repoParts[0]!.trim() || !repoParts[1]!.trim()) {
     throw new ReleaseError(`Invalid repo format: "${fullRepo}". Expected format: "owner/repo" (e.g., "octocat/hello-world").`);
   }
+
+  const [owner, repo] = repoParts.map((p) => p.trim()) as [string, string];
 
   const normalizedPackages = typeof packages === "object" && !Array.isArray(packages)
     ? {
