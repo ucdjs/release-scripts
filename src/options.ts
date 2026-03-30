@@ -2,6 +2,7 @@ import type { GitHubClient } from "#core/github";
 import type { CommitTypeRule } from "#shared/types";
 import process from "node:process";
 import { createGitHubClient } from "#core/github";
+import { ReleaseError } from "#shared/errors";
 import { dedent } from "@luxass/utils";
 
 type DeepRequired<T> = Required<{
@@ -139,16 +140,16 @@ export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInp
 
   const token = githubToken.trim();
   if (!token) {
-    throw new Error("GitHub token is required. Pass it in via options.");
+    throw new ReleaseError("GitHub token is required. Pass it in via options.");
   }
 
   if (!fullRepo || !fullRepo.trim() || !fullRepo.includes("/")) {
-    throw new Error("Repository (repo) is required. Specify in 'owner/repo' format (e.g., 'octocat/hello-world').");
+    throw new ReleaseError("Repository (repo) is required. Specify in 'owner/repo' format (e.g., 'octocat/hello-world').");
   }
 
   const [owner, repo] = fullRepo.split("/");
   if (!owner || !repo) {
-    throw new Error(`Invalid repo format: "${fullRepo}". Expected format: "owner/repo" (e.g., "octocat/hello-world").`);
+    throw new ReleaseError(`Invalid repo format: "${fullRepo}". Expected format: "owner/repo" (e.g., "octocat/hello-world").`);
   }
 
   const normalizedPackages = typeof packages === "object" && !Array.isArray(packages)
