@@ -14,6 +14,19 @@ export function getNextVersion(currentVersion: string, bump: BumpKind): string {
     throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
   }
 
+  // If currently a prerelease, stay in the same prerelease track rather than
+  // promoting to stable. Use the existing identifier (e.g. "beta") if present.
+  if (semver.prerelease(currentVersion)) {
+    const identifier = getPrereleaseIdentifier(currentVersion);
+    const next = identifier
+      ? semver.inc(currentVersion, "prerelease", identifier)
+      : semver.inc(currentVersion, "prerelease");
+    if (!next) {
+      throw new Error(`Failed to bump prerelease version ${currentVersion}`);
+    }
+    return next;
+  }
+
   const next = semver.inc(currentVersion, bump);
   if (!next) {
     throw new Error(`Failed to bump version ${currentVersion} with bump ${bump}`);
