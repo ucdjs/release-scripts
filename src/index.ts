@@ -68,7 +68,7 @@ export async function createReleaseScripts(options: ReleaseScriptsOptionsInput):
       async list(): Promise<WorkspacePackage[]> {
         return withErrorBoundary(async () => {
           const result = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
-          if (!result.ok) throw new Error(result.error.message);
+          if (!result.ok) throw new ReleaseError(result.error.message, undefined, result.error);
           return result.value;
         });
       },
@@ -76,7 +76,7 @@ export async function createReleaseScripts(options: ReleaseScriptsOptionsInput):
       async get(packageName: string): Promise<WorkspacePackage | undefined> {
         return withErrorBoundary(async () => {
           const result = await discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions);
-          if (!result.ok) throw new Error(result.error.message);
+          if (!result.ok) throw new ReleaseError(result.error.message, undefined, result.error);
           return result.value.find((p) => p.name === packageName);
         });
       },

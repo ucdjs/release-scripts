@@ -43,11 +43,13 @@
   },
   "devDependencies": {
     "@luxass/eslint-config": "7.3.0",
+    "@luxass/msw-utils": "0.6.1",
     "@types/node": "22.18.12",
     "@types/prompts": "2.4.9",
     "@types/semver": "7.7.1",
     "eslint": "10.0.3",
     "eta": "4.5.1",
+    "msw": "2.12.14",
     "tsdown": "0.21.2",
     "typescript": "5.9.3",
     "vitest": "4.1.0",

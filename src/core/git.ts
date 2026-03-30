@@ -12,7 +12,7 @@ import semver from "semver";
 
 const DEFAULT_BRANCH_RE = /^refs\/remotes\/origin\/(.+)$/;
 const CHECKOUT_BRANCH_RE = /Switched to (?:a new )?branch '(.+)'/;
-const COMMIT_HASH_RE = /^[0-9a-f]{40}$/i;
+const COMMIT_HASH_RE = /^[0-9a-f]{7,40}$/i;
 
 /**
  * Check if the working directory is clean (no uncommitted changes)
@@ -363,6 +363,15 @@ export async function rebaseBranch(
 
     return ok(undefined);
   } catch (error) {
+    // Abort any in-progress rebase to leave the repo in a clean state
+    try {
+      await run("git", ["rebase", "--abort"], {
+        nodeOptions: { cwd: workspaceRoot, stdio: "pipe" },
+      });
+      logger.verbose("Aborted in-progress rebase after failure");
+    } catch {
+      // Ignore abort errors — rebase may not have started
+    }
     return err(toGitError("rebaseBranch", error));
   }
 }
@@ -392,17 +401,22 @@ export async function commitChanges(
   workspaceRoot: string,
 ): Promise<Result<boolean, GitError>> {
   try {
-    // Stage all changes
-    await run("git", ["add", "."], {
+    // Stage modifications and deletions to already-tracked files only.
+    // Using -u avoids accidentally staging untracked/unrelated files.
+    await run("git", ["add", "-u"], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
       },
     });
 
-    // Check if there are changes to commit
-    const isClean = await isWorkingDirectoryClean(workspaceRoot);
-    if (!isClean.ok || isClean.value) {
+    // Check if anything was actually staged (git add -u only touches tracked files;
+    // untracked files would cause isWorkingDirectoryClean to return false even when
+    // nothing is staged, leading to a "nothing to commit" error from git commit).
+    const staged = await run("git", ["diff", "--cached", "--name-only"], {
+      nodeOptions: { cwd: workspaceRoot, stdio: "pipe" },
+    });
+    if (staged.stdout.trim() === "") {
       return ok(false);
     }
 
@@ -558,8 +572,16 @@ export async function getMostRecentPackageTag(
       return ok(undefined);
     }
 
-    // Find the last tag for the specified package
-    return ok(tags.reverse()[0]);
+    // Filter to valid semver only, then sort descending so the highest version comes first.
+    // Non-semver tags (e.g. "pkg@latest") would cause semver.rcompare to throw.
+    const sorted = tags
+      .filter((t) => semver.valid(t.slice(t.lastIndexOf("@") + 1)))
+      .sort((a, b) => {
+        const va = a.slice(a.lastIndexOf("@") + 1);
+        const vb = b.slice(b.lastIndexOf("@") + 1);
+        return semver.rcompare(va, vb);
+      });
+    return ok(sorted[0]);
   } catch (error) {
     return err(toGitError("getMostRecentPackageTag", error));
   }
@@ -580,8 +602,12 @@ export async function getMostRecentPackageStableTag(
     const tags = stdout
       .split("\n")
       .map((tag) => tag.trim())
-      .filter(Boolean)
-      .reverse();
+      .filter((tag) => Boolean(tag) && semver.valid(tag.slice(tag.lastIndexOf("@") + 1)))
+      .sort((a, b) => {
+        const va = a.slice(a.lastIndexOf("@") + 1);
+        const vb = b.slice(b.lastIndexOf("@") + 1);
+        return semver.rcompare(va, vb);
+      });
 
     for (const tag of tags) {
       const atIndex = tag.lastIndexOf("@");
@@ -606,18 +632,19 @@ export async function getMostRecentPackageStableTag(
  * within a given inclusive range.
  *
  * Internally runs:
- *   git log --name-only --format=%H <from>^..<to>
+ *   git log --name-only --format=%h <from>^..<to>
  *
  * Notes
  * - This includes the commit identified by `from` (via `from^..to`).
  * - Order of commits in the resulting Map follows `git log` output
  *   (reverse chronological, newest first).
  * - On failure (e.g., invalid refs), the function returns null.
+ * - Keys in the returned Map are short SHAs (7 chars, matching GitCommit.shortHash).
  *
  * @param {string} workspaceRoot Absolute path to the git repository root used as cwd.
  * @param {string} from          Starting commit/ref (inclusive).
  * @param {string} to            Ending commit/ref (inclusive).
- * @returns {Promise<Map<string, string[]> | null>} Promise resolving to a Map where keys are commit SHAs and values are
+ * @returns {Promise<Map<string, string[]> | null>} Promise resolving to a Map where keys are short commit SHAs and values are
  *          arrays of file paths changed by that commit, or null on error.
  */
 export async function getGroupedFilesByCommitSha(
@@ -625,11 +652,11 @@ export async function getGroupedFilesByCommitSha(
   from: string,
   to: string,
 ): Promise<Result<Map<string, string[]>, GitError>> {
-  //                    commit hash    file paths
+  //                    short commit hash    file paths
   const commitsMap = new Map<string, string[]>();
 
   try {
-    const { stdout } = await run("git", ["log", "--name-only", "--format=%H", `${from}^..${to}`], {
+    const { stdout } = await run("git", ["log", "--name-only", "--format=%h", `${from}^..${to}`], {
       nodeOptions: {
         cwd: workspaceRoot,
         stdio: "pipe",
@@ -686,6 +713,25 @@ async function createPackageTag(
   const tagName = `${packageName}@${version}`;
 
   try {
+    // Check if this tag already exists locally and points to the same commit as HEAD.
+    // If it exists but points elsewhere, we must not silently skip — fall through and
+    // let git tag fail or be overwritten as appropriate.
+    const existingTagResult = await run("git", ["tag", "--list", tagName], {
+      nodeOptions: { cwd: workspaceRoot, stdio: "pipe" },
+    });
+    if (existingTagResult.stdout.trim() === tagName) {
+      // Verify the tag resolves to HEAD so we don't silently ignore a mispointed tag
+      const [tagCommit, headCommit] = await Promise.all([
+        run("git", ["rev-list", "-n1", tagName], { nodeOptions: { cwd: workspaceRoot, stdio: "pipe" } }),
+        run("git", ["rev-parse", "HEAD"], { nodeOptions: { cwd: workspaceRoot, stdio: "pipe" } }),
+      ]);
+      if (tagCommit.stdout.trim() === headCommit.stdout.trim()) {
+        logger.verbose(`Tag ${farver.green(tagName)} already exists and points to HEAD, skipping creation`);
+        return ok(undefined);
+      }
+      logger.verbose(`Tag ${farver.green(tagName)} exists but points to a different commit — proceeding`);
+    }
+
     logger.info(`Creating tag: ${farver.green(tagName)}`);
     await runIfNotDry("git", ["tag", tagName], {
       nodeOptions: {

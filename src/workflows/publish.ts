@@ -115,6 +115,15 @@ async function cleanupPublishedOverrides(
 export async function publishWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {
   logger.section("📦 Publishing Packages");
 
+  // Warn if not on the expected default branch — publishing from a feature/release branch is unusual
+  const currentBranch = await getCurrentBranch(options.workspaceRoot);
+  if (currentBranch.ok && currentBranch.value !== options.branch.default) {
+    logger.warn(
+      `Publishing from branch "${currentBranch.value}" instead of the default branch "${options.branch.default}". `
+      + `Pass --force if this is intentional.`,
+    );
+  }
+
   // Discover workspace packages
   const discovered = await discoverWorkspacePackages(options.workspaceRoot, options);
   if (!discovered.ok) {

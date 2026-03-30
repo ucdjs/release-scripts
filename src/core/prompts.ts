@@ -3,12 +3,12 @@ import type { BumpKind } from "#shared/types";
 import {
   getNextPrereleaseVersion,
   getNextStableVersion,
-  getNextVersion,
   getPrereleaseIdentifier,
   isValidSemver,
 } from "#operations/semver";
 import farver from "farver";
 import prompts from "prompts";
+import semver from "semver";
 
 export async function selectPackagePrompt(
   packages: WorkspacePackage[],
@@ -121,11 +121,16 @@ export async function selectVersionPrompt(
       message: "Enter the new version number:",
       initial: suggestedVersion,
       validate: (custom: string) => {
-        if (isValidSemver(custom)) {
-          return true;
+        if (!isValidSemver(custom)) {
+          return "That's not a valid version number";
         }
-
-        return "That's not a valid version number";
+        if (!isValidSemver(currentVersion)) {
+          return `Current version "${currentVersion}" is not valid semver — cannot compare`;
+        }
+        if (!semver.gt(custom, currentVersion)) {
+          return `Version must be greater than the current version (${currentVersion})`;
+        }
+        return true;
       },
     });
 

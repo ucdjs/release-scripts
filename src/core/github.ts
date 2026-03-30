@@ -371,11 +371,9 @@ export class GitHubClient {
         items?: Array<{ login: string }>;
       }>(`/search/users?q=${q}`);
 
-      if (!data.items || data.items.length === 0) {
-        return info;
+      if (data.items && data.items.length > 0) {
+        info.login = data.items[0]!.login;
       }
-
-      info.login = data.items[0]!.login;
     } catch (err) {
       logger.warn(`Failed to resolve author info for email ${info.email}: ${formatUnknownError(err).message}`);
     }
