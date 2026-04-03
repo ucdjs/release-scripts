@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+permissions: {}
+
+jobs:
+  ci:
+    uses: luxass/shared-workflows/.github/workflows/ci.yaml@a25bf7725dc069a2a7605ac267d6cde4e0025fbe # v0.4.0
+    permissions:
+      contents: read
+    with:
+      fmt: true
+      fmt-script: "fmt:check"
+
+  test:
+    uses: luxass/shared-workflows/.github/workflows/test.yaml@a25bf7725dc069a2a7605ac267d6cde4e0025fbe # v0.4.0
+    permissions:
+      contents: read

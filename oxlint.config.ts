@@ -1,33 +1,39 @@
 import { defineConfig } from "oxlint";
 
 export default defineConfig({
+  options: {
+    typeAware: true,
+    typeCheck: true,
+  },
+  plugins: ["unicorn", "typescript", "oxc"],
   categories: {
     correctness: "error",
-    suspicious: "warn",
-    pedantic: "off",
-    nursery: "off",
+    perf: "error",
+    suspicious: "error",
   },
   rules: {
-    "eslint/no-unused-vars": [
-      "error",
-      {
-        argsIgnorePattern: "^_",
-        varsIgnorePattern: "^_",
-        caughtErrors: "none",
-      },
-    ],
-    "eslint/no-shadow": "off",
-    "typescript/no-explicit-any": "warn",
-    "typescript/no-non-null-assertion": "off",
+    "eslint/no-await-in-loop": "off",
+    "no-console": ["error", { allow: ["error", "warn"] }],
+    "no-shadow": "off",
+    "typescript/no-unnecessary-boolean-literal-compare": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+    curly: "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-misused-spread": "off",
   },
-  plugins: ["typescript", "vitest", "eslint"],
   overrides: [
     {
-      files: ["test/**/*.ts"],
+      files: [".github/**/*", "scripts/**/*"],
       rules: {
-        "typescript/no-explicit-any": "off",
+        "no-console": "off",
+      },
+    },
+    {
+      files: ["test/**/*"],
+      rules: {
+        "typescript/unbound-method": "off",
+        "typescript/no-unsafe-member-access": "off",
       },
     },
   ],
-  ignorePatterns: ["dist", "node_modules", "*.d.ts", "*.d.mts"],
 });

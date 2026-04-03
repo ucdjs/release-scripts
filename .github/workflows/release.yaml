@@ -1,0 +1,14 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions: {}
+
+jobs:
+  release:
+    uses: luxass/shared-workflows/.github/workflows/release-npm.yaml@a25bf7725dc069a2a7605ac267d6cde4e0025fbe # v0.4.0
+    with:
+      environment: npm-registry
