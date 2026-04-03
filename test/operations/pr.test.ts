@@ -2,6 +2,7 @@ import { createGitHubClient } from "#core/github";
 import { syncPullRequest } from "#operations/pr";
 import { HttpResponse } from "msw";
 import { assert, describe, expect, it } from "vitest";
+
 import { GITHUB_API_BASE, mockFetch } from "../_msw";
 import { createWorkspacePackage } from "../_shared";
 
@@ -25,7 +26,9 @@ const NO_UPDATES = [
 
 describe("syncPullRequest", () => {
   it("creates a new PR when none exists and returns created: true", async () => {
-    mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () => HttpResponse.json([]));
+    mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
+      HttpResponse.json([]),
+    );
     mockFetch("POST", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
       HttpResponse.json(
         {
@@ -131,7 +134,9 @@ describe("syncPullRequest", () => {
   it("uses pullRequestTitle when there is no existing PR", async () => {
     let capturedTitle: string | undefined;
 
-    mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () => HttpResponse.json([]));
+    mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
+      HttpResponse.json([]),
+    );
     mockFetch("POST", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, async ({ request }) => {
       const body = (await request.json()) as { title?: string };
       capturedTitle = body.title;
@@ -162,7 +167,9 @@ describe("syncPullRequest", () => {
   it("falls back to default title when neither existing PR nor caller title is present", async () => {
     let capturedTitle: string | undefined;
 
-    mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () => HttpResponse.json([]));
+    mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
+      HttpResponse.json([]),
+    );
     mockFetch("POST", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, async ({ request }) => {
       const body = (await request.json()) as { title?: string };
       capturedTitle = body.title;
@@ -207,7 +214,9 @@ describe("syncPullRequest", () => {
   });
 
   it("returns err when upsertPullRequest fails", async () => {
-    mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () => HttpResponse.json([]));
+    mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
+      HttpResponse.json([]),
+    );
     mockFetch("POST", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
       HttpResponse.json({ message: "Validation failed" }, { status: 422 }),
     );

@@ -1,6 +1,7 @@
-import type { GitHubClient } from "#core/github";
 import { generateChangelogEntry } from "#core/changelog";
+import type { GitHubClient } from "#core/github";
 import { describe, expect, it, vi } from "vitest";
+
 import { DEFAULT_TYPES } from "../../src/options";
 import { createCommit } from "../_shared";
 

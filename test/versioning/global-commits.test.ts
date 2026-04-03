@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import {
   DEPENDENCY_FILES,
   fileMatchesPackageFolder,
@@ -10,7 +11,9 @@ import { createCommit } from "../_shared";
 
 describe("fileMatchesPackageFolder", () => {
   it("matches files inside package folder", () => {
-    expect(fileMatchesPackageFolder("packages/a/src/index.ts", new Set(["packages/a"]), "/repo")).toBe(true);
+    expect(
+      fileMatchesPackageFolder("packages/a/src/index.ts", new Set(["packages/a"]), "/repo"),
+    ).toBe(true);
   });
 
   it("does not match files outside package folders", () => {
@@ -18,15 +21,21 @@ describe("fileMatchesPackageFolder", () => {
   });
 
   it("handles absolute package paths", () => {
-    expect(fileMatchesPackageFolder("packages/a/file.ts", new Set(["/repo/packages/a"]), "/repo")).toBe(true);
+    expect(
+      fileMatchesPackageFolder("packages/a/file.ts", new Set(["/repo/packages/a"]), "/repo"),
+    ).toBe(true);
   });
 
   it("handles file path with leading ./", () => {
-    expect(fileMatchesPackageFolder("./packages/a/file.ts", new Set(["packages/a"]), "/repo")).toBe(true);
+    expect(fileMatchesPackageFolder("./packages/a/file.ts", new Set(["packages/a"]), "/repo")).toBe(
+      true,
+    );
   });
 
   it("does not match partial folder name matches", () => {
-    expect(fileMatchesPackageFolder("packages/abc/file.ts", new Set(["packages/a"]), "/repo")).toBe(false);
+    expect(fileMatchesPackageFolder("packages/abc/file.ts", new Set(["packages/a"]), "/repo")).toBe(
+      false,
+    );
   });
 });
 
@@ -38,7 +47,9 @@ describe("isGlobalCommit", () => {
   });
 
   it("returns false when any file touches a package folder", () => {
-    expect(isGlobalCommit("/repo", ["packages/a/src/index.ts", "README.md"], packagePaths)).toBe(false);
+    expect(isGlobalCommit("/repo", ["packages/a/src/index.ts", "README.md"], packagePaths)).toBe(
+      false,
+    );
   });
 
   it("returns false for empty file list", () => {

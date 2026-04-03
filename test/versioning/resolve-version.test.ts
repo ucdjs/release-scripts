@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { resolveAutoVersion } from "../../src/versioning/version";
 import { createCommit, createWorkspacePackage } from "../_shared";
 

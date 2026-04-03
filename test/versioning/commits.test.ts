@@ -1,5 +1,6 @@
 import { determineHighestBump } from "#operations/version";
 import { describe, expect, it } from "vitest";
+
 import { createCommit } from "../_shared";
 
 describe("determineHighestBump", () => {

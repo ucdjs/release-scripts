@@ -1,6 +1,7 @@
 import { createGitHubClient, generatePullRequestBody } from "#core/github";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
+
 import { GITHUB_API_BASE, mockFetch } from "../_msw";
 
 describe("gitHubClient.getExistingPullRequest", () => {
@@ -48,9 +49,11 @@ describe("gitHubClient.getExistingPullRequest", () => {
     });
 
     await expect(
-      createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).getExistingPullRequest(
-        "release/next",
-      ),
+      createGitHubClient({
+        owner: "ucdjs",
+        repo: "test-repo",
+        githubToken: "test-token",
+      }).getExistingPullRequest("release/next"),
     ).rejects.toThrow("Pull request data validation failed");
   });
 
@@ -60,9 +63,11 @@ describe("gitHubClient.getExistingPullRequest", () => {
     });
 
     await expect(
-      createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).getExistingPullRequest(
-        "release/next",
-      ),
+      createGitHubClient({
+        owner: "ucdjs",
+        repo: "test-repo",
+        githubToken: "test-token",
+      }).getExistingPullRequest("release/next"),
     ).rejects.toThrow("401");
   });
 });
@@ -126,7 +131,11 @@ describe("gitHubClient.upsertPullRequest", () => {
     });
 
     await expect(
-      createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).upsertPullRequest({
+      createGitHubClient({
+        owner: "ucdjs",
+        repo: "test-repo",
+        githubToken: "test-token",
+      }).upsertPullRequest({
         title: "x",
         body: "y",
         head: "h",
@@ -139,12 +148,20 @@ describe("gitHubClient.upsertPullRequest", () => {
 describe("gitHubClient.setCommitStatus", () => {
   it("sends the correct payload to the statuses endpoint", async () => {
     let captured: unknown;
-    mockFetch("POST", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/statuses/abc1234`, async ({ request }) => {
-      captured = await request.json();
-      return HttpResponse.json({}, { status: 201 });
-    });
+    mockFetch(
+      "POST",
+      `${GITHUB_API_BASE}/repos/ucdjs/test-repo/statuses/abc1234`,
+      async ({ request }) => {
+        captured = await request.json();
+        return HttpResponse.json({}, { status: 201 });
+      },
+    );
 
-    await createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).setCommitStatus({
+    await createGitHubClient({
+      owner: "ucdjs",
+      repo: "test-repo",
+      githubToken: "test-token",
+    }).setCommitStatus({
       sha: "abc1234",
       state: "success",
       context: "release/verify",
@@ -236,7 +253,11 @@ describe("gitHubClient.upsertReleaseByTag", () => {
     });
 
     await expect(
-      createGitHubClient({ owner: "ucdjs", repo: "test-repo", githubToken: "test-token" }).upsertReleaseByTag({
+      createGitHubClient({
+        owner: "ucdjs",
+        repo: "test-repo",
+        githubToken: "test-token",
+      }).upsertReleaseByTag({
         tagName: "pkg@1.0.0",
         name: "pkg@1.0.0",
         body: "notes",
@@ -290,7 +311,12 @@ describe("gitHubClient.resolveAuthorInfo", () => {
       owner: "ucdjs",
       repo: "test-repo",
       githubToken: "test-token",
-    }).resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: ["abc123"] });
+    }).resolveAuthorInfo({
+      name: "Test",
+      email: "t@test.com",
+      login: undefined,
+      commits: ["abc123"],
+    });
     expect(result.login).toBe("commit-author");
   });
 

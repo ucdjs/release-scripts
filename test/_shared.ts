@@ -1,12 +1,13 @@
 import type { GitHubClient } from "#core/github";
 import type { WorkspacePackage } from "#core/workspace";
 import type { GitCommit } from "commit-parser";
+
 import type { NormalizedReleaseScriptsOptions } from "../src/options";
 import { DEFAULT_TYPES } from "../src/options";
 
 export function createCommit(overrides: Partial<GitCommit> = {}): GitCommit {
   const message = overrides.message ?? overrides.description ?? "feat: add feature";
-  const description = overrides.description ?? message.split("\n")[0]!;
+  const description = overrides.description ?? message.split("\n")[0];
 
   return {
     hash: overrides.hash ?? "abc1234567890",
@@ -94,7 +95,10 @@ export function createNormalizedReleaseOptions(
   };
 }
 
-export function createWorkspacePackage(path: string, overrides: Partial<WorkspacePackage> = {}): WorkspacePackage {
+export function createWorkspacePackage(
+  path: string,
+  overrides: Partial<WorkspacePackage> = {},
+): WorkspacePackage {
   const name = overrides.name ?? "@ucdjs/test";
   const version = overrides.version ?? "0.0.0";
 

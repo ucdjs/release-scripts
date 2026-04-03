@@ -1,5 +1,5 @@
-import type { PackageRelease } from "#shared/types";
 import { getNextVersion } from "#operations/semver";
+import type { PackageRelease } from "#shared/types";
 import {
   buildPackageDependencyGraph,
   createDependentUpdates,
@@ -7,6 +7,7 @@ import {
   getPackagePublishOrder,
 } from "#versioning/package";
 import { describe, expect, it } from "vitest";
+
 import { createWorkspacePackage } from "../_shared";
 
 function createRelease(
@@ -78,7 +79,9 @@ describe("package dependency graph", () => {
     const graph = buildPackageDependencyGraph(packages);
 
     const affectedFromD = getAllAffectedPackages(graph, new Set(["pkg-d"]));
-    expect([...affectedFromD].toSorted()).toEqual(["pkg-a", "pkg-b", "pkg-c", "pkg-d", "pkg-e"].toSorted());
+    expect([...affectedFromD].toSorted()).toEqual(
+      ["pkg-a", "pkg-b", "pkg-c", "pkg-d", "pkg-e"].toSorted(),
+    );
 
     const affectedFromB = getAllAffectedPackages(graph, new Set(["pkg-b"]));
     expect([...affectedFromB].toSorted()).toEqual(["pkg-a", "pkg-b", "pkg-e"].toSorted());
@@ -89,7 +92,11 @@ describe("package dependency graph", () => {
     const graph = buildPackageDependencyGraph(packages);
 
     const order = getPackagePublishOrder(graph, new Set(["pkg-b", "pkg-c"]));
-    expect(order.map((entry) => `${entry.package.name}:${entry.level}`)).toEqual(["pkg-b:0", "pkg-c:0", "pkg-a:1"]);
+    expect(order.map((entry) => `${entry.package.name}:${entry.level}`)).toEqual([
+      "pkg-b:0",
+      "pkg-c:0",
+      "pkg-a:1",
+    ]);
 
     const orderFromD = getPackagePublishOrder(graph, new Set(["pkg-d"]));
     expect(orderFromD.map((entry) => `${entry.package.name}:${entry.level}`)).toEqual([
@@ -99,7 +106,10 @@ describe("package dependency graph", () => {
     ]);
 
     const orderFromA = getPackagePublishOrder(graph, new Set(["pkg-a"]));
-    expect(orderFromA.map((entry) => `${entry.package.name}:${entry.level}`)).toEqual(["pkg-a:0", "pkg-e:1"]);
+    expect(orderFromA.map((entry) => `${entry.package.name}:${entry.level}`)).toEqual([
+      "pkg-a:0",
+      "pkg-e:1",
+    ]);
   });
 
   it("creates dependent updates with patch bumps", () => {
@@ -125,8 +135,8 @@ describe("package dependency graph", () => {
     const directUpdates = [createRelease(pkgB, "minor"), createRelease(pkgC, "patch")];
 
     const updates = createDependentUpdates(graph, packages, directUpdates, new Set(["pkg-a"]));
-    const updatedNames = updates.map((update) => update.package.name).sort();
+    const updatedNames = updates.map((update) => update.package.name).toSorted();
 
-    expect(updatedNames).toEqual(["pkg-b", "pkg-c", "pkg-e"].sort());
+    expect(updatedNames).toEqual(["pkg-b", "pkg-c", "pkg-e"].toSorted());
   });
 });

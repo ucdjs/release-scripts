@@ -1,6 +1,7 @@
 import type { PackageRelease } from "#shared/types";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
 import { describe, expect, it, vi } from "vitest";
+
 import { createWorkspacePackage } from "../_shared";
 
 vi.mock("#core/prompts", () => ({
@@ -48,7 +49,9 @@ describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
 
     const byName = new Map(result.allUpdates.map((update) => [update.package.name, update]));
 
-    expect(result.allUpdates.map((update) => update.package.name).sort()).toEqual(["pkg-a", "pkg-b", "pkg-c"].sort());
+    expect(result.allUpdates.map((update) => update.package.name).toSorted()).toEqual(
+      ["pkg-a", "pkg-b", "pkg-c"].toSorted(),
+    );
 
     expect(byName.get("pkg-b")?.bumpType).toBe("minor");
     expect(byName.get("pkg-b")?.newVersion).toBe("1.1.0");
@@ -75,7 +78,9 @@ describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
     });
 
     const workspacePackages = [pkgA, pkgB, pkgD];
-    const packageCommits = new Map([["pkg-b", [{ type: "feat", isConventional: true, isBreaking: false } as any]]]);
+    const packageCommits = new Map([
+      ["pkg-b", [{ type: "feat", isConventional: true, isBreaking: false } as any]],
+    ]);
     const globalCommitsPerPackage = new Map();
 
     const result = await calculateAndPrepareVersionUpdates({
@@ -89,7 +94,7 @@ describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
       },
     });
 
-    const updatedNames = result.allUpdates.map((update) => update.package.name).sort();
+    const updatedNames = result.allUpdates.map((update) => update.package.name).toSorted();
     expect(updatedNames).toEqual(["pkg-b"]);
   });
 

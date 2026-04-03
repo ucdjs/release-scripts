@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { computeDependencyRange } from "../../src/versioning/version";
 
 describe("computeDependencyRange", () => {

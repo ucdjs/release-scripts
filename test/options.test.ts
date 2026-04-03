@@ -1,5 +1,6 @@
 import { ReleaseError } from "#shared/errors";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
 import { DEFAULT_TYPES, normalizeReleaseScriptsOptions } from "../src/options";
 
 const VALID_OPTIONS = {
@@ -10,19 +11,30 @@ const VALID_OPTIONS = {
 describe("normalizeReleaseScriptsOptions", () => {
   describe("validation", () => {
     it("throws ReleaseError when githubToken is empty", () => {
-      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, githubToken: "" })).toThrow(ReleaseError);
+      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, githubToken: "" })).toThrow(
+        ReleaseError,
+      );
     });
 
     it("throws ReleaseError when githubToken is only whitespace", () => {
-      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, githubToken: "   " })).toThrow(ReleaseError);
+      expect(() =>
+        normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, githubToken: "   " }),
+      ).toThrow(ReleaseError);
     });
 
     it("throws ReleaseError when repo has no slash", () => {
-      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, repo: "justarepo" })).toThrow(ReleaseError);
+      expect(() =>
+        normalizeReleaseScriptsOptions({
+          ...VALID_OPTIONS,
+          repo: "justarepo" as `${string}/${string}`,
+        }),
+      ).toThrow(ReleaseError);
     });
 
     it("throws ReleaseError when repo is empty string", () => {
-      expect(() => normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, repo: "" })).toThrow(ReleaseError);
+      expect(() =>
+        normalizeReleaseScriptsOptions({ ...VALID_OPTIONS, repo: "" as `${string}/${string}` }),
+      ).toThrow(ReleaseError);
     });
   });
 

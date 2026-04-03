@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import { generateChangelogEntry, parseChangelog, updateChangelog } from "#core/changelog";
 import { dedent } from "@luxass/utils";
 import * as tinyexec from "tinyexec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testdir } from "vitest-testdirs";
+
 import { DEFAULT_TYPES } from "../../src/options";
 import { createChangelogTestContext, createCommit, createGitHubClientStub } from "../_shared";
 
@@ -349,7 +351,8 @@ describe("parseChangelog", () => {
 describe("updateChangelog", () => {
   it("should create a new changelog file", async () => {
     const testdirPath = await testdir({});
-    const { normalizedOptions, workspacePackage, githubClient } = createChangelogTestContext(testdirPath);
+    const { normalizedOptions, workspacePackage, githubClient } =
+      createChangelogTestContext(testdirPath);
 
     mockExec.mockRejectedValue(new Error("fatal: path 'CHANGELOG.md' does not exist"));
 

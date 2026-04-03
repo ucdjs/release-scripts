@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
 import { getIsCI } from "../../src/shared/utils";
 
 describe("getIsCI", () => {

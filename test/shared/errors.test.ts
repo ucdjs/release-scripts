@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { exitWithError, formatUnknownError, printReleaseError, ReleaseError } from "../../src/shared/errors";
+
+import {
+  exitWithError,
+  formatUnknownError,
+  printReleaseError,
+  ReleaseError,
+} from "../../src/shared/errors";
 
 describe("formatUnknownError", () => {
   it("handles Error instances", () => {

@@ -1,5 +1,6 @@
 import { determineHighestBump } from "#operations/version";
 import { describe, expect, it } from "vitest";
+
 import { createCommit } from "../_shared";
 
 describe("version operations", () => {
@@ -18,7 +19,9 @@ describe("version operations", () => {
   });
 
   it("returns major for breaking commits", () => {
-    const result = determineHighestBump([createCommit({ type: "feat", isBreaking: true, isConventional: true })]);
+    const result = determineHighestBump([
+      createCommit({ type: "feat", isBreaking: true, isConventional: true }),
+    ]);
     expect(result).toBe("major");
   });
 });

@@ -1,7 +1,8 @@
+import { buildTemplateGroups } from "#operations/changelog-format";
 import type { AuthorInfo, CommitTypeRule } from "#shared/types";
 import type { GitCommit } from "commit-parser";
-import { buildTemplateGroups } from "#operations/changelog-format";
 import { describe, expect, it } from "vitest";
+
 import { createCommit } from "../_shared";
 
 const TYPES: Record<string, CommitTypeRule> = {
@@ -81,7 +82,12 @@ describe("buildTemplateGroups", () => {
   });
 
   it("appends commit short hash link to every line", () => {
-    const commit = createCommit({ type: "fix", hash: "abc1234567890", shortHash: "abc1234", description: "fix crash" });
+    const commit = createCommit({
+      type: "fix",
+      hash: "abc1234567890",
+      shortHash: "abc1234",
+      description: "fix crash",
+    });
     const groups = buildTemplateGroups({
       commits: [commit],
       owner: OWNER,
@@ -157,7 +163,7 @@ describe("buildTemplateGroups", () => {
 
   it("appends author login as a GitHub link when login is present", () => {
     const commit = createCommit({ type: "feat", hash: "bbb1111111111", shortHash: "bbb1111" });
-    const authors: AuthorInfo[] = [{ name: "luxass", login: "luxass", commits: [] }];
+    const authors: AuthorInfo[] = [{ name: "luxass", login: "luxass", email: "", commits: [] }];
     const groups = buildTemplateGroups({
       commits: [commit],
       owner: OWNER,
@@ -172,7 +178,7 @@ describe("buildTemplateGroups", () => {
 
   it("uses author name when login is absent", () => {
     const commit = createCommit({ type: "feat", hash: "ccc2222222222", shortHash: "ccc2222" });
-    const authors: AuthorInfo[] = [{ name: "Some Contributor", commits: [] }];
+    const authors: AuthorInfo[] = [{ name: "Some Contributor", email: "", commits: [] }];
     const groups = buildTemplateGroups({
       commits: [commit],
       owner: OWNER,
@@ -188,8 +194,8 @@ describe("buildTemplateGroups", () => {
   it("joins multiple authors with a comma", () => {
     const commit = createCommit({ type: "feat", hash: "ddd3333333333", shortHash: "ddd3333" });
     const authors: AuthorInfo[] = [
-      { name: "Alice", login: "alice", commits: [] },
-      { name: "Bob", commits: [] },
+      { name: "Alice", login: "alice", email: "", commits: [] },
+      { name: "Bob", email: "", commits: [] },
     ];
     const groups = buildTemplateGroups({
       commits: [commit],
@@ -241,7 +247,10 @@ describe("buildTemplateGroups", () => {
 
     expect(groups[0]!.commits).toHaveLength(2);
     expect(groups[0]!.commits.map((c) => c.line)).toEqual(
-      expect.arrayContaining([expect.stringContaining("regular feat"), expect.stringContaining("alias feature")]),
+      expect.arrayContaining([
+        expect.stringContaining("regular feat"),
+        expect.stringContaining("alias feature"),
+      ]),
     );
   });
 });
