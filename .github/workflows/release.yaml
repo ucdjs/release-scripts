@@ -15,3 +15,4 @@ jobs:
       id-token: write
     with:
       environment: npm-registry
+      publish-args: --access public --no-git-checks
