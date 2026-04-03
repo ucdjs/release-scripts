@@ -1,7 +1,8 @@
-import type { Result } from "#types";
 import process from "node:process";
+
 import { formatUnknownError } from "#shared/errors";
 import { logger, run, runIfNotDry } from "#shared/utils";
+import type { Result } from "#types";
 import { err, ok } from "#types";
 import farver from "farver";
 import semver from "semver";
@@ -48,14 +49,21 @@ async function ensureLocalGitIdentity(workspaceRoot: string): Promise<Result<voi
     const actor = process.env.GITHUB_ACTOR?.trim();
 
     const name =
-      process.env.GIT_AUTHOR_NAME?.trim() || process.env.GIT_COMMITTER_NAME?.trim() || actor || "github-actions[bot]";
+      process.env.GIT_AUTHOR_NAME?.trim() ||
+      process.env.GIT_COMMITTER_NAME?.trim() ||
+      actor ||
+      "github-actions[bot]";
 
     const email =
       process.env.GIT_AUTHOR_EMAIL?.trim() ||
       process.env.GIT_COMMITTER_EMAIL?.trim() ||
-      (actor ? `${actor}@users.noreply.github.com` : "github-actions[bot]@users.noreply.github.com");
+      (actor
+        ? `${actor}@users.noreply.github.com`
+        : "github-actions[bot]@users.noreply.github.com");
 
-    logger.warn("Git author identity missing. Configuring repository-local git identity for this run.");
+    logger.warn(
+      "Git author identity missing. Configuring repository-local git identity for this run.",
+    );
 
     await runIfNotDry("git", ["config", "user.name", name], {
       nodeOptions: {
@@ -113,7 +121,9 @@ async function commitWithRetryOnMissingIdentity(
   }
 }
 
-export async function isWorkingDirectoryClean(workspaceRoot: string): Promise<Result<boolean, GitError>> {
+export async function isWorkingDirectoryClean(
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
   try {
     const result = await run("git", ["status", "--porcelain"], {
       nodeOptions: {
@@ -139,7 +149,10 @@ export async function isWorkingDirectoryClean(workspaceRoot: string): Promise<Re
  * @param {string} workspaceRoot - The root directory of the workspace
  * @returns {Promise<Result<boolean, GitError>>} Promise resolving to true if remote branch exists
  */
-export async function doesRemoteBranchExist(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
+export async function doesRemoteBranchExist(
+  branch: string,
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
   try {
     await run("git", ["ls-remote", "--exit-code", "--heads", "origin", branch], {
       nodeOptions: {
@@ -149,12 +162,17 @@ export async function doesRemoteBranchExist(branch: string, workspaceRoot: strin
     });
     return ok(true);
   } catch (error) {
-    logger.verbose(`Remote branch "origin/${branch}" does not exist: ${formatUnknownError(error).message}`);
+    logger.verbose(
+      `Remote branch "origin/${branch}" does not exist: ${formatUnknownError(error).message}`,
+    );
     return ok(false);
   }
 }
 
-export async function doesBranchExist(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
+export async function doesBranchExist(
+  branch: string,
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
   try {
     await run("git", ["rev-parse", "--verify", branch], {
       nodeOptions: {
@@ -192,7 +210,9 @@ export async function getDefaultBranch(workspaceRoot: string): Promise<Result<st
 
     return ok("main"); // Fallback
   } catch (error) {
-    logger.verbose(`Failed to detect default branch from origin/HEAD: ${formatUnknownError(error).message}`);
+    logger.verbose(
+      `Failed to detect default branch from origin/HEAD: ${formatUnknownError(error).message}`,
+    );
     return ok("main"); // Fallback
   }
 }
@@ -222,7 +242,9 @@ export async function getCurrentBranch(workspaceRoot: string): Promise<Result<st
  * @param {string} workspaceRoot - The root directory of the workspace
  * @returns {Promise<string[]>} A Promise resolving to an array of branch names
  */
-export async function getAvailableBranches(workspaceRoot: string): Promise<Result<string[], GitError>> {
+export async function getAvailableBranches(
+  workspaceRoot: string,
+): Promise<Result<string[], GitError>> {
   try {
     const result = await run("git", ["branch", "--list"], {
       nodeOptions: {
@@ -268,7 +290,10 @@ export async function createBranch(
   }
 }
 
-export async function checkoutBranch(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
+export async function checkoutBranch(
+  branch: string,
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
   try {
     logger.info(`Switching to branch: ${farver.green(branch)}`);
     const result = await run("git", ["checkout", branch], {
@@ -314,7 +339,10 @@ export async function checkoutBranch(branch: string, workspaceRoot: string): Pro
   }
 }
 
-export async function pullLatestChanges(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
+export async function pullLatestChanges(
+  branch: string,
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
   try {
     await run("git", ["pull", "origin", branch], {
       nodeOptions: {
@@ -328,7 +356,10 @@ export async function pullLatestChanges(branch: string, workspaceRoot: string): 
   }
 }
 
-export async function rebaseBranch(ontoBranch: string, workspaceRoot: string): Promise<Result<void, GitError>> {
+export async function rebaseBranch(
+  ontoBranch: string,
+  workspaceRoot: string,
+): Promise<Result<void, GitError>> {
   try {
     logger.info(`Rebasing onto: ${farver.cyan(ontoBranch)}`);
     await runIfNotDry("git", ["rebase", ontoBranch], {
@@ -353,7 +384,10 @@ export async function rebaseBranch(ontoBranch: string, workspaceRoot: string): P
   }
 }
 
-export async function isBranchAheadOfRemote(branch: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
+export async function isBranchAheadOfRemote(
+  branch: string,
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
   try {
     const result = await run("git", ["rev-list", `origin/${branch}..${branch}`, "--count"], {
       nodeOptions: {
@@ -365,12 +399,17 @@ export async function isBranchAheadOfRemote(branch: string, workspaceRoot: strin
     const commitCount = Number.parseInt(result.stdout.trim(), 10);
     return ok(commitCount > 0);
   } catch (error) {
-    logger.verbose(`Failed to compare branch "${branch}" with remote: ${formatUnknownError(error).message}`);
+    logger.verbose(
+      `Failed to compare branch "${branch}" with remote: ${formatUnknownError(error).message}`,
+    );
     return ok(true);
   }
 }
 
-export async function commitChanges(message: string, workspaceRoot: string): Promise<Result<boolean, GitError>> {
+export async function commitChanges(
+  message: string,
+  workspaceRoot: string,
+): Promise<Result<boolean, GitError>> {
   try {
     // Stage modifications and deletions to already-tracked files only.
     // Using -u avoids accidentally staging untracked/unrelated files.
@@ -393,7 +432,11 @@ export async function commitChanges(message: string, workspaceRoot: string): Pro
 
     // Commit
     logger.info(`Committing changes: ${farver.dim(message)}`);
-    const committed = await commitWithRetryOnMissingIdentity(message, workspaceRoot, "commitChanges");
+    const committed = await commitWithRetryOnMissingIdentity(
+      message,
+      workspaceRoot,
+      "commitChanges",
+    );
     if (!committed.ok) {
       return committed;
     }
@@ -551,7 +594,7 @@ export async function getMostRecentPackageTag(
     // Non-semver tags (e.g. "pkg@latest") would cause semver.rcompare to throw.
     const sorted = tags
       .filter((t) => semver.valid(t.slice(t.lastIndexOf("@") + 1)))
-      .sort((a, b) => {
+      .toSorted((a, b) => {
         const va = a.slice(a.lastIndexOf("@") + 1);
         const vb = b.slice(b.lastIndexOf("@") + 1);
         return semver.rcompare(va, vb);
@@ -578,7 +621,7 @@ export async function getMostRecentPackageStableTag(
       .split("\n")
       .map((tag) => tag.trim())
       .filter((tag) => Boolean(tag) && semver.valid(tag.slice(tag.lastIndexOf("@") + 1)))
-      .sort((a, b) => {
+      .toSorted((a, b) => {
         const va = a.slice(a.lastIndexOf("@") + 1);
         const vb = b.slice(b.lastIndexOf("@") + 1);
         return semver.rcompare(va, vb);
@@ -700,14 +743,20 @@ async function createPackageTag(
     if (existingTagResult.stdout.trim() === tagName) {
       // Verify the tag resolves to HEAD so we don't silently ignore a mispointed tag
       const [tagCommit, headCommit] = await Promise.all([
-        run("git", ["rev-list", "-n1", tagName], { nodeOptions: { cwd: workspaceRoot, stdio: "pipe" } }),
+        run("git", ["rev-list", "-n1", tagName], {
+          nodeOptions: { cwd: workspaceRoot, stdio: "pipe" },
+        }),
         run("git", ["rev-parse", "HEAD"], { nodeOptions: { cwd: workspaceRoot, stdio: "pipe" } }),
       ]);
       if (tagCommit.stdout.trim() === headCommit.stdout.trim()) {
-        logger.verbose(`Tag ${farver.green(tagName)} already exists and points to HEAD, skipping creation`);
+        logger.verbose(
+          `Tag ${farver.green(tagName)} already exists and points to HEAD, skipping creation`,
+        );
         return ok(undefined);
       }
-      logger.verbose(`Tag ${farver.green(tagName)} exists but points to a different commit — proceeding`);
+      logger.verbose(
+        `Tag ${farver.green(tagName)} exists but points to a different commit — proceeding`,
+      );
     }
 
     logger.info(`Creating tag: ${farver.green(tagName)}`);

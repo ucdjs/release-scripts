@@ -1,11 +1,11 @@
 import type { WorkspacePackage } from "#core/workspace";
-import type { BumpKind } from "#shared/types";
 import {
   getNextPrereleaseVersion,
   getNextStableVersion,
   getPrereleaseIdentifier,
   isValidSemver,
 } from "#operations/semver";
+import type { BumpKind } from "#shared/types";
 import farver from "farver";
 import prompts from "prompts";
 import semver from "semver";
@@ -46,9 +46,15 @@ export async function selectVersionPrompt(
   const suggestedSuffix = options?.suggestedHint ? farver.dim(` (${options.suggestedHint})`) : "";
   const prereleaseIdentifier = getPrereleaseIdentifier(currentVersion);
   const defaultPrereleaseId =
-    prereleaseIdentifier === "alpha" || prereleaseIdentifier === "beta" ? prereleaseIdentifier : "beta";
+    prereleaseIdentifier === "alpha" || prereleaseIdentifier === "beta"
+      ? prereleaseIdentifier
+      : "beta";
 
-  const nextDefaultPrerelease = getNextPrereleaseVersion(currentVersion, "next", defaultPrereleaseId);
+  const nextDefaultPrerelease = getNextPrereleaseVersion(
+    currentVersion,
+    "next",
+    defaultPrereleaseId,
+  );
   const nextBeta = getNextPrereleaseVersion(currentVersion, "next", "beta");
   const nextAlpha = getNextPrereleaseVersion(currentVersion, "next", "alpha");
   const prePatchBeta = getNextPrereleaseVersion(currentVersion, "prepatch", "beta");
@@ -64,7 +70,12 @@ export async function selectVersionPrompt(
     { value: "suggested", title: `suggested ${farver.bold(suggestedVersion)}${suggestedSuffix}` },
     { value: "as-is", title: `as-is ${farver.dim("(keep current version)")}` },
     ...(isCurrentPrerelease
-      ? [{ value: "next-prerelease", title: `next prerelease ${farver.bold(nextDefaultPrerelease)}` }]
+      ? [
+          {
+            value: "next-prerelease",
+            title: `next prerelease ${farver.bold(nextDefaultPrerelease)}`,
+          },
+        ]
       : []),
     { value: "patch", title: `patch ${farver.bold(getNextStableVersion(pkg.version, "patch"))}` },
     { value: "minor", title: `minor ${farver.bold(getNextStableVersion(pkg.version, "minor"))}` },
@@ -74,7 +85,11 @@ export async function selectVersionPrompt(
   ];
 
   const initialValue =
-    defaultChoice === "auto" ? (suggestedVersion === currentVersion ? "skip" : "suggested") : defaultChoice;
+    defaultChoice === "auto"
+      ? suggestedVersion === currentVersion
+        ? "skip"
+        : "suggested"
+      : defaultChoice;
   const initial = Math.max(
     0,
     choices.findIndex((choice) => choice.value === initialValue),
@@ -165,10 +180,13 @@ export async function selectVersionPrompt(
       return null;
     }
 
-    return prereleaseVersionByChoice[prereleaseAnswer.prerelease as keyof typeof prereleaseVersionByChoice];
+    return prereleaseVersionByChoice[
+      prereleaseAnswer.prerelease as keyof typeof prereleaseVersionByChoice
+    ];
   }
 
-  const prereleaseVersion = prereleaseVersionByChoice[answers.version as keyof typeof prereleaseVersionByChoice];
+  const prereleaseVersion =
+    prereleaseVersionByChoice[answers.version as keyof typeof prereleaseVersionByChoice];
 
   if (prereleaseVersion) {
     return prereleaseVersion;

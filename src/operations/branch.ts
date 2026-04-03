@@ -1,5 +1,4 @@
 import type { GitError } from "#core/git";
-import type { Result } from "#types";
 import {
   checkoutBranch,
   commitChanges,
@@ -12,7 +11,8 @@ import {
   pushBranch,
   rebaseBranch,
 } from "#core/git";
-import { logger } from "#shared/utils";
+import { logger, run } from "#shared/utils";
+import type { Result } from "#types";
 import { err, ok } from "#types";
 
 interface PrepareReleaseBranchOptions {
@@ -21,7 +21,9 @@ interface PrepareReleaseBranchOptions {
   defaultBranch: string;
 }
 
-export async function prepareReleaseBranch(options: PrepareReleaseBranchOptions): Promise<Result<void, GitError>> {
+export async function prepareReleaseBranch(
+  options: PrepareReleaseBranchOptions,
+): Promise<Result<void, GitError>> {
   const { workspaceRoot, releaseBranch, defaultBranch } = options;
 
   const currentBranch = await getCurrentBranch(workspaceRoot);
@@ -72,10 +74,27 @@ interface SyncChangesOptions {
   releaseBranch: string;
   commitMessage: string;
   hasChanges: boolean;
+  /** Extra file paths to explicitly stage (e.g. new untracked files that git add -u would miss). */
+  additionalPaths?: string[];
 }
 
-export async function syncReleaseChanges(options: SyncChangesOptions): Promise<Result<boolean, GitError>> {
-  const { workspaceRoot, releaseBranch, commitMessage, hasChanges } = options;
+export async function syncReleaseChanges(
+  options: SyncChangesOptions,
+): Promise<Result<boolean, GitError>> {
+  const { workspaceRoot, releaseBranch, commitMessage, hasChanges, additionalPaths } = options;
+
+  // Stage any explicitly listed paths before commitChanges runs.
+  // commitChanges uses git add -u which only stages already-tracked files;
+  // new files (like the overrides JSON) would be silently skipped without this.
+  if (additionalPaths && additionalPaths.length > 0) {
+    try {
+      await run("git", ["add", "--", ...additionalPaths], {
+        nodeOptions: { cwd: workspaceRoot, stdio: "pipe" },
+      });
+    } catch (error) {
+      logger.verbose(`Failed to stage additional paths: ${String(error)}`);
+    }
+  }
 
   const committed = hasChanges ? await commitChanges(commitMessage, workspaceRoot) : ok(false);
 

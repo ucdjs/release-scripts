@@ -1,7 +1,6 @@
-import type { ReleaseResult } from "#types";
-import type { NormalizedReleaseScriptsOptions } from "../options";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import { updateChangelog } from "#core/changelog";
 import { checkoutBranch, getMostRecentPackageStableTag, isWorkingDirectoryClean } from "#core/git";
 import { discoverWorkspacePackages } from "#core/workspace";
@@ -10,6 +9,7 @@ import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { syncPullRequest } from "#operations/pr";
 import { exitWithError, formatUnknownError } from "#shared/errors";
 import { logger, ucdjsReleaseOverridesPath } from "#shared/utils";
+import type { ReleaseResult } from "#types";
 import {
   getGlobalCommitsPerPackage,
   getPackageCommitsSinceTag,
@@ -18,7 +18,11 @@ import {
 import farver from "farver";
 import semver from "semver";
 
-export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions): Promise<ReleaseResult | null> {
+import type { NormalizedReleaseScriptsOptions } from "../options";
+
+export async function prepareWorkflow(
+  options: NormalizedReleaseScriptsOptions,
+): Promise<ReleaseResult | null> {
   if (options.safeguards) {
     const clean = await isWorkingDirectoryClean(options.workspaceRoot);
     if (!clean.ok) {
@@ -30,7 +34,9 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     }
 
     if (!clean.value) {
-      exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
+      exitWithError(
+        "Working directory is not clean. Please commit or stash your changes before proceeding.",
+      );
     }
   }
 
@@ -68,7 +74,10 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   }
 
   const overridesPath = join(options.workspaceRoot, ucdjsReleaseOverridesPath);
-  let existingOverrides: Record<string, { version: string; type: import("#shared/types").BumpKind }> = {};
+  let existingOverrides: Record<
+    string,
+    { version: string; type: import("#shared/types").BumpKind }
+  > = {};
   try {
     const overridesContent = await readFile(overridesPath, "utf-8");
     existingOverrides = JSON.parse(overridesContent);
@@ -160,7 +169,10 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
   if (options.changelog?.enabled) {
     logger.step("Updating changelogs");
 
-    const groupedPackageCommits = await getWorkspacePackageGroupedCommits(options.workspaceRoot, workspacePackages);
+    const groupedPackageCommits = await getWorkspacePackageGroupedCommits(
+      options.workspaceRoot,
+      workspacePackages,
+    );
     const globalCommitsPerPackage = await getGlobalCommitsPerPackage(
       options.workspaceRoot,
       groupedPackageCommits,
@@ -182,9 +194,14 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
             semver.prerelease(update.newVersion) == null;
 
           if (shouldCombinePrereleaseIntoStable) {
-            const stableTagResult = await getMostRecentPackageStableTag(options.workspaceRoot, update.package.name);
+            const stableTagResult = await getMostRecentPackageStableTag(
+              options.workspaceRoot,
+              update.package.name,
+            );
             if (!stableTagResult.ok) {
-              logger.warn(`Failed to resolve stable tag for ${update.package.name}: ${stableTagResult.error.message}`);
+              logger.warn(
+                `Failed to resolve stable tag for ${update.package.name}: ${stableTagResult.error.message}`,
+              );
             } else {
               const stableTag = stableTagResult.value;
               if (stableTag) {
@@ -252,6 +269,9 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
     releaseBranch: options.branch.release,
     commitMessage: "chore: update release versions",
     hasChanges: true,
+    // The overrides file may be a new untracked file that git add -u would miss.
+    // Explicitly include it so it gets committed alongside the version bumps.
+    additionalPaths: [overridesPath],
   });
 
   if (!hasChangesToPush.ok) {
@@ -266,7 +286,11 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
       logger.info("No changes to commit and no packages to release. Nothing to do.");
       const checkoutResult = await checkoutBranch(options.branch.default, options.workspaceRoot);
       if (!checkoutResult.ok) {
-        exitWithError(`Failed to checkout branch: ${options.branch.default}`, undefined, checkoutResult.error);
+        exitWithError(
+          `Failed to checkout branch: ${options.branch.default}`,
+          undefined,
+          checkoutResult.error,
+        );
       }
       return null;
     }
@@ -288,7 +312,11 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
       logger.item("No updates needed, PR is already up to date");
       const checkoutResult = await checkoutBranch(options.branch.default, options.workspaceRoot);
       if (!checkoutResult.ok) {
-        exitWithError(`Failed to checkout branch: ${options.branch.default}`, undefined, checkoutResult.error);
+        exitWithError(
+          `Failed to checkout branch: ${options.branch.default}`,
+          undefined,
+          checkoutResult.error,
+        );
       }
 
       return {
@@ -324,7 +352,11 @@ export async function prepareWorkflow(options: NormalizedReleaseScriptsOptions):
 
   const returnToDefault = await checkoutBranch(options.branch.default, options.workspaceRoot);
   if (!returnToDefault.ok) {
-    exitWithError(`Failed to checkout branch: ${options.branch.default}`, undefined, returnToDefault.error);
+    exitWithError(
+      `Failed to checkout branch: ${options.branch.default}`,
+      undefined,
+      returnToDefault.error,
+    );
   }
 
   if (!returnToDefault.value) {

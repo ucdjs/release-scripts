@@ -1,9 +1,9 @@
-import type { PublishStatus } from "#core/npm";
-import type { NormalizedReleaseScriptsOptions } from "../options";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import { parseChangelog } from "#core/changelog";
 import { commitPaths, createAndPushPackageTag, getCurrentBranch, pushBranch } from "#core/git";
+import type { PublishStatus } from "#core/npm";
 import { checkVersionExists, publishPackage } from "#core/npm";
 import { discoverWorkspacePackages } from "#core/workspace";
 import { exitWithError } from "#shared/errors";
@@ -11,6 +11,8 @@ import { logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { buildPackageDependencyGraph, getPackagePublishOrder } from "#versioning/package";
 import farver from "farver";
 import semver from "semver";
+
+import type { NormalizedReleaseScriptsOptions } from "../options";
 
 async function getReleaseBodyFromChangelog(
   workspaceRoot: string,
@@ -193,7 +195,9 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
     }
 
     if (npmExists && changelogEntryExists) {
-      logger.info(`Version ${farver.cyan(version)} already exists on NPM and in changelog, skipping`);
+      logger.info(
+        `Version ${farver.cyan(version)} already exists on NPM and in changelog, skipping`,
+      );
       status.skipped.push(packageName);
       continue;
     }
@@ -201,7 +205,12 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
     if (!npmExists) {
       // Publish to NPM
       logger.step(`Publishing ${farver.cyan(`${packageName}@${version}`)} to NPM...`);
-      const publishResult = await publishPackage(packageName, version, options.workspaceRoot, options);
+      const publishResult = await publishPackage(
+        packageName,
+        version,
+        options.workspaceRoot,
+        options,
+      );
 
       if (!publishResult.ok) {
         logger.error(`Failed to publish: ${publishResult.error.message}`);
@@ -243,7 +252,12 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
 
     logger.step(`Creating GitHub release for ${farver.cyan(tagName)}...`);
     try {
-      const releaseBody = await getReleaseBodyFromChangelog(options.workspaceRoot, packageName, pkg.path, version);
+      const releaseBody = await getReleaseBodyFromChangelog(
+        options.workspaceRoot,
+        packageName,
+        pkg.path,
+        version,
+      );
 
       const releaseResult = await options.githubClient.upsertReleaseByTag({
         tagName,
@@ -257,7 +271,9 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
           `${releaseResult.created ? "Created" : "Updated"} GitHub release: ${releaseResult.release.htmlUrl}`,
         );
       } else {
-        logger.success(`${releaseResult.created ? "Created" : "Updated"} GitHub release for ${farver.cyan(tagName)}`);
+        logger.success(
+          `${releaseResult.created ? "Created" : "Updated"} GitHub release for ${farver.cyan(tagName)}`,
+        );
       }
     } catch (error) {
       status.failed.push(packageName);
@@ -279,7 +295,9 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
   }
 
   if (status.skipped.length > 0) {
-    logger.item(`${farver.yellow("⚠")} Skipped (already exists): ${status.skipped.length} package(s)`);
+    logger.item(
+      `${farver.yellow("⚠")} Skipped (already exists): ${status.skipped.length} package(s)`,
+    );
     for (const pkg of status.skipped) {
       logger.item(`  ${farver.yellow("•")} ${pkg}`);
     }
@@ -296,7 +314,11 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
     exitWithError(`Publishing completed with ${status.failed.length} failure(s)`);
   }
 
-  const didCleanupOverrides = await cleanupPublishedOverrides(options, workspacePackages, status.published);
+  const didCleanupOverrides = await cleanupPublishedOverrides(
+    options,
+    workspacePackages,
+    status.published,
+  );
 
   if (didCleanupOverrides && !options.dryRun) {
     logger.step("Committing override cleanup...");
@@ -313,7 +335,11 @@ export async function publishWorkflow(options: NormalizedReleaseScriptsOptions):
     if (commitResult.value) {
       const currentBranch = await getCurrentBranch(options.workspaceRoot);
       if (!currentBranch.ok) {
-        exitWithError("Failed to detect current branch for override cleanup push.", undefined, currentBranch.error);
+        exitWithError(
+          "Failed to detect current branch for override cleanup push.",
+          undefined,
+          currentBranch.error,
+        );
       }
 
       const pushResult = await pushBranch(currentBranch.value, options.workspaceRoot);

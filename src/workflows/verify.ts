@@ -1,11 +1,18 @@
-import type { NormalizedReleaseScriptsOptions } from "../options";
 import { join, relative } from "node:path";
-import { checkoutBranch, getCurrentBranch, isWorkingDirectoryClean, readFileFromGit } from "#core/git";
+
+import {
+  checkoutBranch,
+  getCurrentBranch,
+  isWorkingDirectoryClean,
+  readFileFromGit,
+} from "#core/git";
 import { discoverWorkspacePackages } from "#core/workspace";
 import { calculateUpdates, ensureHasPackages } from "#operations/calculate";
 import { exitWithError, formatUnknownError } from "#shared/errors";
 import { logger, ucdjsReleaseOverridesPath } from "#shared/utils";
 import { gt } from "semver";
+
+import type { NormalizedReleaseScriptsOptions } from "../options";
 
 export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): Promise<void> {
   if (options.safeguards) {
@@ -19,7 +26,9 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
     }
 
     if (!clean.value) {
-      exitWithError("Working directory is not clean. Please commit or stash your changes before proceeding.");
+      exitWithError(
+        "Working directory is not clean. Please commit or stash your changes before proceeding.",
+      );
     }
   }
 
@@ -29,11 +38,15 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   const releasePr = await options.githubClient.getExistingPullRequest(releaseBranch);
 
   if (!releasePr || !releasePr.head) {
-    logger.warn(`No open release pull request found for branch "${releaseBranch}". Nothing to verify.`);
+    logger.warn(
+      `No open release pull request found for branch "${releaseBranch}". Nothing to verify.`,
+    );
     return;
   }
 
-  logger.info(`Found release PR #${releasePr.number}. Verifying against default branch "${defaultBranch}"...`);
+  logger.info(
+    `Found release PR #${releasePr.number}. Verifying against default branch "${defaultBranch}"...`,
+  );
 
   const originalBranch = await getCurrentBranch(options.workspaceRoot);
   if (!originalBranch.ok) {
@@ -51,7 +64,10 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
     }
   }
 
-  let existingOverrides: Record<string, { version: string; type: import("#shared/types").BumpKind }> = {};
+  let existingOverrides: Record<
+    string,
+    { version: string; type: import("#shared/types").BumpKind }
+  > = {};
   try {
     const overridesContent = await readFileFromGit(
       options.workspaceRoot,
@@ -93,12 +109,18 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   }
 
   const expectedUpdates = updatesResult.value.allUpdates;
-  const expectedVersionMap = new Map<string, string>(expectedUpdates.map((u) => [u.package.name, u.newVersion]));
+  const expectedVersionMap = new Map<string, string>(
+    expectedUpdates.map((u) => [u.package.name, u.newVersion]),
+  );
 
   const prVersionMap = new Map<string, string>();
   for (const pkg of mainPackages) {
     const pkgJsonPath = relative(options.workspaceRoot, join(pkg.path, "package.json"));
-    const pkgJsonContent = await readFileFromGit(options.workspaceRoot, releasePr.head.sha, pkgJsonPath);
+    const pkgJsonContent = await readFileFromGit(
+      options.workspaceRoot,
+      releasePr.head.sha,
+      pkgJsonPath,
+    );
     if (pkgJsonContent.ok && pkgJsonContent.value) {
       const pkgJson = JSON.parse(pkgJsonContent.value);
       prVersionMap.set(pkg.name, pkgJson.version);
@@ -113,7 +135,9 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
   for (const [pkgName, expectedVersion] of expectedVersionMap.entries()) {
     const prVersion = prVersionMap.get(pkgName);
     if (!prVersion) {
-      logger.warn(`Package "${pkgName}" found in default branch but not in release branch. Skipping.`);
+      logger.warn(
+        `Package "${pkgName}" found in default branch but not in release branch. Skipping.`,
+      );
       continue;
     }
 
@@ -123,7 +147,9 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
       );
       isOutOfSync = true;
     } else {
-      logger.success(`Package "${pkgName}" is up to date (PR version: ${prVersion}, Expected: ${expectedVersion})`);
+      logger.success(
+        `Package "${pkgName}" is up to date (PR version: ${prVersion}, Expected: ${expectedVersion})`,
+      );
     }
   }
 
@@ -134,7 +160,8 @@ export async function verifyWorkflow(options: NormalizedReleaseScriptsOptions): 
       sha: releasePr.head.sha,
       state: "failure",
       context: statusContext,
-      description: "Release PR is out of sync with the default branch. Please re-run the release process.",
+      description:
+        "Release PR is out of sync with the default branch. Please re-run the release process.",
     });
     logger.error("Verification failed. Commit status set to 'failure'.");
   } else {

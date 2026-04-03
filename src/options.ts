@@ -1,8 +1,9 @@
-import type { GitHubClient } from "#core/github";
-import type { CommitTypeRule } from "#shared/types";
 import process from "node:process";
+
+import type { GitHubClient } from "#core/github";
 import { createGitHubClient } from "#core/github";
 import { ReleaseError } from "#shared/errors";
+import type { CommitTypeRule } from "#shared/types";
 import { dedent } from "@luxass/utils";
 
 type DeepRequired<T> = Required<{
@@ -131,7 +132,9 @@ export const DEFAULT_TYPES: Record<string, CommitTypeRule> = {
   style: { title: "🎨 Styles" },
 };
 
-export function normalizeReleaseScriptsOptions(options: ReleaseScriptsOptionsInput): NormalizedReleaseScriptsOptions {
+export function normalizeReleaseScriptsOptions(
+  options: ReleaseScriptsOptionsInput,
+): NormalizedReleaseScriptsOptions {
   const {
     workspaceRoot = process.cwd(),
     githubToken = "",

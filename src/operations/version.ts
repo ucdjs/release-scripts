@@ -1,6 +1,7 @@
 import type { WorkspacePackage } from "#core/workspace";
 import type { BumpKind, PackageRelease } from "#shared/types";
 import type { GitCommit } from "commit-parser";
+
 import { getNextVersion } from "./semver";
 
 export function determineHighestBump(commits: GitCommit[]): BumpKind {
@@ -27,7 +28,11 @@ export function determineHighestBump(commits: GitCommit[]): BumpKind {
   return highestBump;
 }
 
-export function createVersionUpdate(pkg: WorkspacePackage, bump: BumpKind, hasDirectChanges: boolean): PackageRelease {
+export function createVersionUpdate(
+  pkg: WorkspacePackage,
+  bump: BumpKind,
+  hasDirectChanges: boolean,
+): PackageRelease {
   const newVersion = getNextVersion(pkg.version, bump);
 
   return {

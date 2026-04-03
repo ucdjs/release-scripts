@@ -13,7 +13,7 @@ interface FormatCommitLineOptions {
 
 function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOptions): string {
   const commitUrl = `https://github.com/${owner}/${repo}/commit/${commit.hash}`;
-  let line = `${commit.description}`;
+  let line = commit.description;
   const references = commit.references ?? [];
 
   for (const ref of references) {
@@ -34,7 +34,9 @@ function formatCommitLine({ commit, owner, repo, authors }: FormatCommitLineOpti
 
   if (authors.length > 0) {
     const authorList = authors
-      .map((author) => (author.login ? `[@${author.login}](https://github.com/${author.login})` : author.name))
+      .map((author) =>
+        author.login ? `[@${author.login}](https://github.com/${author.login})` : author.name,
+      )
       .join(", ");
 
     line += ` (by ${authorList})`;
@@ -51,7 +53,9 @@ export function buildTemplateGroups(options: {
   commitAuthors: Map<string, AuthorInfo[]>;
 }): Array<{ name: string; title: string; commits: Array<{ line: string }> }> {
   const { commits, owner, repo, types, commitAuthors } = options;
-  const mergeKeys = Object.fromEntries(Object.entries(types).map(([key, value]) => [key, value.types ?? [key]]));
+  const mergeKeys = Object.fromEntries(
+    Object.entries(types).map(([key, value]) => [key, value.types ?? [key]]),
+  );
 
   const grouped = groupByType(commits, {
     includeNonConventional: false,

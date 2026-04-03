@@ -1,10 +1,12 @@
-import type { Result } from "#types";
-import type { NormalizedReleaseScriptsOptions } from "../options";
 import process from "node:process";
+
 import { formatUnknownError } from "#shared/errors";
 import { logger, runIfNotDry } from "#shared/utils";
+import type { Result } from "#types";
 import { err, ok } from "#types";
 import semver from "semver";
+
+import type { NormalizedReleaseScriptsOptions } from "../options";
 
 interface NPMError {
   type: "npm";
@@ -38,7 +40,10 @@ function classifyPublishErrorCode(error: unknown): string | undefined {
   const formatted = formatUnknownError(error);
   const combined = [formatted.message, formatted.stderr].filter(Boolean).join("\n");
 
-  if (combined.includes("E403") || combined.toLowerCase().includes("access token expired or revoked")) {
+  if (
+    combined.includes("E403") ||
+    combined.toLowerCase().includes("access token expired or revoked")
+  ) {
     return "E403";
   }
 
@@ -75,7 +80,9 @@ function getRegistryURL(): string {
  * @param packageName - The package name (e.g., "lodash" or "@scope/name")
  * @returns Result with package metadata or error
  */
-async function getPackageMetadata(packageName: string): Promise<Result<NPMPackageMetadata, NPMError>> {
+async function getPackageMetadata(
+  packageName: string,
+): Promise<Result<NPMPackageMetadata, NPMError>> {
   try {
     const registry = getRegistryURL();
     const encodedName = packageName.startsWith("@")
@@ -93,7 +100,9 @@ async function getPackageMetadata(packageName: string): Promise<Result<NPMPackag
       if (response.status === 404) {
         return err(toNPMError("getPackageMetadata", `Package not found: ${packageName}`, "E404"));
       }
-      return err(toNPMError("getPackageMetadata", `HTTP ${response.status}: ${response.statusText}`));
+      return err(
+        toNPMError("getPackageMetadata", `HTTP ${response.status}: ${response.statusText}`),
+      );
     }
 
     const metadata = (await response.json()) as NPMPackageMetadata;
@@ -109,7 +118,10 @@ async function getPackageMetadata(packageName: string): Promise<Result<NPMPackag
  * @param version - The version to check (e.g., "1.2.3")
  * @returns Result with boolean (true if version exists) or error
  */
-export async function checkVersionExists(packageName: string, version: string): Promise<Result<boolean, NPMError>> {
+export async function checkVersionExists(
+  packageName: string,
+  version: string,
+): Promise<Result<boolean, NPMError>> {
   const metadataResult = await getPackageMetadata(packageName);
 
   if (!metadataResult.ok) {
@@ -141,7 +153,14 @@ export async function publishPackage(
   workspaceRoot: string,
   options: NormalizedReleaseScriptsOptions,
 ): Promise<Result<void, NPMError>> {
-  const args: string[] = ["--filter", packageName, "publish", "--access", options.npm.access, "--no-git-checks"];
+  const args: string[] = [
+    "--filter",
+    packageName,
+    "publish",
+    "--access",
+    options.npm.access,
+    "--no-git-checks",
+  ];
 
   // Add OTP if provided (for 2FA)
   if (options.npm.otp) {

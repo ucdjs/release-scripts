@@ -1,8 +1,8 @@
 import type { GitError } from "#core/git";
 import type { WorkspacePackage } from "#core/workspace";
+import { formatUnknownError } from "#shared/errors";
 import type { PackageRelease } from "#shared/types";
 import type { Result } from "#types";
-import { formatUnknownError } from "#shared/errors";
 import { err, ok } from "#types";
 import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "#versioning/commits";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
@@ -29,7 +29,12 @@ export async function calculateUpdates(options: CalculateUpdatesOptions): Promis
 
   try {
     const grouped = await getWorkspacePackageGroupedCommits(workspaceRoot, workspacePackages);
-    const global = await getGlobalCommitsPerPackage(workspaceRoot, grouped, workspacePackages, globalCommitMode);
+    const global = await getGlobalCommitsPerPackage(
+      workspaceRoot,
+      grouped,
+      workspacePackages,
+      globalCommitMode,
+    );
 
     const updates = await calculateAndPrepareVersionUpdates({
       workspacePackages,
@@ -52,7 +57,9 @@ export async function calculateUpdates(options: CalculateUpdatesOptions): Promis
   }
 }
 
-export function ensureHasPackages(packages: WorkspacePackage[]): Result<WorkspacePackage[], GitError> {
+export function ensureHasPackages(
+  packages: WorkspacePackage[],
+): Result<WorkspacePackage[], GitError> {
   if (packages.length === 0) {
     return err({
       type: "git",

@@ -1,12 +1,14 @@
-import type { FindWorkspacePackagesOptions, PackageJson } from "#shared/types";
-import type { Result } from "#types";
-import type { NormalizedReleaseScriptsOptions } from "../options";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import { selectPackagePrompt } from "#core/prompts";
+import type { FindWorkspacePackagesOptions, PackageJson } from "#shared/types";
 import { getIsCI, logger, run } from "#shared/utils";
+import type { Result } from "#types";
 import { err, ok } from "#types";
 import farver from "farver";
+
+import type { NormalizedReleaseScriptsOptions } from "../options";
 
 interface RawProject {
   name: string;

@@ -1,8 +1,9 @@
-import type { AuthorInfo, PackageRelease } from "#shared/types";
 import { formatUnknownError } from "#shared/errors";
+import type { AuthorInfo, PackageRelease } from "#shared/types";
 import { logger } from "#shared/utils";
 import { Eta } from "eta";
 import farver from "farver";
+
 import { DEFAULT_PR_BODY_TEMPLATE } from "../options";
 
 interface SharedGitHubOptions {
@@ -101,7 +102,9 @@ export class GitHubClient {
       });
     } catch (error) {
       throw Object.assign(
-        new Error(`[${method} ${path}] GitHub request failed: ${formatUnknownError(error).message}`),
+        new Error(
+          `[${method} ${path}] GitHub request failed: ${formatUnknownError(error).message}`,
+        ),
         {
           status: undefined,
         },
@@ -148,7 +151,9 @@ export class GitHubClient {
     const head = branch.includes(":") ? branch : `${this.owner}:${branch}`;
     const endpoint = `/repos/${this.owner}/${this.repo}/pulls?state=open&head=${encodeURIComponent(head)}`;
 
-    logger.verbose(`Requesting pull request for branch: ${branch} (url: ${this.apiBase}${endpoint})`);
+    logger.verbose(
+      `Requesting pull request for branch: ${branch} (url: ${this.apiBase}${endpoint})`,
+    );
     const pulls = await this.request<unknown[]>(endpoint);
 
     if (!Array.isArray(pulls) || pulls.length === 0) {
@@ -208,9 +213,11 @@ export class GitHubClient {
 
     const requestBody = isUpdate ? { title, body } : { title, body, head, base, draft: true };
 
-    logger.verbose(`${isUpdate ? "Updating" : "Creating"} pull request (url: ${this.apiBase}${endpoint})`);
+    logger.verbose(
+      `${isUpdate ? "Updating" : "Creating"} pull request (url: ${this.apiBase}${endpoint})`,
+    );
 
-    const pr = await this.request<unknown>(endpoint, {
+    const pr = await this.request(endpoint, {
       method: isUpdate ? "PATCH" : "POST",
       body: JSON.stringify(requestBody),
     });
@@ -265,7 +272,9 @@ export class GitHubClient {
       }),
     });
 
-    logger.info(`Commit status set to ${farver.cyan(state)} for ${farver.gray(sha.substring(0, 7))}`);
+    logger.info(
+      `Commit status set to ${farver.cyan(state)} for ${farver.gray(sha.substring(0, 7))}`,
+    );
   }
 
   async upsertReleaseByTag({
@@ -374,7 +383,9 @@ export class GitHubClient {
         info.login = data.items[0]!.login;
       }
     } catch (err) {
-      logger.warn(`Failed to resolve author info for email ${info.email}: ${formatUnknownError(err).message}`);
+      logger.warn(
+        `Failed to resolve author info for email ${info.email}: ${formatUnknownError(err).message}`,
+      );
     }
 
     if (info.login) {

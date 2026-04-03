@@ -1,13 +1,14 @@
-import type { WorkspacePackage } from "#core/workspace";
-import type { BumpKind, PackageJson, PackageRelease } from "#shared/types";
-import type { GitCommit } from "commit-parser";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import { confirmOverridePrompt, selectVersionPrompt } from "#core/prompts";
+import type { WorkspacePackage } from "#core/workspace";
 import { calculateBumpType, getNextVersion } from "#operations/semver";
 import { determineHighestBump } from "#operations/version";
+import type { BumpKind, PackageJson, PackageRelease } from "#shared/types";
 import { getIsCI, logger } from "#shared/utils";
 import { buildPackageDependencyGraph, createDependentUpdates } from "#versioning/package";
+import type { GitCommit } from "commit-parser";
 import farver from "farver";
 
 const messageColorMap: Record<string, (c: string) => string> = {
@@ -47,7 +48,8 @@ function formatCommitsForDisplay(commits: GitCommit[]): string {
   const hasMore = commits.length > maxCommitsToShow;
 
   const typeLength = commits.map(({ type }) => type.length).reduce((a, b) => Math.max(a, b), 0);
-  const scopeLength = commits.map(({ scope }) => scope?.length).reduce((a, b) => Math.max(a || 0, b || 0), 0) || 0;
+  const scopeLength =
+    commits.map(({ scope }) => scope?.length).reduce((a, b) => Math.max(a || 0, b || 0), 0) || 0;
 
   const formattedCommits = commitsToShow
     .map((commit) => {
@@ -59,7 +61,10 @@ function formatCommitsForDisplay(commits: GitCommit[]): string {
       const paddedType = commit.type.padStart(typeLength + 1, " ");
       const paddedScope = !commit.scope
         ? " ".repeat(scopeLength ? scopeLength + 2 : 0)
-        : farver.dim("(") + commit.scope + farver.dim(")") + " ".repeat(scopeLength - commit.scope.length);
+        : farver.dim("(") +
+          commit.scope +
+          farver.dim(")") +
+          " ".repeat(scopeLength - commit.scope.length);
 
       return [
         farver.dim(commit.shortHash),
@@ -220,13 +225,23 @@ async function calculateVersionUpdates({
           continue;
         }
 
-        newVersion = autoVersion;
+        // User chose to pick another version — keep the override version as the
+        // suggested default so the prompt highlights what was previously chosen
+        // rather than falling back to the auto-detected version.
       }
 
-      const selectedVersion = await selectVersionPrompt(workspaceRoot, pkg, pkg.version, newVersion, {
-        defaultChoice: override ? "suggested" : "auto",
-        suggestedHint: `auto: ${determinedBump} → ${autoVersion}`,
-      });
+      const selectedVersion = await selectVersionPrompt(
+        workspaceRoot,
+        pkg,
+        pkg.version,
+        newVersion,
+        {
+          defaultChoice: "suggested",
+          suggestedHint: override
+            ? `override: ${override.version}, auto: ${determinedBump} → ${autoVersion}`
+            : `auto: ${determinedBump} → ${autoVersion}`,
+        },
+      );
 
       if (selectedVersion === null) continue;
 
@@ -348,9 +363,17 @@ export async function calculateAndPrepareVersionUpdates({
       .filter(([, override]) => override.type === "none")
       .map(([pkgName]) => pkgName),
   );
-  const excludedPackages = new Set<string>([...overrideExcludedPackages, ...promptExcludedPackages]);
+  const excludedPackages = new Set<string>([
+    ...overrideExcludedPackages,
+    ...promptExcludedPackages,
+  ]);
 
-  const allUpdates = createDependentUpdates(graph, workspacePackages, directUpdates, excludedPackages);
+  const allUpdates = createDependentUpdates(
+    graph,
+    workspacePackages,
+    directUpdates,
+    excludedPackages,
+  );
 
   // Create apply function that updates all package.json files
   const applyUpdates = async () => {
@@ -420,7 +443,10 @@ async function updatePackageJson(
 /**
  * Get all dependency updates needed for a package
  */
-function getDependencyUpdates(pkg: WorkspacePackage, allUpdates: PackageRelease[]): Map<string, string> {
+function getDependencyUpdates(
+  pkg: WorkspacePackage,
+  allUpdates: PackageRelease[],
+): Map<string, string> {
   const updates = new Map<string, string>();
 
   // Check all workspace dependencies

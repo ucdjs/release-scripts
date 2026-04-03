@@ -1,8 +1,9 @@
-import type { Options as TinyExecOptions, Result as TinyExecResult } from "tinyexec";
 import process from "node:process";
 import readline from "node:readline";
 import { parseArgs } from "node:util";
+
 import farver from "farver";
+import type { Options as TinyExecOptions, Result as TinyExecResult } from "tinyexec";
 import { exec } from "tinyexec";
 
 export const ucdjsReleaseOverridesPath = ".github/ucdjs-release.overrides.json";
@@ -39,10 +40,11 @@ export function getIsCI(): boolean {
 
 export const logger = {
   info: (...args: unknown[]) => {
-    // eslint-disable-next-line no-console
+    // oxlint-disable-next-line no-console
     console.info(...args);
   },
   warn: (...args: unknown[]) => {
+    // oxlint-disable-next-line no-console
     console.warn(`  ${farver.yellow("⚠")}`, ...args);
   },
   error: (...args: unknown[]) => {
@@ -110,7 +112,11 @@ export const logger = {
   },
 };
 
-export async function run(bin: string, args: string[], opts: Partial<TinyExecOptions> = {}): Promise<TinyExecResult> {
+export async function run(
+  bin: string,
+  args: string[],
+  opts: Partial<TinyExecOptions> = {},
+): Promise<TinyExecResult> {
   return exec(bin, args, {
     throwOnError: true,
     ...opts,

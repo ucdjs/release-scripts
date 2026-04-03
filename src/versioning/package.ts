@@ -1,6 +1,6 @@
 import type { WorkspacePackage } from "#core/workspace";
-import type { PackageRelease, PackageUpdateOrder } from "#shared/types";
 import { createVersionUpdate } from "#operations/version";
+import type { PackageRelease, PackageUpdateOrder } from "#shared/types";
 import { logger } from "#shared/utils";
 
 interface PackageDependencyGraph {
@@ -55,7 +55,10 @@ export function buildPackageDependencyGraph(packages: WorkspacePackage[]): Packa
  * @param changedPackages - Set of package names with direct changes
  * @returns Set of all package names that need updates
  */
-export function getAllAffectedPackages(graph: PackageDependencyGraph, changedPackages: Set<string>): Set<string> {
+export function getAllAffectedPackages(
+  graph: PackageDependencyGraph,
+  changedPackages: Set<string>,
+): Set<string> {
   const affected = new Set<string>();
 
   function visitDependents(pkgName: string) {

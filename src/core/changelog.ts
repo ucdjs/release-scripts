@@ -1,15 +1,17 @@
-import type { AuthorInfo, CommitTypeRule } from "#shared/types";
-import type { GitCommit } from "commit-parser";
-import type { NormalizedReleaseScriptsOptions } from "../options";
-import type { GitHubClient } from "./github";
-import type { WorkspacePackage } from "./workspace";
 import { writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+
 import { buildTemplateGroups } from "#operations/changelog-format";
+import type { AuthorInfo, CommitTypeRule } from "#shared/types";
 import { logger } from "#shared/utils";
+import type { GitCommit } from "commit-parser";
 import { Eta } from "eta";
+
+import type { NormalizedReleaseScriptsOptions } from "../options";
 import { DEFAULT_CHANGELOG_TEMPLATE } from "../options";
 import { readFileFromGit } from "./git";
+import type { GitHubClient } from "./github";
+import type { WorkspacePackage } from "./workspace";
 
 const CHANGELOG_VERSION_RE = /##\s+(?:<small>)?\[?([^\](\s<]+)/;
 
@@ -27,7 +29,18 @@ export async function generateChangelogEntry(options: {
   template?: string;
   githubClient: GitHubClient;
 }): Promise<string> {
-  const { packageName, version, previousVersion, date, commits, owner, repo, types, template, githubClient } = options;
+  const {
+    packageName,
+    version,
+    previousVersion,
+    date,
+    commits,
+    owner,
+    repo,
+    types,
+    template,
+    githubClient,
+  } = options;
 
   // Build compare URL
   const compareUrl = previousVersion
@@ -69,11 +82,22 @@ export async function updateChangelog(options: {
   date: string;
   githubClient: GitHubClient;
 }): Promise<void> {
-  const { version, previousVersion, commits, date, normalizedOptions, workspacePackage, githubClient } = options;
+  const {
+    version,
+    previousVersion,
+    commits,
+    date,
+    normalizedOptions,
+    workspacePackage,
+    githubClient,
+  } = options;
 
   const changelogPath = join(workspacePackage.path, "CHANGELOG.md");
 
-  const changelogRelativePath = relative(normalizedOptions.workspaceRoot, join(workspacePackage.path, "CHANGELOG.md"));
+  const changelogRelativePath = relative(
+    normalizedOptions.workspaceRoot,
+    join(workspacePackage.path, "CHANGELOG.md"),
+  );
 
   // Read the changelog from the default branch to get clean state without unreleased entries
   // This ensures that if a previous release PR was abandoned, we don't keep the old entry
@@ -92,8 +116,8 @@ export async function updateChangelog(options: {
     previousVersion,
     date,
     commits,
-    owner: normalizedOptions.owner!,
-    repo: normalizedOptions.repo!,
+    owner: normalizedOptions.owner,
+    repo: normalizedOptions.repo,
     types: normalizedOptions.types,
     template: normalizedOptions.changelog?.template,
     githubClient,
