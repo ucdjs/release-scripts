@@ -17,7 +17,7 @@ permissions: {}
 
 jobs:
   zizmor:
-    uses: luxass/shared-workflows/.github/workflows/ci-security.yaml@1da57045a6e7f913231d1edfb21d95de9e3eeaad # v0.4.1
+    uses: luxass/shared-workflows/.github/workflows/ci-security.yaml@56bd9148cc90ee377d1e6fa3a32e43d18859dfe1 # v0.4.2
     permissions:
       contents: read
       security-events: write
