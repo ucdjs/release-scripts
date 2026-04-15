@@ -6,7 +6,7 @@ strictDepBuilds: true
 blockExoticSubdeps: true
 
 overrides:
-  undici-types: 6.24.0
+  undici-types: 8.0.2
 
 catalogs:
   dev:

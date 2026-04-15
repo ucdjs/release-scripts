@@ -67,7 +67,7 @@ catalogs:
       version: 7.7.1
 
 overrides:
-  undici-types: 6.24.0
+  undici-types: 8.0.2
 
 importers:
 
@@ -1363,8 +1363,8 @@ packages:
   unconfig-core@7.5.0:
     resolution: {integrity: sha512-Su3FauozOGP44ZmKdHy2oE6LPjk51M/TRRjHv2HNCWiDvfvCoxC2lno6jevMA91MYAdCdwP05QnWdWpSbncX/w==}
 
-  undici-types@6.24.0:
-    resolution: {integrity: sha512-7sP0dVSecE8+Kylk0j81SymYqJwdFL6pPlIJqYjv5V7r4o8su/Vi50kBDuuV9X9uC8Mt/RfFFCFVvr/nzuPonw==}
+  undici-types@8.0.2:
+    resolution: {integrity: sha512-5AfRgQ8gcBaQW8pKd/zYRGGspwSCjFaMEq2oLKKt8T2bgnML0MH+SzIIn0B0xJ9qx7UADB8weRiNxdADJgLZ7A==}
 
   unrun@0.2.34:
     resolution: {integrity: sha512-LyaghRBR++r7svhDK6tnDz2XaYHWdneBOA0jbS8wnRsHerI9MFljX4fIiTgbbNbEVzZ0C9P1OjWLLe1OqoaaEw==}
@@ -1966,7 +1966,7 @@ snapshots:
 
   '@types/node@22.19.14':
     dependencies:
-      undici-types: 6.24.0
+      undici-types: 8.0.2
 
   '@types/prompts@2.4.9':
     dependencies:
@@ -2448,7 +2448,7 @@ snapshots:
       '@quansync/fs': 1.0.0
       quansync: 1.0.0
 
-  undici-types@6.24.0: {}
+  undici-types@8.0.2: {}
 
   unrun@0.2.34(synckit@0.11.12):
     dependencies:
