@@ -22,7 +22,7 @@ catalogs:
     vitest-testdirs: 4.4.3
 
   types:
-    "@types/node": 22.19.14
+    "@types/node": 24.12.2
     "@types/prompts": 2.4.9
     "@types/semver": 7.7.1
 
