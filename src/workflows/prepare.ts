@@ -183,6 +183,13 @@ export async function prepareWorkflow(
     const changelogPromises = allUpdates
       .map((update) => {
         return (async () => {
+          if (update.currentVersion === update.newVersion) {
+            logger.verbose(
+              `Skipping changelog for ${update.package.name}: version unchanged (${update.newVersion})`,
+            );
+            return;
+          }
+
           let pkgCommits = groupedPackageCommits.get(update.package.name) || [];
           let globalCommits = globalCommitsPerPackage.get(update.package.name) || [];
           let previousVersionForChangelog: string | undefined =

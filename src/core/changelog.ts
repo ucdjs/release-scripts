@@ -43,7 +43,7 @@ export async function generateChangelogEntry(options: {
   } = options;
 
   // Build compare URL
-  const compareUrl = previousVersion
+  const compareUrl = previousVersion && previousVersion !== version
     ? `https://github.com/${owner}/${repo}/compare/${packageName}@${previousVersion}...${packageName}@${version}`
     : undefined;
 
@@ -91,6 +91,13 @@ export async function updateChangelog(options: {
     workspacePackage,
     githubClient,
   } = options;
+
+  if (previousVersion === version) {
+    logger.verbose(
+      `Skipping changelog update for ${workspacePackage.name}: version unchanged (${version})`,
+    );
+    return;
+  }
 
   const changelogPath = join(workspacePackage.path, "CHANGELOG.md");
 
