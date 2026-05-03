@@ -43,9 +43,10 @@ export async function generateChangelogEntry(options: {
   } = options;
 
   // Build compare URL
-  const compareUrl = previousVersion
-    ? `https://github.com/${owner}/${repo}/compare/${packageName}@${previousVersion}...${packageName}@${version}`
-    : undefined;
+  const compareUrl =
+    previousVersion && previousVersion !== version
+      ? `https://github.com/${owner}/${repo}/compare/${packageName}@${previousVersion}...${packageName}@${version}`
+      : undefined;
 
   const commitAuthors = await resolveCommitAuthors(commits, githubClient);
   const templateGroups = buildTemplateGroups({
@@ -91,6 +92,13 @@ export async function updateChangelog(options: {
     workspacePackage,
     githubClient,
   } = options;
+
+  if (previousVersion === version) {
+    logger.verbose(
+      `Skipping changelog update for ${workspacePackage.name}: version unchanged (${version})`,
+    );
+    return;
+  }
 
   const changelogPath = join(workspacePackage.path, "CHANGELOG.md");
 

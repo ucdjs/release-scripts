@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { generateChangelogEntry, parseChangelog, updateChangelog } from "#core/changelog";
@@ -507,5 +507,45 @@ describe("updateChangelog", () => {
     expect(parsed.versions[0]!.version).toBe("0.2.0");
     expect(content).toContain("add feature A");
     expect(content).toContain("add feature B");
+  });
+
+  it("should not rewrite the changelog when version is unchanged", async () => {
+    const testdirPath = await testdir({});
+    const context = createChangelogTestContext(testdirPath);
+
+    const existingChangelog = dedent`
+      # @ucdjs/test
+
+      ## 0.1.0 (2025-01-15)
+
+      ### Features
+
+      * initial release
+    `;
+
+    await writeFile(join(testdirPath, "CHANGELOG.md"), `${existingChangelog}\n`, "utf-8");
+
+    mockExec.mockResolvedValueOnce({ stdout: existingChangelog, stderr: "", exitCode: 0 });
+
+    await updateChangelog({
+      normalizedOptions: context.normalizedOptions,
+      workspacePackage: context.workspacePackage,
+      version: "0.1.0",
+      previousVersion: "0.1.0",
+      commits: [
+        createCommit({
+          type: "feat",
+          message: "feat: this should not be written",
+          hash: "def456",
+          shortHash: "def456",
+        }),
+      ],
+      date: "2025-01-16",
+      githubClient: context.githubClient,
+    });
+
+    const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
+
+    expect(content).toBe(`${existingChangelog}\n`);
   });
 });
