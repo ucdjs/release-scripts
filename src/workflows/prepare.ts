@@ -180,16 +180,13 @@ export async function prepareWorkflow(
       options.globalCommitMode === "none" ? false : options.globalCommitMode,
     );
 
-    const changelogPromises = allUpdates
+    const changelogUpdates = allUpdates.filter(
+      (update) => update.currentVersion !== update.newVersion,
+    );
+
+    const changelogPromises = changelogUpdates
       .map((update) => {
         return (async () => {
-          if (update.currentVersion === update.newVersion) {
-            logger.verbose(
-              `Skipping changelog for ${update.package.name}: version unchanged (${update.newVersion})`,
-            );
-            return;
-          }
-
           let pkgCommits = groupedPackageCommits.get(update.package.name) || [];
           let globalCommits = globalCommitsPerPackage.get(update.package.name) || [];
           let previousVersionForChangelog: string | undefined =
