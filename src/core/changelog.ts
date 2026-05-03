@@ -43,9 +43,10 @@ export async function generateChangelogEntry(options: {
   } = options;
 
   // Build compare URL
-  const compareUrl = previousVersion && previousVersion !== version
-    ? `https://github.com/${owner}/${repo}/compare/${packageName}@${previousVersion}...${packageName}@${version}`
-    : undefined;
+  const compareUrl =
+    previousVersion && previousVersion !== version
+      ? `https://github.com/${owner}/${repo}/compare/${packageName}@${previousVersion}...${packageName}@${version}`
+      : undefined;
 
   const commitAuthors = await resolveCommitAuthors(commits, githubClient);
   const templateGroups = buildTemplateGroups({
