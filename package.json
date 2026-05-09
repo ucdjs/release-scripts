@@ -44,10 +44,12 @@
     "tinyexec": "catalog:runtime"
   },
   "devDependencies": {
+    "@effect/platform-node": "catalog:effect",
     "@luxass/msw-utils": "catalog:dev",
     "@types/node": "catalog:types",
     "@types/prompts": "catalog:types",
     "@types/semver": "catalog:types",
+    "effect": "catalog:effect",
     "eta": "catalog:dev",
     "msw": "catalog:dev",
     "oxfmt": "catalog:dev",
@@ -58,7 +60,7 @@
     "vitest": "catalog:dev",
     "vitest-testdirs": "catalog:dev"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.0.9",
   "inlinedDependencies": {
     "eta": "4.5.1"
   }
