@@ -1,5 +1,6 @@
-import type { GitHubClient } from "#core/github";
-import type { WorkspacePackage } from "#core/workspace";
+import type { GitHubServiceShape } from "../src/services/github";
+import { Effect } from "effect";
+import type { WorkspacePackage } from "../src/services/workspace";
 import type { GitCommit } from "commit-parser";
 
 import type { NormalizedReleaseScriptsOptions } from "../src/options";
@@ -25,13 +26,20 @@ export function createCommit(overrides: Partial<GitCommit> = {}): GitCommit {
   } as GitCommit;
 }
 
-export function createGitHubClientStub(overrides: Partial<GitHubClient> = {}): GitHubClient {
-  const stub: Partial<GitHubClient> = {
-    resolveAuthorInfo: async (info) => info,
+export function createGitHubServiceStub(
+  overrides: Partial<GitHubServiceShape> = {},
+): GitHubServiceShape {
+  const stub: GitHubServiceShape = {
+    getExistingPullRequest: () => Effect.succeed(null),
+    upsertPullRequest: () => Effect.succeed(null),
+    setCommitStatus: () => Effect.void,
+    upsertReleaseByTag: () =>
+      Effect.succeed({ release: { id: 1, tagName: "tag", name: "tag" }, created: true }),
+    resolveAuthorInfo: (info: any) => Effect.succeed(info),
     ...overrides,
   };
 
-  return stub as GitHubClient;
+  return stub;
 }
 
 export function createNormalizedReleaseOptions(
@@ -43,7 +51,6 @@ export function createNormalizedReleaseOptions(
       packages: true,
       versions: true,
     },
-    githubClient: overrides.githubClient ?? createGitHubClientStub(),
     npm: {
       provenance: true,
       otp: undefined,
@@ -118,7 +125,7 @@ export function createChangelogTestContext(
   overrides: {
     normalizedOptions?: Partial<NormalizedReleaseScriptsOptions>;
     workspacePackage?: Partial<WorkspacePackage>;
-    githubClient?: Partial<GitHubClient>;
+    githubService?: Partial<GitHubServiceShape>;
   } = {},
 ) {
   const normalizedOptions = createNormalizedReleaseOptions({
@@ -127,11 +134,11 @@ export function createChangelogTestContext(
   });
 
   const workspacePackage = createWorkspacePackage(workspaceRoot, overrides.workspacePackage);
-  const githubClient = createGitHubClientStub(overrides.githubClient);
+  const githubService = createGitHubServiceStub(overrides.githubService);
 
   return {
     normalizedOptions,
     workspacePackage,
-    githubClient,
+    githubService,
   };
 }

@@ -1,16 +1,21 @@
-import process from "node:process";
+import { NodeServices } from "@effect/platform-node";
+import { Effect, Layer } from "effect";
 
-import { printReleaseError, ReleaseError } from "#shared/errors";
-import { logger } from "#shared/utils";
-import type { ReleaseResult } from "#types";
-import { prepareWorkflow as release } from "#workflows/prepare";
-import { publishWorkflow as publish } from "#workflows/publish";
-import { verifyWorkflow as verify } from "#workflows/verify";
+import { logger } from "./errors";
+import type { ReleaseResult } from "./types";
+import { ChangelogServiceLive } from "./services/changelog";
+import { prepareWorkflow as release } from "./prepare";
+import { publishWorkflow as publish } from "./publish";
+import { verifyWorkflow as verify } from "./verify";
 
-import type { WorkspacePackage } from "./core/workspace";
-import { discoverWorkspacePackages } from "./core/workspace";
+import type { WorkspacePackage } from "./services/workspace";
+import { GitHubServiceLive } from "./services/github";
+import { PromptServiceLive } from "./services/prompts";
+import { WorkspaceService, WorkspaceServiceLive } from "./services/workspace";
 import type { ReleaseScriptsOptionsInput } from "./options";
-import { normalizeReleaseScriptsOptions } from "./options";
+import { normalizeReleaseScriptsOptions, ReleaseOptions } from "./options";
+import { GitServiceLive } from "./services/git";
+import { NpmServiceLive } from "./services/npm";
 
 export interface ReleaseScripts {
   verify: () => Promise<void>;
@@ -22,19 +27,9 @@ export interface ReleaseScripts {
   };
 }
 
-function withErrorBoundary<T>(fn: () => Promise<T>): Promise<T> {
-  return fn().catch((e) => {
-    if (e instanceof ReleaseError) {
-      printReleaseError(e);
-      process.exit(1);
-    }
-    throw e;
-  });
-}
-
-export async function createReleaseScripts(
+export function createReleaseScripts(
   options: ReleaseScriptsOptionsInput,
-): Promise<ReleaseScripts> {
+): ReleaseScripts {
   // Normalize options once for packages.list and packages.get
   const normalizedOptions = normalizeReleaseScriptsOptions(options);
 
@@ -55,40 +50,53 @@ export async function createReleaseScripts(
     changelog: normalizedOptions.changelog,
   });
 
+  const runtimeLayer = Layer.mergeAll(
+    NodeServices.layer,
+    Layer.succeed(ReleaseOptions, normalizedOptions),
+    GitServiceLive,
+    GitHubServiceLive,
+    NpmServiceLive,
+    ChangelogServiceLive,
+    PromptServiceLive,
+    WorkspaceServiceLive,
+  );
+
+  const runEffect = <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> =>
+    Effect.runPromise(effect.pipe(Effect.provide(runtimeLayer)) as Effect.Effect<A, E>);
+
   return {
-    async verify(): Promise<void> {
-      return withErrorBoundary(() => verify(normalizedOptions));
+    verify(): Promise<void> {
+      return runEffect(verify());
     },
-
-    async prepare(): Promise<ReleaseResult | null> {
-      return withErrorBoundary(() => release(normalizedOptions));
+    prepare(): Promise<ReleaseResult | null> {
+      return runEffect(release());
     },
-
-    async publish(): Promise<void> {
-      return withErrorBoundary(() => publish(normalizedOptions));
+    publish(): Promise<void> {
+      return runEffect(publish());
     },
-
     packages: {
-      async list(): Promise<WorkspacePackage[]> {
-        return withErrorBoundary(async () => {
-          const result = await discoverWorkspacePackages(
-            normalizedOptions.workspaceRoot,
-            normalizedOptions,
-          );
-          if (!result.ok) throw new ReleaseError(result.error.message, undefined, result.error);
-          return result.value;
-        });
+      list(): Promise<WorkspacePackage[]> {
+        return runEffect(
+          Effect.gen(function* () {
+            const workspace = yield* WorkspaceService;
+            return yield* workspace.discoverWorkspacePackages(
+              normalizedOptions.workspaceRoot,
+              normalizedOptions,
+            );
+          }),
+        );
       },
-
-      async get(packageName: string): Promise<WorkspacePackage | undefined> {
-        return withErrorBoundary(async () => {
-          const result = await discoverWorkspacePackages(
-            normalizedOptions.workspaceRoot,
-            normalizedOptions,
-          );
-          if (!result.ok) throw new ReleaseError(result.error.message, undefined, result.error);
-          return result.value.find((p) => p.name === packageName);
-        });
+      get(packageName: string): Promise<WorkspacePackage | undefined> {
+        return runEffect(
+          Effect.gen(function* () {
+            const workspace = yield* WorkspaceService;
+            const packages = yield* workspace.discoverWorkspacePackages(
+              normalizedOptions.workspaceRoot,
+              normalizedOptions,
+            );
+            return packages.find((p) => p.name === packageName);
+          }),
+        );
       },
     },
   };
