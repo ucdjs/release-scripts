@@ -242,24 +242,6 @@ export const makeNpmService = Effect.fn("makeNpmService")(function* () {
 
 export const NpmServiceLive = Layer.effect(NpmService, makeNpmService());
 
-export const checkVersionExists = Effect.fn("checkVersionExists")(function* (
-  packageName: string,
-  version: string,
-) {
-  const npm = yield* NpmService;
-  return yield* npm.checkVersionExists(packageName, version);
-});
-
-export const publishPackage = Effect.fn("publishPackage")(function* (
-  packageName: string,
-  version: string,
-  workspaceRoot: string,
-  options: NormalizedReleaseScriptsOptions,
-) {
-  const npm = yield* NpmService;
-  return yield* npm.publishPackage(packageName, version, workspaceRoot, options);
-});
-
 export interface PublishStatus {
   published: string[];
   skipped: string[];

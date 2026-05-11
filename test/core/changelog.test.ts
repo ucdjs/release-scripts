@@ -3,17 +3,20 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { GitServiceLive } from "../../src/services/git";
-import { ChangelogServiceLive } from "../../src/services/changelog";
-import { generateChangelogEntry, parseChangelog, updateChangelog } from "../../src/services/changelog";
+import { ChangelogService, ChangelogServiceLive, parseChangelog } from "../../src/services/changelog";
 import { GitHubService } from "../../src/services/github";
+import type { NormalizedReleaseScriptsOptions } from "../../src/options";
 import { runEffect } from "#shared/utils";
 import { dedent } from "@luxass/utils";
 import { Effect, Layer } from "effect";
+import type { GitCommit } from "commit-parser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testdir } from "vitest-testdirs";
 
 import { DEFAULT_TYPES } from "../../src/options";
 import { createChangelogTestContext, createCommit, createGitHubServiceStub } from "../_shared";
+import type { CommitTypeRule } from "../../src/shared/types";
+import type { WorkspacePackage } from "../../src/services/workspace";
 
 vi.mock("#shared/utils", async () => {
   const actual = await vi.importActual<typeof import("#shared/utils")>("#shared/utils");
@@ -41,6 +44,33 @@ const runNode = <A, E, R>(effect: Effect.Effect<A, E, R>, githubService = create
       ),
     ) as Effect.Effect<A, E, never>,
   );
+const generateEntry = (options: {
+  packageName: string;
+  version: string;
+  previousVersion?: string;
+  date: string;
+  commits: GitCommit[];
+  owner: string;
+  repo: string;
+  types: Record<string, CommitTypeRule>;
+  template?: string;
+}) =>
+  Effect.gen(function* () {
+    const changelog = yield* ChangelogService;
+    return yield* changelog.generateChangelogEntry(options);
+  });
+const applyChangelogUpdate = (options: {
+  normalizedOptions: NormalizedReleaseScriptsOptions;
+  workspacePackage: WorkspacePackage;
+  version: string;
+  previousVersion?: string;
+  commits: GitCommit[];
+  date: string;
+}) =>
+  Effect.gen(function* () {
+    const changelog = yield* ChangelogService;
+    return yield* changelog.updateChangelog(options);
+  });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -68,7 +98,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateChangelogEntry({
+      const entry = await runNode(generateEntry({
       ...baseEntryOptions,
       version: "0.2.0",
       previousVersion: "0.1.0",
@@ -96,7 +126,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateChangelogEntry({
+      const entry = await runNode(generateEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
@@ -137,7 +167,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateChangelogEntry({
+      const entry = await runNode(generateEntry({
       ...baseEntryOptions,
       version: "0.3.0",
       previousVersion: "0.2.0",
@@ -168,7 +198,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateChangelogEntry({
+      const entry = await runNode(generateEntry({
       ...baseEntryOptions,
       version: "0.1.0",
       date: "2025-01-16",
@@ -195,7 +225,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateChangelogEntry({
+      const entry = await runNode(generateEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
@@ -223,7 +253,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateChangelogEntry({
+      const entry = await runNode(generateEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
@@ -388,7 +418,7 @@ describe("updateChangelog", () => {
       }),
     ];
 
-    await runNode(updateChangelog({
+    await runNode(applyChangelogUpdate({
       normalizedOptions,
       workspacePackage,
       version: "0.1.0",
@@ -425,7 +455,7 @@ describe("updateChangelog", () => {
 
     mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await runNode(updateChangelog({
+    await runNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.1.0",
@@ -444,7 +474,7 @@ describe("updateChangelog", () => {
 
     mockRun.mockReturnValueOnce(Effect.succeed({ stdout: existingChangelog, stderr: "", exitCode: 0 }) as any);
 
-    await runNode(updateChangelog({
+    await runNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
@@ -480,7 +510,7 @@ describe("updateChangelog", () => {
 
     mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await runNode(updateChangelog({
+    await runNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
@@ -497,7 +527,7 @@ describe("updateChangelog", () => {
 
     mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await runNode(updateChangelog({
+    await runNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
@@ -545,7 +575,7 @@ describe("updateChangelog", () => {
 
     mockRun.mockReturnValueOnce(Effect.succeed({ stdout: existingChangelog, stderr: "", exitCode: 0 }) as any);
 
-    await runNode(updateChangelog({
+    await runNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.1.0",

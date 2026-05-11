@@ -1,32 +1,34 @@
 import { NodeServices } from "@effect/platform-node";
-import * as git from "../../src/services/git";
+import { GitService } from "../../src/services/git";
 import { prepareReleaseBranch } from "../../src/release/branch";
 import { expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, vi } from "vitest";
 
-vi.mock("../../src/services/git", async () => {
-  const actual = await vi.importActual<typeof import("../../src/services/git")>("../../src/services/git");
-  return {
-    ...actual,
-    getCurrentBranch: vi.fn(),
-    doesBranchExist: vi.fn(),
-    doesRemoteBranchExist: vi.fn(),
-    checkoutBranch: vi.fn(),
-    rebaseBranch: vi.fn(),
-    pullLatestChanges: vi.fn(),
-    createBranch: vi.fn(),
-    commitChanges: vi.fn(),
-    isBranchAheadOfRemote: vi.fn(),
-    pushBranch: vi.fn(),
-  };
-});
-
-const mockedGit = vi.mocked(git);
+const mockedGit = {
+  isWorkingDirectoryClean: vi.fn(),
+  doesRemoteBranchExist: vi.fn(),
+  doesBranchExist: vi.fn(),
+  getDefaultBranch: vi.fn(),
+  getCurrentBranch: vi.fn(),
+  checkoutBranch: vi.fn(),
+  pullLatestChanges: vi.fn(),
+  rebaseBranch: vi.fn(),
+  isBranchAheadOfRemote: vi.fn(),
+  pushBranch: vi.fn(),
+  readFileFromGit: vi.fn(),
+  getMostRecentPackageStableTag: vi.fn(),
+  createAndPushPackageTag: vi.fn(),
+  createBranch: vi.fn(),
+  commitPaths: vi.fn(),
+  commitChanges: vi.fn(),
+  getMostRecentPackageTag: vi.fn(),
+  getGroupedFilesByCommitSha: vi.fn(),
+};
 const withNode = <A, E, R>(effect: Effect.Effect<A, E, R>): any =>
   effect.pipe(
     Effect.provide(NodeServices.layer as any),
-    Effect.provideService(git.GitService, {
+    Effect.provideService(GitService, {
       isWorkingDirectoryClean: mockedGit.isWorkingDirectoryClean,
       doesRemoteBranchExist: mockedGit.doesRemoteBranchExist,
       doesBranchExist: mockedGit.doesBranchExist,

@@ -1,10 +1,6 @@
 import {
-  getExistingPullRequest,
+  GitHubService,
   GitHubServiceLive,
-  resolveAuthorInfo,
-  setCommitStatus,
-  upsertPullRequest,
-  upsertReleaseByTag,
 } from "../../src/services/github";
 import { NodeServices } from "@effect/platform-node";
 import { ReleaseOptions } from "../../src/options";
@@ -37,7 +33,10 @@ const runGitHub = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 describe("GitHubService", () => {
   it("returns null when no open PRs exist", async () => {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/pulls`, () => HttpResponse.json([]));
-    await expect(runGitHub(getExistingPullRequest("release/next"))).resolves.toBeNull();
+    await expect(runGitHub(Effect.gen(function* () {
+      const github = yield* GitHubService;
+      return yield* github.getExistingPullRequest("release/next");
+    }))).resolves.toBeNull();
   });
 
   it("returns the first open PR for the branch", async () => {
@@ -54,7 +53,10 @@ describe("GitHubService", () => {
       ]),
     );
 
-    const result = await runGitHub(getExistingPullRequest("release/next"));
+    const result = await runGitHub(Effect.gen(function* () {
+      const github = yield* GitHubService;
+      return yield* github.getExistingPullRequest("release/next");
+    }));
     expect(result?.number).toBe(42);
     expect(result?.head?.sha).toBe("abc1234");
   });
@@ -64,7 +66,10 @@ describe("GitHubService", () => {
       HttpResponse.json([{ number: "not-a-number" }]),
     );
 
-    await expect(runGitHub(getExistingPullRequest("release/next"))).rejects.toMatchObject({
+    await expect(runGitHub(Effect.gen(function* () {
+      const github = yield* GitHubService;
+      return yield* github.getExistingPullRequest("release/next");
+    }))).rejects.toMatchObject({
       _tag: "GitHubError",
       operation: "getExistingPullRequest",
       message: "Pull request data validation failed",
@@ -85,14 +90,15 @@ describe("GitHubService", () => {
       ),
     );
 
-    const result = await runGitHub(
-      upsertPullRequest({
+    const result = await runGitHub(Effect.gen(function* () {
+      const github = yield* GitHubService;
+      return yield* github.upsertPullRequest({
         title: "chore: new release",
         body: "Release body",
         head: "release/next",
         base: "main",
-      }),
-    );
+      });
+    }));
     expect(result?.number).toBe(10);
     expect(result?.draft).toBe(true);
   });
@@ -108,14 +114,15 @@ describe("GitHubService", () => {
       },
     );
 
-    await runGitHub(
-      setCommitStatus({
+    await runGitHub(Effect.gen(function* () {
+      const github = yield* GitHubService;
+      return yield* github.setCommitStatus({
         sha: "abc1234",
         state: "success",
         context: "release/verify",
         description: "All checks passed",
-      }),
-    );
+      });
+    }));
 
     expect(captured).toMatchObject({
       state: "success",
@@ -147,9 +154,10 @@ describe("GitHubService", () => {
       ],
     ]);
 
-    const { release, created } = await runGitHub(
-      upsertReleaseByTag({ tagName: "pkg@1.0.0", name: "pkg@1.0.0", body: "Release notes" }),
-    );
+    const { release, created } = await runGitHub(Effect.gen(function* () {
+      const github = yield* GitHubService;
+      return yield* github.upsertReleaseByTag({ tagName: "pkg@1.0.0", name: "pkg@1.0.0", body: "Release notes" });
+    }));
     expect(created).toBe(true);
     expect(release.id).toBe(99);
   });
@@ -159,9 +167,10 @@ describe("GitHubService", () => {
       HttpResponse.json({ items: [{ login: "resolved-user" }] }),
     );
 
-    const result = await runGitHub(
-      resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: [] }),
-    );
+    const result = await runGitHub(Effect.gen(function* () {
+      const github = yield* GitHubService;
+      return yield* github.resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: [] });
+    }));
     expect(result.login).toBe("resolved-user");
   });
 });

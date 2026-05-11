@@ -1,4 +1,4 @@
-import { getGroupedFilesByCommitSha, getMostRecentPackageTag } from "../services/git";
+import { GitService } from "../services/git";
 import type { WorkspacePackage } from "../services/workspace";
 import { logger } from "../shared/utils";
 import type { GitCommit } from "commit-parser";
@@ -17,6 +17,7 @@ import farver from "farver";
 export const getWorkspacePackageGroupedCommits = Effect.fn(
   "getWorkspacePackageGroupedCommits",
 )(function* (workspaceRoot: string, packages: WorkspacePackage[]) {
+    const git = yield* GitService;
     const changedPackages = new Map<string, GitCommit[]>();
 
     const loadPackageCommits = Effect.fn("loadPackageCommits")(function* (
@@ -42,7 +43,7 @@ export const getWorkspacePackageGroupedCommits = Effect.fn(
     const results = yield* Effect.all(
       packages.map((pkg) =>
         Effect.fn("getPackageCommitGroup")(function* () {
-          const lastTagExit = yield* Effect.exit(getMostRecentPackageTag(workspaceRoot, pkg.name));
+          const lastTagExit = yield* Effect.exit(git.getMostRecentPackageTag(workspaceRoot, pkg.name));
           const lastTag = lastTagExit._tag === "Success" ? lastTagExit.value : undefined;
           const allCommits = yield* loadPackageCommits(pkg, lastTag);
 
@@ -245,7 +246,8 @@ export const getGlobalCommitsPerPackage = Effect.fn("getGlobalCommitsPerPackage"
     `${farver.cyan(commitRange.oldest)}..${farver.cyan(commitRange.newest)}`,
   );
 
-  const commitFilesMap = yield* getGroupedFilesByCommitSha(
+  const git = yield* GitService;
+  const commitFilesMap = yield* git.getGroupedFilesByCommitSha(
     workspaceRoot,
     commitRange.oldest,
     commitRange.newest,

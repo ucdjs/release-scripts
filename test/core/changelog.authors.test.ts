@@ -1,5 +1,4 @@
-import { generateChangelogEntry } from "../../src/services/changelog";
-import { ChangelogServiceLive } from "../../src/services/changelog";
+import { ChangelogService, ChangelogServiceLive } from "../../src/services/changelog";
 import { GitHubService } from "../../src/services/github";
 import { GitServiceLive } from "../../src/services/git";
 import { NodeServices } from "@effect/platform-node";
@@ -25,15 +24,18 @@ describe("generateChangelogEntry author rendering", () => {
       });
 
     const entry = await Effect.runPromise(
-      generateChangelogEntry({
-      packageName: "@ucdjs/test",
-      version: "1.0.1",
-      previousVersion: "1.0.0",
-      date: "2025-11-18",
-      commits,
-      owner: "ucdjs",
-      repo: "release-scripts",
-      types: DEFAULT_TYPES,
+      Effect.gen(function* () {
+        const changelog = yield* ChangelogService;
+        return yield* changelog.generateChangelogEntry({
+          packageName: "@ucdjs/test",
+          version: "1.0.1",
+          previousVersion: "1.0.0",
+          date: "2025-11-18",
+          commits,
+          owner: "ucdjs",
+          repo: "release-scripts",
+          types: DEFAULT_TYPES,
+        });
       }).pipe(
         Effect.provide(
           Layer.mergeAll(

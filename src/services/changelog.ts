@@ -9,7 +9,7 @@ import { Context, Effect, FileSystem, Layer } from "effect";
 import type { GitCommit } from "commit-parser";
 import { Eta } from "eta";
 
-import { readFileFromGit } from "./git";
+import { GitService } from "./git";
 import { GitHubService } from "./github";
 import type { WorkspacePackage } from "./workspace";
 
@@ -133,6 +133,7 @@ export const makeChangelogService = Effect.fn("makeChangelogService")(function* 
 
   const updateChangelog: ChangelogServiceShape["updateChangelog"] = Effect.fn("updateChangelog")(function* (options) {
     const fs = yield* FileSystem.FileSystem;
+    const git = yield* GitService;
     const {
       version,
       previousVersion,
@@ -155,7 +156,7 @@ export const makeChangelogService = Effect.fn("makeChangelogService")(function* 
       join(workspacePackage.path, "CHANGELOG.md"),
     );
 
-    const existingContent = yield* readFileFromGit(
+    const existingContent = yield* git.readFileFromGit(
       normalizedOptions.workspaceRoot,
       normalizedOptions.branch.default,
       changelogRelativePath,
@@ -214,33 +215,6 @@ export const makeChangelogService = Effect.fn("makeChangelogService")(function* 
 });
 
 export const ChangelogServiceLive = Layer.effect(ChangelogService, makeChangelogService());
-
-export const generateChangelogEntry = Effect.fn("generateChangelogEntry")(function* (options: {
-  packageName: string;
-  version: string;
-  previousVersion?: string;
-  date: string;
-  commits: GitCommit[];
-  owner: string;
-  repo: string;
-  types: Record<string, CommitTypeRule>;
-  template?: string;
-}) {
-  const changelog = yield* ChangelogService;
-  return yield* changelog.generateChangelogEntry(options);
-});
-
-export const updateChangelog = Effect.fn("updateChangelog")(function* (options: {
-  normalizedOptions: NormalizedReleaseScriptsOptions;
-  workspacePackage: WorkspacePackage;
-  version: string;
-  previousVersion?: string;
-  commits: GitCommit[];
-  date: string;
-}) {
-  const changelog = yield* ChangelogService;
-  return yield* changelog.updateChangelog(options);
-});
 
 // formatCommitLine moved to operations/changelog-format
 

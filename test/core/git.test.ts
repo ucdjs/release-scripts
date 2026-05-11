@@ -1,14 +1,7 @@
 import { NodeServices } from "@effect/platform-node";
 import {
+  GitService,
   GitServiceLive,
-  createBranch,
-  doesBranchExist,
-  doesRemoteBranchExist,
-  getAvailableBranches,
-  getCurrentBranch,
-  getDefaultBranch,
-  getMostRecentPackageTag,
-  isWorkingDirectoryClean,
 } from "../../src/services/git";
 import { runEffect, runIfNotDryEffect } from "#shared/utils";
 import { expect, it, layer } from "@effect/vitest";
@@ -46,7 +39,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         exitCode: 0,
       }) as any);
 
-      const result = yield* isWorkingDirectoryClean("/workspace");
+      const git = yield* GitService;
+      const result = yield* git.isWorkingDirectoryClean("/workspace");
       expect(mockRunEffect).toHaveBeenCalledWith(
         "git",
         ["status", "--porcelain"],
@@ -69,7 +63,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         exitCode: 0,
       }) as any);
 
-      const result = yield* isWorkingDirectoryClean("/workspace");
+      const git = yield* GitService;
+      const result = yield* git.isWorkingDirectoryClean("/workspace");
       expect(result).toBe(false);
     })));
 
@@ -78,7 +73,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
       const gitError = new Error("fatal: not a git repository");
       mockRunEffect.mockReturnValue(Effect.fail(gitError) as any);
 
-      const exit = yield* Effect.exit(isWorkingDirectoryClean("/workspace"));
+      const git = yield* GitService;
+      const exit = yield* Effect.exit(git.isWorkingDirectoryClean("/workspace"));
 
       assert(exit._tag === "Failure");
       const error = Cause.squash(exit.cause) as any;
@@ -97,7 +93,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
           exitCode: 0,
         }) as any);
 
-        const result = yield* doesRemoteBranchExist("main", "/workspace");
+        const git = yield* GitService;
+        const result = yield* git.doesRemoteBranchExist("main", "/workspace");
         expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
           ["ls-remote", "--exit-code", "--heads", "origin", "main"],
@@ -116,7 +113,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         asTest(Effect.gen(function* () {
         mockRunEffect.mockReturnValue(Effect.fail(new Error("exit code 2")) as any);
 
-        const result = yield* doesRemoteBranchExist("release/next", "/workspace");
+        const git = yield* GitService;
+        const result = yield* git.doesRemoteBranchExist("release/next", "/workspace");
         expect(result).toBe(false);
       })));
     });
@@ -130,7 +128,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
           exitCode: 0,
         }) as any);
 
-        const result = yield* doesBranchExist("feature-branch", "/workspace");
+        const git = yield* GitService;
+        const result = yield* git.doesBranchExist("feature-branch", "/workspace");
         expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
           ["rev-parse", "--verify", "feature-branch"],
@@ -149,7 +148,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         asTest(Effect.gen(function* () {
         mockRunEffect.mockReturnValue(Effect.fail(new Error("fatal: Needed a single revision")) as any);
 
-        const result = yield* doesBranchExist("nonexistent-branch", "/workspace");
+        const git = yield* GitService;
+        const result = yield* git.doesBranchExist("nonexistent-branch", "/workspace");
         expect(result).toBe(false);
       })));
     });
@@ -163,7 +163,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
           exitCode: 0,
         }) as any);
 
-        const result = yield* getDefaultBranch("/workspace");
+        const git = yield* GitService;
+        const result = yield* git.getDefaultBranch("/workspace");
 
         expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
@@ -186,7 +187,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
           exitCode: 0,
         }) as any);
 
-        const result = yield* getDefaultBranch("/workspace");
+        const git = yield* GitService;
+        const result = yield* git.getDefaultBranch("/workspace");
 
         expect(result).toBe("develop");
       })));
@@ -195,7 +197,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         asTest(Effect.gen(function* () {
         mockRunEffect.mockReturnValue(Effect.fail(new Error("Some git error")) as any);
 
-        const result = yield* getDefaultBranch("/workspace");
+        const git = yield* GitService;
+        const result = yield* git.getDefaultBranch("/workspace");
 
         expect(result).toBe("main");
       })));
@@ -208,7 +211,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
           exitCode: 0,
         }) as any);
 
-        const result = yield* getDefaultBranch("/workspace");
+        const git = yield* GitService;
+        const result = yield* git.getDefaultBranch("/workspace");
 
         expect(result).toBe("main");
       })));
@@ -223,7 +227,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
           exitCode: 0,
         }) as any);
 
-        const result = yield* getCurrentBranch("/workspace");
+        const git = yield* GitService;
+        const result = yield* git.getCurrentBranch("/workspace");
 
         expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
@@ -243,7 +248,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         asTest(Effect.gen(function* () {
         mockRunEffect.mockReturnValue(Effect.fail(new Error("Some git error")) as any);
 
-        const exit = yield* Effect.exit(getCurrentBranch("/workspace"));
+        const git = yield* GitService;
+        const exit = yield* Effect.exit(git.getCurrentBranch("/workspace"));
         assert(exit._tag === "Failure");
         expect((Cause.squash(exit.cause) as any).operation).toBe("getCurrentBranch");
       })));
@@ -258,7 +264,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
           exitCode: 0,
         }) as any);
 
-        const result = yield* getAvailableBranches("/workspace");
+        const git = yield* GitService;
+        const result = yield* git.getAvailableBranches("/workspace");
 
         expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
@@ -278,7 +285,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         asTest(Effect.gen(function* () {
         mockRunEffect.mockReturnValue(Effect.fail(new Error("Some git error")) as any);
 
-        const exit = yield* Effect.exit(getAvailableBranches("/workspace"));
+        const git = yield* GitService;
+        const exit = yield* Effect.exit(git.getAvailableBranches("/workspace"));
         assert(exit._tag === "Failure");
         expect((Cause.squash(exit.cause) as any).operation).toBe("getAvailableBranches");
       })));
@@ -293,7 +301,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
           exitCode: 0,
         }) as any);
 
-        const result = yield* createBranch("new-feature", "main", "/workspace");
+        const git = yield* GitService;
+        const result = yield* git.createBranch("new-feature", "main", "/workspace");
 
         expect(mockRunIfNotDryEffect).toHaveBeenCalledWith(
           "git",
@@ -312,7 +321,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         asTest(Effect.gen(function* () {
         mockRunIfNotDryEffect.mockReturnValue(Effect.fail(new Error("Some git error")) as any);
 
-        const exit = yield* Effect.exit(createBranch("new-feature", "main", "/workspace"));
+        const git = yield* GitService;
+        const exit = yield* Effect.exit(git.createBranch("new-feature", "main", "/workspace"));
         assert(exit._tag === "Failure");
         expect((Cause.squash(exit.cause) as any).operation).toBe("createBranch");
       })));
@@ -328,7 +338,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         exitCode: 0,
       } as any) as any);
 
-      const result = yield* getMostRecentPackageTag("/workspace", "my-package");
+      const git = yield* GitService;
+      const result = yield* git.getMostRecentPackageTag("/workspace", "my-package");
 
       expect(mockRunEffect).toHaveBeenCalledWith(
         "git",
@@ -351,7 +362,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         exitCode: 0,
       } as any) as any);
 
-      const result = yield* getMostRecentPackageTag("/workspace", "my-package");
+      const git = yield* GitService;
+      const result = yield* git.getMostRecentPackageTag("/workspace", "my-package");
 
       expect(result).toBe("my-package@2.0.0");
     })));
@@ -364,7 +376,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         exitCode: 0,
       } as any) as any);
 
-      const result = yield* getMostRecentPackageTag("/workspace", "my-package");
+      const git = yield* GitService;
+      const result = yield* git.getMostRecentPackageTag("/workspace", "my-package");
 
       expect(result).toBeUndefined();
     })));
@@ -377,7 +390,8 @@ layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) 
         exitCode: 0,
       } as any) as any);
 
-      const result = yield* getMostRecentPackageTag("/workspace", "my-package");
+      const git = yield* GitService;
+      const result = yield* git.getMostRecentPackageTag("/workspace", "my-package");
 
       expect(result).toBeUndefined();
     })));

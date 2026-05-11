@@ -11,8 +11,7 @@ import { verifyWorkflow as verify } from "./release/verify";
 import type { WorkspacePackage } from "./services/workspace";
 import { GitHubServiceLive } from "./services/github";
 import { PromptServiceLive } from "./services/prompts";
-import { discoverWorkspacePackages } from "./services/workspace";
-import { WorkspaceServiceLive } from "./services/workspace";
+import { WorkspaceService, WorkspaceServiceLive } from "./services/workspace";
 import type { ReleaseScriptsOptionsInput } from "./options";
 import { normalizeReleaseScriptsOptions, ReleaseOptions } from "./options";
 import { GitServiceLive } from "./services/git";
@@ -77,14 +76,26 @@ export function createReleaseScripts(
     },
     packages: {
       list(): Promise<WorkspacePackage[]> {
-        return runEffect(discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions));
+        return runEffect(
+          Effect.gen(function* () {
+            const workspace = yield* WorkspaceService;
+            return yield* workspace.discoverWorkspacePackages(
+              normalizedOptions.workspaceRoot,
+              normalizedOptions,
+            );
+          }),
+        );
       },
       get(packageName: string): Promise<WorkspacePackage | undefined> {
         return runEffect(
-          Effect.map(
-            discoverWorkspacePackages(normalizedOptions.workspaceRoot, normalizedOptions),
-            (packages) => packages.find((p) => p.name === packageName),
-          ),
+          Effect.gen(function* () {
+            const workspace = yield* WorkspaceService;
+            const packages = yield* workspace.discoverWorkspacePackages(
+              normalizedOptions.workspaceRoot,
+              normalizedOptions,
+            );
+            return packages.find((p) => p.name === packageName);
+          }),
         );
       },
     },

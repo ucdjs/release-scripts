@@ -1,6 +1,5 @@
 import { NodeServices } from "@effect/platform-node";
-import { NpmServiceLive } from "../../src/services/npm";
-import { checkVersionExists, publishPackage } from "../../src/services/npm";
+import { NpmService, NpmServiceLive } from "../../src/services/npm";
 import { runIfNotDryEffect } from "#shared/utils";
 import { expect, it, layer } from "@effect/vitest";
 import { Cause, Effect, Layer } from "effect";
@@ -44,7 +43,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("checkVersionExists", 
       return HttpResponse.json({ error: "Not found" }, { status: 404 });
     });
 
-    const result = yield* checkVersionExists("my-package", "1.0.0");
+    const npm = yield* NpmService;
+    const result = yield* npm.checkVersionExists("my-package", "1.0.0");
     expect(result).toBe(false);
   })));
 
@@ -58,7 +58,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("checkVersionExists", 
       });
     });
 
-    const result = yield* checkVersionExists("my-package", "1.0.0");
+    const npm = yield* NpmService;
+    const result = yield* npm.checkVersionExists("my-package", "1.0.0");
     expect(result).toBe(true);
   })));
 
@@ -72,7 +73,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("checkVersionExists", 
       });
     });
 
-    const result = yield* checkVersionExists("my-package", "2.0.0");
+    const npm = yield* NpmService;
+    const result = yield* npm.checkVersionExists("my-package", "2.0.0");
     expect(result).toBe(false);
   })));
 
@@ -82,7 +84,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("checkVersionExists", 
       return HttpResponse.json({ error: "Service Unavailable" }, { status: 503 });
     });
 
-    const exit = yield* Effect.exit(checkVersionExists("my-package", "1.0.0"));
+    const npm = yield* NpmService;
+    const exit = yield* Effect.exit(npm.checkVersionExists("my-package", "1.0.0"));
     assert(exit._tag === "Failure");
     expect((Cause.squash(exit.cause) as any)._tag).toBe("NPMError");
   })));
@@ -99,7 +102,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("checkVersionExists", 
       });
     });
 
-    yield* checkVersionExists("@scope/pkg", "0.1.0");
+    const npm = yield* NpmService;
+    yield* npm.checkVersionExists("@scope/pkg", "0.1.0");
     // @scope/pkg is encoded as @scope%2Fpkg (single path segment)
     expect(capturedUrl).toContain("@scope%2Fpkg");
   })));
@@ -116,7 +120,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("checkVersionExists", 
       });
     });
 
-    const result = yield* checkVersionExists("my-package", "3.0.0");
+    const npm = yield* NpmService;
+    const result = yield* npm.checkVersionExists("my-package", "3.0.0");
     expect(result).toBe(true);
   })));
 
@@ -126,7 +131,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("checkVersionExists", 
       return HttpResponse.error();
     });
 
-    const exit = yield* Effect.exit(checkVersionExists("my-package", "1.0.0"));
+    const npm = yield* NpmService;
+    const exit = yield* Effect.exit(npm.checkVersionExists("my-package", "1.0.0"));
     assert(exit._tag === "Failure");
     const error = Cause.squash(exit.cause) as any;
     expect(error._tag).toBe("NPMError");
@@ -139,7 +145,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("publishPackage", (it)
     asTest(Effect.gen(function* () {
     mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    yield* publishPackage(
+    const npm = yield* NpmService;
+    yield* npm.publishPackage(
       "@scope/pkg",
       "1.0.0-beta.1",
       "/workspace",
@@ -157,7 +164,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("publishPackage", (it)
     asTest(Effect.gen(function* () {
     mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    yield* publishPackage(
+    const npm = yield* NpmService;
+    yield* npm.publishPackage(
       "@scope/pkg",
       "1.0.0-alpha.1",
       "/workspace",
@@ -175,7 +183,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("publishPackage", (it)
     asTest(Effect.gen(function* () {
     mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    yield* publishPackage(
+    const npm = yield* NpmService;
+    yield* npm.publishPackage(
       "@scope/pkg",
       "1.0.0-rc.1",
       "/workspace",
@@ -193,7 +202,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("publishPackage", (it)
     asTest(Effect.gen(function* () {
     mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    yield* publishPackage(
+    const npm = yield* NpmService;
+    yield* npm.publishPackage(
       "@scope/pkg",
       "1.0.0",
       "/workspace",
@@ -211,7 +221,8 @@ layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("publishPackage", (it)
     asTest(Effect.gen(function* () {
     mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    yield* publishPackage(
+    const npm = yield* NpmService;
+    yield* npm.publishPackage(
       "@scope/pkg",
       "1.0.0",
       "/workspace",

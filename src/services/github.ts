@@ -445,37 +445,6 @@ export const makeGitHubService = Effect.fn("makeGitHubService")(function* () {
 
 export const GitHubServiceLive = Layer.effect(GitHubService, makeGitHubService());
 
-export const getExistingPullRequest = Effect.fn("getExistingPullRequest")(function* (branch: string) {
-  const github = yield* GitHubService;
-  return yield* github.getExistingPullRequest(branch);
-});
-
-export const upsertPullRequest = Effect.fn("upsertPullRequest")(function* (
-  options: UpsertPullRequestOptions,
-) {
-  const github = yield* GitHubService;
-  return yield* github.upsertPullRequest(options);
-});
-
-export const setCommitStatus = Effect.fn("setCommitStatus")(function* (
-  options: CommitStatusOptions & { sha: string },
-) {
-  const github = yield* GitHubService;
-  return yield* github.setCommitStatus(options);
-});
-
-export const upsertReleaseByTag = Effect.fn("upsertReleaseByTag")(function* (
-  options: UpsertReleaseOptions,
-) {
-  const github = yield* GitHubService;
-  return yield* github.upsertReleaseByTag(options);
-});
-
-export const resolveAuthorInfo = Effect.fn("resolveAuthorInfo")(function* (info: AuthorInfo) {
-  const github = yield* GitHubService;
-  return yield* github.resolveAuthorInfo(info);
-});
-
 export { toGitHubError };
 
 const NON_WHITESPACE_RE = /\S/;

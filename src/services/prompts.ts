@@ -253,37 +253,4 @@ export const makePromptService = Effect.fn("makePromptService")(function* () {
   });
 });
 
-export const selectPackagePrompt = Effect.fn("selectPackagePrompt")(function* (packages: WorkspacePackage[]) {
-  const prompts = yield* PromptService;
-  return yield* prompts.selectPackagePrompt(packages);
-});
-
-export const selectVersionPrompt = Effect.fn("selectVersionPrompt")(function* (
-  workspaceRoot: string,
-  pkg: WorkspacePackage,
-  currentVersion: string,
-  suggestedVersion: string,
-  options?: {
-    defaultChoice?: "auto" | "skip" | "suggested" | "as-is";
-    suggestedHint?: string;
-  },
-) {
-  const prompts = yield* PromptService;
-  return yield* prompts.selectVersionPrompt(
-    workspaceRoot,
-    pkg,
-    currentVersion,
-    suggestedVersion,
-    options,
-  );
-});
-
-export const confirmOverridePrompt = Effect.fn("confirmOverridePrompt")(function* (
-  pkg: WorkspacePackage,
-  overrideVersion: string,
-) {
-  const prompts = yield* PromptService;
-  return yield* prompts.confirmOverridePrompt(pkg, overrideVersion);
-});
-
 export const PromptServiceLive = Layer.effect(PromptService, makePromptService());

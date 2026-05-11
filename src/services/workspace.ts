@@ -204,12 +204,4 @@ export const makeWorkspaceService = Effect.fn("makeWorkspaceService")(function* 
   });
 });
 
-export const discoverWorkspacePackages = Effect.fn("discoverWorkspacePackages")(function* (
-  workspaceRoot: string,
-  options: NormalizedReleaseScriptsOptions,
-) {
-  const workspace = yield* WorkspaceService;
-  return yield* workspace.discoverWorkspacePackages(workspaceRoot, options);
-});
-
 export const WorkspaceServiceLive = Layer.effect(WorkspaceService, makeWorkspaceService());
