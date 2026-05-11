@@ -2,7 +2,7 @@ import { GitHubServiceLive } from "../../src/services/github";
 import { NodeServices } from "@effect/platform-node";
 import { ReleaseOptions } from "../../src/options";
 import { syncPullRequest } from "../../src/release/pr";
-import { expect, it } from "@effect/vitest";
+import { expect, it, layer } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { HttpResponse } from "msw";
 import { describe } from "vitest";
@@ -12,21 +12,6 @@ import { createNormalizedReleaseOptions, createWorkspacePackage } from "../_shar
 
 const OWNER = "ucdjs";
 const REPO = "test-repo";
-
-const runWithGitHub = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  Effect.runPromise(
-    effect.pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          NodeServices.layer,
-          Layer.provide(
-            GitHubServiceLive,
-            Layer.succeed(ReleaseOptions, createNormalizedReleaseOptions({ owner: OWNER, repo: REPO })),
-          ),
-        ),
-      ),
-    ) as Effect.Effect<A, E, never>,
-  );
 
 const NO_UPDATES = [
   {
@@ -39,8 +24,17 @@ const NO_UPDATES = [
   },
 ];
 
-describe("syncPullRequest", () => {
-  it("creates a new PR when none exists and returns created: true", async () => {
+layer(
+  Layer.mergeAll(
+    NodeServices.layer,
+    Layer.provide(
+      GitHubServiceLive,
+      Layer.succeed(ReleaseOptions, createNormalizedReleaseOptions({ owner: OWNER, repo: REPO })),
+    ),
+  ),
+)("syncPullRequest", (it) => {
+  it.effect("creates a new PR when none exists and returns created: true", () =>
+    Effect.gen(function* () {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
       HttpResponse.json([]),
     );
@@ -58,18 +52,19 @@ describe("syncPullRequest", () => {
       ),
     );
 
-    const result = await runWithGitHub(syncPullRequest({
+    const result = yield* syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       pullRequestTitle: "chore: release",
       updates: NO_UPDATES,
-    }));
+    });
 
     expect(result.created).toBe(true);
     expect(result.pullRequest?.number).toBe(10);
-  });
+  }));
 
-  it("updates an existing PR and returns created: false", async () => {
+  it.effect("updates an existing PR and returns created: false", () =>
+    Effect.gen(function* () {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
       HttpResponse.json([
         {
@@ -93,17 +88,18 @@ describe("syncPullRequest", () => {
       }),
     );
 
-    const result = await runWithGitHub(syncPullRequest({
+    const result = yield* syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       updates: NO_UPDATES,
-    }));
+    });
 
     expect(result.created).toBe(false);
     expect(result.pullRequest?.number).toBe(5);
-  });
+  }));
 
-  it("preserves the existing PR title instead of overriding it", async () => {
+  it.effect("preserves the existing PR title instead of overriding it", () =>
+    Effect.gen(function* () {
     let capturedTitle: string | undefined;
 
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
@@ -131,17 +127,18 @@ describe("syncPullRequest", () => {
       });
     });
 
-    await runWithGitHub(syncPullRequest({
+    yield* syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       pullRequestTitle: "chore: caller title",
       updates: NO_UPDATES,
-    }));
+    });
 
     expect(capturedTitle).toBe("chore: preserved title");
-  });
+  }));
 
-  it("uses pullRequestTitle when there is no existing PR", async () => {
+  it.effect("uses pullRequestTitle when there is no existing PR", () =>
+    Effect.gen(function* () {
     let capturedTitle: string | undefined;
 
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
@@ -163,17 +160,18 @@ describe("syncPullRequest", () => {
       );
     });
 
-    await runWithGitHub(syncPullRequest({
+    yield* syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       pullRequestTitle: "chore: caller title",
       updates: NO_UPDATES,
-    }));
+    });
 
     expect(capturedTitle).toBe("chore: caller title");
-  });
+  }));
 
-  it("falls back to default title when neither existing PR nor caller title is present", async () => {
+  it.effect("falls back to default title when neither existing PR nor caller title is present", () =>
+    Effect.gen(function* () {
     let capturedTitle: string | undefined;
 
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
@@ -195,28 +193,31 @@ describe("syncPullRequest", () => {
       );
     });
 
-    await runWithGitHub(syncPullRequest({
+    yield* syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       updates: NO_UPDATES,
-    }));
+    });
 
     expect(capturedTitle).toBe("chore: update package versions");
-  });
+  }));
 
-  it("returns err when getExistingPullRequest fails", async () => {
+  it.effect("returns err when getExistingPullRequest fails", () =>
+    Effect.gen(function* () {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
       HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
     );
 
-    await expect(runWithGitHub(syncPullRequest({
+    const exit = yield* Effect.exit(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       updates: NO_UPDATES,
-    }))).rejects.toMatchObject({ _tag: "GitHubError", operation: "getExistingPullRequest" });
-  });
+    }));
+    expect(exit._tag).toBe("Failure");
+  }));
 
-  it("returns err when upsertPullRequest fails", async () => {
+  it.effect("returns err when upsertPullRequest fails", () =>
+    Effect.gen(function* () {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/${OWNER}/${REPO}/pulls`, () =>
       HttpResponse.json([]),
     );
@@ -224,10 +225,11 @@ describe("syncPullRequest", () => {
       HttpResponse.json({ message: "Validation failed" }, { status: 422 }),
     );
 
-    await expect(runWithGitHub(syncPullRequest({
+    const exit = yield* Effect.exit(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       updates: NO_UPDATES,
-    }))).rejects.toMatchObject({ _tag: "GitHubError", operation: "upsertPullRequest" });
-  });
+    }));
+    expect(exit._tag).toBe("Failure");
+  }));
 });

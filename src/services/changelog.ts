@@ -216,8 +216,6 @@ export const makeChangelogService = Effect.fn("makeChangelogService")(function* 
 
 export const ChangelogServiceLive = Layer.effect(ChangelogService, makeChangelogService());
 
-// formatCommitLine moved to operations/changelog-format
-
 export function parseChangelog(content: string) {
   const lines = content.split("\n");
 

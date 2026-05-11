@@ -35,15 +35,15 @@ export const syncPullRequest = Effect.fn("syncPullRequest")(function* (
   const body = generatePullRequestBody(updates, pullRequestBody);
 
   const pr = yield* Effect.catchTag(github.upsertPullRequest({
-      pullNumber: existing?.number,
-      title,
-      body,
-      head: releaseBranch,
-      base: defaultBranch,
-    }) as Effect.Effect<GitHubPullRequest | null, GitHubError, unknown>, "GitHubError", (error) =>
-      Effect.fail(new GitHubError({ ...error, operation: "upsertPullRequest" })),
-      (error) => Effect.fail(toGitHubError("upsertPullRequest", error)),
-    );
+    pullNumber: existing?.number,
+    title,
+    body,
+    head: releaseBranch,
+    base: defaultBranch,
+  }), "GitHubError", (err) =>
+    Effect.fail(new GitHubError({ ...err, operation: "upsertPullRequest" })),
+    (err) => Effect.fail(toGitHubError("upsertPullRequest", err)),
+  );
 
   return {
     pullRequest: pr,

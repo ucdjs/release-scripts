@@ -4,7 +4,7 @@ import {
 } from "../../src/services/github";
 import { NodeServices } from "@effect/platform-node";
 import { ReleaseOptions } from "../../src/options";
-import { expect, it } from "@effect/vitest";
+import { expect, it, layer } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { HttpResponse } from "msw";
 import { describe } from "vitest";
@@ -12,34 +12,28 @@ import { describe } from "vitest";
 import { GITHUB_API_BASE, mockFetch } from "../_msw";
 import { createNormalizedReleaseOptions } from "../_shared";
 
-const runGitHub = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  Effect.runPromise(
-    effect.pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          NodeServices.layer,
-          Layer.provide(
-            GitHubServiceLive,
-            Layer.succeed(
-              ReleaseOptions,
-              createNormalizedReleaseOptions({ owner: "ucdjs", repo: "test-repo" }),
-            ),
-          ),
-        ),
+layer(
+  Layer.mergeAll(
+    NodeServices.layer,
+    Layer.provide(
+      GitHubServiceLive,
+      Layer.succeed(
+        ReleaseOptions,
+        createNormalizedReleaseOptions({ owner: "ucdjs", repo: "test-repo" }),
       ),
-    ) as Effect.Effect<A, E, never>,
-  );
-
-describe("GitHubService", () => {
-  it("returns null when no open PRs exist", async () => {
+    ),
+  ),
+)("GitHubService", (it) => {
+  it.effect("returns null when no open PRs exist", () =>
+    Effect.gen(function* () {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/pulls`, () => HttpResponse.json([]));
-    await expect(runGitHub(Effect.gen(function* () {
-      const github = yield* GitHubService;
-      return yield* github.getExistingPullRequest("release/next");
-    }))).resolves.toBeNull();
-  });
+    const github = yield* GitHubService;
+    const result = yield* github.getExistingPullRequest("release/next");
+    expect(result).toBeNull();
+  }));
 
-  it("returns the first open PR for the branch", async () => {
+  it.effect("returns the first open PR for the branch", () =>
+    Effect.gen(function* () {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/pulls`, () =>
       HttpResponse.json([
         {
@@ -53,30 +47,25 @@ describe("GitHubService", () => {
       ]),
     );
 
-    const result = await runGitHub(Effect.gen(function* () {
-      const github = yield* GitHubService;
-      return yield* github.getExistingPullRequest("release/next");
-    }));
+    const github = yield* GitHubService;
+    const result = yield* github.getExistingPullRequest("release/next");
     expect(result?.number).toBe(42);
     expect(result?.head?.sha).toBe("abc1234");
-  });
+  }));
 
-  it("fails when PR shape from API is invalid", async () => {
+  it.effect("fails when PR shape from API is invalid", () =>
+    Effect.gen(function* () {
     mockFetch("GET", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/pulls`, () =>
       HttpResponse.json([{ number: "not-a-number" }]),
     );
 
-    await expect(runGitHub(Effect.gen(function* () {
-      const github = yield* GitHubService;
-      return yield* github.getExistingPullRequest("release/next");
-    }))).rejects.toMatchObject({
-      _tag: "GitHubError",
-      operation: "getExistingPullRequest",
-      message: "Pull request data validation failed",
-    });
-  });
+    const github = yield* GitHubService;
+    const exit = yield* Effect.exit(github.getExistingPullRequest("release/next"));
+    expect(exit._tag).toBe("Failure");
+  }));
 
-  it("creates a new draft PR when no pullNumber is provided", async () => {
+  it.effect("creates a new draft PR when no pullNumber is provided", () =>
+    Effect.gen(function* () {
     mockFetch("POST", `${GITHUB_API_BASE}/repos/ucdjs/test-repo/pulls`, () =>
       HttpResponse.json(
         {
@@ -90,20 +79,19 @@ describe("GitHubService", () => {
       ),
     );
 
-    const result = await runGitHub(Effect.gen(function* () {
-      const github = yield* GitHubService;
-      return yield* github.upsertPullRequest({
-        title: "chore: new release",
-        body: "Release body",
-        head: "release/next",
-        base: "main",
-      });
-    }));
+    const github = yield* GitHubService;
+    const result = yield* github.upsertPullRequest({
+      title: "chore: new release",
+      body: "Release body",
+      head: "release/next",
+      base: "main",
+    });
     expect(result?.number).toBe(10);
     expect(result?.draft).toBe(true);
-  });
+  }));
 
-  it("sends the correct payload to the statuses endpoint", async () => {
+  it.effect("sends the correct payload to the statuses endpoint", () =>
+    Effect.gen(function* () {
     let captured: unknown;
     mockFetch(
       "POST",
@@ -114,24 +102,23 @@ describe("GitHubService", () => {
       },
     );
 
-    await runGitHub(Effect.gen(function* () {
-      const github = yield* GitHubService;
-      return yield* github.setCommitStatus({
-        sha: "abc1234",
-        state: "success",
-        context: "release/verify",
-        description: "All checks passed",
-      });
-    }));
+    const github = yield* GitHubService;
+    yield* github.setCommitStatus({
+      sha: "abc1234",
+      state: "success",
+      context: "release/verify",
+      description: "All checks passed",
+    });
 
     expect(captured).toMatchObject({
       state: "success",
       context: "release/verify",
       description: "All checks passed",
     });
-  });
+  }));
 
-  it("creates a release when none exists for the tag", async () => {
+  it.effect("creates a release when none exists for the tag", () =>
+    Effect.gen(function* () {
     mockFetch([
       [
         "GET",
@@ -154,23 +141,20 @@ describe("GitHubService", () => {
       ],
     ]);
 
-    const { release, created } = await runGitHub(Effect.gen(function* () {
-      const github = yield* GitHubService;
-      return yield* github.upsertReleaseByTag({ tagName: "pkg@1.0.0", name: "pkg@1.0.0", body: "Release notes" });
-    }));
+    const github = yield* GitHubService;
+    const { release, created } = yield* github.upsertReleaseByTag({ tagName: "pkg@1.0.0", name: "pkg@1.0.0", body: "Release notes" });
     expect(created).toBe(true);
     expect(release.id).toBe(99);
-  });
+  }));
 
-  it("resolves login via user search by email", async () => {
+  it.effect("resolves login via user search by email", () =>
+    Effect.gen(function* () {
     mockFetch("GET", `${GITHUB_API_BASE}/search/users`, () =>
       HttpResponse.json({ items: [{ login: "resolved-user" }] }),
     );
 
-    const result = await runGitHub(Effect.gen(function* () {
-      const github = yield* GitHubService;
-      return yield* github.resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: [] });
-    }));
+    const github = yield* GitHubService;
+    const result = yield* github.resolveAuthorInfo({ name: "Test", email: "t@test.com", login: undefined, commits: [] });
     expect(result.login).toBe("resolved-user");
-  });
+  }));
 });

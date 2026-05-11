@@ -6,11 +6,12 @@ import { GitServiceLive } from "../../src/services/git";
 import { ChangelogService, ChangelogServiceLive, parseChangelog } from "../../src/services/changelog";
 import { GitHubService } from "../../src/services/github";
 import type { NormalizedReleaseScriptsOptions } from "../../src/options";
+import { expect, it } from "@effect/vitest";
 import { runEffect } from "#shared/utils";
 import { dedent } from "@luxass/utils";
 import { Effect, Layer } from "effect";
 import type { GitCommit } from "commit-parser";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, vi } from "vitest";
 import { testdir } from "vitest-testdirs";
 
 import { DEFAULT_TYPES } from "../../src/options";
@@ -26,23 +27,22 @@ vi.mock("#shared/utils", async () => {
   };
 });
 const mockRun = vi.mocked(runEffect);
-const runNode = <A, E, R>(effect: Effect.Effect<A, E, R>, githubService = createGitHubServiceStub()) =>
-  Effect.runPromise(
-    effect.pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          NodeServices.layer,
-          GitServiceLive,
-          ChangelogServiceLive,
-          Layer.succeed(GitHubService)(Object.assign({
-            getExistingPullRequest: vi.fn(),
-            upsertPullRequest: vi.fn(),
-            setCommitStatus: vi.fn(),
-            upsertReleaseByTag: vi.fn(),
-          }, githubService) as any),
-        ),
+const asTest = (effect: Effect.Effect<void, unknown, unknown>): any => effect;
+const withNode = <A, E, R>(effect: Effect.Effect<A, E, R>, githubService = createGitHubServiceStub()): any =>
+  effect.pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        GitServiceLive,
+        ChangelogServiceLive,
+        Layer.succeed(GitHubService)(Object.assign({
+          getExistingPullRequest: vi.fn(),
+          upsertPullRequest: vi.fn(),
+          setCommitStatus: vi.fn(),
+          upsertReleaseByTag: vi.fn(),
+        }, githubService) as any),
       ),
-    ) as Effect.Effect<A, E, never>,
+    ),
   );
 const generateEntry = (options: {
   packageName: string;
@@ -87,7 +87,8 @@ describe("generateChangelogEntry", () => {
     repo: "test-repo",
   } as const;
 
-  it("should generate a changelog entry with features", async () => {
+  it.effect("should generate a changelog entry with features", () =>
+    asTest(Effect.gen(function* () {
     const commits = [
       createCommit({
         type: "feat",
@@ -98,7 +99,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateEntry({
+      const entry = yield* withNode(generateEntry({
       ...baseEntryOptions,
       version: "0.2.0",
       previousVersion: "0.1.0",
@@ -114,9 +115,10 @@ describe("generateChangelogEntry", () => {
       ### 🚀 Features
       * feat: add new feature ([Issue #123](https://github.com/ucdjs/test-repo/issues/123)) ([abc1234](https://github.com/ucdjs/test-repo/commit/abc1234567890)) (by Test Author)"
     `);
-  });
+  })));
 
-  it("should generate a changelog entry with bug fixes", async () => {
+  it.effect("should generate a changelog entry with bug fixes", () =>
+    asTest(Effect.gen(function* () {
     const commits = [
       createCommit({
         type: "fix",
@@ -126,7 +128,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateEntry({
+      const entry = yield* withNode(generateEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
@@ -142,9 +144,10 @@ describe("generateChangelogEntry", () => {
       ### 🐞 Bug Fixes
       * fix: fix critical bug ([def5678](https://github.com/ucdjs/test-repo/commit/def5678901234)) (by Test Author)"
     `);
-  });
+  })));
 
-  it("should handle multiple commit types", async () => {
+  it.effect("should handle multiple commit types", () =>
+    asTest(Effect.gen(function* () {
     const commits = [
       createCommit({
         type: "feat",
@@ -167,7 +170,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateEntry({
+      const entry = yield* withNode(generateEntry({
       ...baseEntryOptions,
       version: "0.3.0",
       previousVersion: "0.2.0",
@@ -186,9 +189,10 @@ describe("generateChangelogEntry", () => {
       ### 🐞 Bug Fixes
       * fix: fix bug B ([Issue #456](https://github.com/ucdjs/test-repo/issues/456)) ([bbb2222](https://github.com/ucdjs/test-repo/commit/bbb2222222222)) (by Test Author)"
     `);
-  });
+  })));
 
-  it("should handle first release without previous version", async () => {
+  it.effect("should handle first release without previous version", () =>
+    asTest(Effect.gen(function* () {
     const commits = [
       createCommit({
         type: "feat",
@@ -198,7 +202,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateEntry({
+      const entry = yield* withNode(generateEntry({
       ...baseEntryOptions,
       version: "0.1.0",
       date: "2025-01-16",
@@ -213,9 +217,10 @@ describe("generateChangelogEntry", () => {
       ### 🚀 Features
       * feat: initial release ([initial](https://github.com/ucdjs/test-repo/commit/initial123)) (by Test Author)"
     `);
-  });
+  })));
 
-  it("should group perf commits with bug fixes", async () => {
+  it.effect("should group perf commits with bug fixes", () =>
+    asTest(Effect.gen(function* () {
     const commits = [
       createCommit({
         type: "perf",
@@ -225,7 +230,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateEntry({
+      const entry = yield* withNode(generateEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
@@ -241,9 +246,10 @@ describe("generateChangelogEntry", () => {
       ### 🏎 Performance
       * perf: improve performance ([perf123](https://github.com/ucdjs/test-repo/commit/perf123456789)) (by Test Author)"
     `);
-  });
+  })));
 
-  it("should handle non-conventional commits", async () => {
+  it.effect("should handle non-conventional commits", () =>
+    asTest(Effect.gen(function* () {
     const commits = [
       createCommit({
         message: "some random commit",
@@ -253,7 +259,7 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-      const entry = await runNode(generateEntry({
+      const entry = yield* withNode(generateEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
@@ -270,7 +276,7 @@ describe("generateChangelogEntry", () => {
 
       ##### &nbsp;&nbsp;&nbsp;&nbsp;[View changes on GitHub](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1)"
     `);
-  });
+  })));
 });
 
 describe("parseChangelog", () => {
@@ -402,8 +408,9 @@ describe("parseChangelog", () => {
 });
 
 describe("updateChangelog", () => {
-  it("should create a new changelog file", async () => {
-    const testdirPath = await testdir({});
+  it.effect("should create a new changelog file", () =>
+    asTest(Effect.gen(function* () {
+    const testdirPath = yield* Effect.tryPromise(() => testdir({}));
     const { normalizedOptions, workspacePackage, githubService } =
       createChangelogTestContext(testdirPath);
 
@@ -418,7 +425,7 @@ describe("updateChangelog", () => {
       }),
     ];
 
-    await runNode(applyChangelogUpdate({
+    yield* withNode(applyChangelogUpdate({
       normalizedOptions,
       workspacePackage,
       version: "0.1.0",
@@ -426,7 +433,7 @@ describe("updateChangelog", () => {
       date: "2025-01-16",
     }), githubService);
 
-    const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
+    const content = yield* Effect.tryPromise(() => readFile(join(testdirPath, "CHANGELOG.md"), "utf-8"));
 
     expect(content).toMatchInlineSnapshot(`
       "# @ucdjs/test
@@ -438,10 +445,11 @@ describe("updateChangelog", () => {
       * feat: add new feature ([abc123](https://github.com/ucdjs/test-repo/commit/abc123)) (by Test Author)
       "
     `);
-  });
+  })));
 
-  it("should insert new version above existing entries", async () => {
-    const testdirPath = await testdir({});
+  it.effect("should insert new version above existing entries", () =>
+    asTest(Effect.gen(function* () {
+    const testdirPath = yield* Effect.tryPromise(() => testdir({}));
     const context = createChangelogTestContext(testdirPath);
 
     const commits = [
@@ -455,7 +463,7 @@ describe("updateChangelog", () => {
 
     mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await runNode(applyChangelogUpdate({
+    yield* withNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.1.0",
@@ -470,11 +478,11 @@ describe("updateChangelog", () => {
       date: "2025-01-15",
     }), context.githubService);
 
-    const existingChangelog = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
+    const existingChangelog = yield* Effect.tryPromise(() => readFile(join(testdirPath, "CHANGELOG.md"), "utf-8"));
 
     mockRun.mockReturnValueOnce(Effect.succeed({ stdout: existingChangelog, stderr: "", exitCode: 0 }) as any);
 
-    await runNode(applyChangelogUpdate({
+    yield* withNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
@@ -483,7 +491,7 @@ describe("updateChangelog", () => {
       date: "2025-01-16",
     }), context.githubService);
 
-    const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
+    const content = yield* Effect.tryPromise(() => readFile(join(testdirPath, "CHANGELOG.md"), "utf-8"));
 
     expect(content).toMatchInlineSnapshot(`
       "# @ucdjs/test
@@ -502,15 +510,16 @@ describe("updateChangelog", () => {
       * feat: initial release ([abc123](https://github.com/ucdjs/test-repo/commit/abc123)) (by Test Author)
       "
     `);
-  });
+  })));
 
-  it("should replace existing version entry (PR update)", async () => {
-    const testdirPath = await testdir({});
+  it.effect("should replace existing version entry (PR update)", () =>
+    asTest(Effect.gen(function* () {
+    const testdirPath = yield* Effect.tryPromise(() => testdir({}));
     const context = createChangelogTestContext(testdirPath);
 
     mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await runNode(applyChangelogUpdate({
+    yield* withNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
@@ -527,7 +536,7 @@ describe("updateChangelog", () => {
 
     mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await runNode(applyChangelogUpdate({
+    yield* withNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
@@ -548,17 +557,18 @@ describe("updateChangelog", () => {
       date: "2025-01-16",
     }), context.githubService);
 
-    const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
+    const content = yield* Effect.tryPromise(() => readFile(join(testdirPath, "CHANGELOG.md"), "utf-8"));
     const parsed = parseChangelog(content);
 
     expect(parsed.versions).toHaveLength(1);
     expect(parsed.versions[0]!.version).toBe("0.2.0");
     expect(content).toContain("add feature A");
     expect(content).toContain("add feature B");
-  });
+  })));
 
-  it("should not rewrite the changelog when version is unchanged", async () => {
-    const testdirPath = await testdir({});
+  it.effect("should not rewrite the changelog when version is unchanged", () =>
+    asTest(Effect.gen(function* () {
+    const testdirPath = yield* Effect.tryPromise(() => testdir({}));
     const context = createChangelogTestContext(testdirPath);
 
     const existingChangelog = dedent`
@@ -571,11 +581,11 @@ describe("updateChangelog", () => {
       * initial release
     `;
 
-    await writeFile(join(testdirPath, "CHANGELOG.md"), `${existingChangelog}\n`, "utf-8");
+    yield* Effect.tryPromise(() => writeFile(join(testdirPath, "CHANGELOG.md"), `${existingChangelog}\n`, "utf-8"));
 
     mockRun.mockReturnValueOnce(Effect.succeed({ stdout: existingChangelog, stderr: "", exitCode: 0 }) as any);
 
-    await runNode(applyChangelogUpdate({
+    yield* withNode(applyChangelogUpdate({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.1.0",
@@ -591,8 +601,8 @@ describe("updateChangelog", () => {
       date: "2025-01-16",
     }), context.githubService);
 
-    const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
+    const content = yield* Effect.tryPromise(() => readFile(join(testdirPath, "CHANGELOG.md"), "utf-8"));
 
     expect(content).toBe(`${existingChangelog}\n`);
-  });
+  })));
 });
