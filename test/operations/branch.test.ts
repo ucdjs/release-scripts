@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { GitService } from "../../src/services/git";
-import { prepareReleaseBranch } from "../../src/release/branch";
+import { prepareReleaseBranch } from "../../src/prepare";
 import { expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, vi } from "vitest";

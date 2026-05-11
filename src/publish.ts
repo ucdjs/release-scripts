@@ -1,21 +1,19 @@
 import { join } from "node:path";
 
-import { parseChangelog } from "../services/changelog";
-import { GitHubService } from "../services/github";
-import { type GitError, GitService } from "../services/git";
-import { type NPMError, NpmService } from "../services/npm";
-import type { PublishStatus } from "../services/npm";
-import { type WorkspaceError, type WorkspacePackage, WorkspaceService } from "../services/workspace";
-import { exitWithError } from "../shared/errors";
-import { formatUnknownError } from "../shared/errors";
-import { ReleaseOptions } from "../options";
-import { logger, ucdjsReleaseOverridesPath } from "../shared/utils";
-import { buildPackageDependencyGraph, getPackagePublishOrder } from "../versioning/package";
+import { parseChangelog } from "./services/changelog";
+import { GitHubService } from "./services/github";
+import { type GitError, GitService } from "./services/git";
+import { type NPMError, NpmService } from "./services/npm";
+import type { PublishStatus } from "./services/npm";
+import { type WorkspaceError, type WorkspacePackage, WorkspaceService } from "./services/workspace";
+import { exitWithError, formatUnknownError, logger, ucdjsReleaseOverridesPath } from "./errors";
+import { ReleaseOptions } from "./options";
+import { buildPackageDependencyGraph, getPackagePublishOrder } from "./packages";
 import { Effect, FileSystem } from "effect";
 import farver from "farver";
 import semver from "semver";
-import type { NormalizedReleaseScriptsOptions } from "../options";
-import type { BumpKind } from "#shared/types";
+import type { NormalizedReleaseScriptsOptions } from "./options";
+import type { BumpKind } from "./types";
 
 const getReleaseBodyFromChangelog = Effect.fn("getReleaseBodyFromChangelogEffect")(function* (
   _workspaceRoot: string,

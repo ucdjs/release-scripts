@@ -1,12 +1,12 @@
 import { NodeServices } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 
-import { logger } from "./shared/utils";
+import { logger } from "./errors";
 import type { ReleaseResult } from "./types";
 import { ChangelogServiceLive } from "./services/changelog";
-import { prepareWorkflow as release } from "./release/prepare";
-import { publishWorkflow as publish } from "./release/publish";
-import { verifyWorkflow as verify } from "./release/verify";
+import { prepareWorkflow as release } from "./prepare";
+import { publishWorkflow as publish } from "./publish";
+import { verifyWorkflow as verify } from "./verify";
 
 import type { WorkspacePackage } from "./services/workspace";
 import { GitHubServiceLive } from "./services/github";

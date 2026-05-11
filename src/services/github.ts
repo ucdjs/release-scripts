@@ -1,7 +1,6 @@
-import { formatUnknownError } from "../shared/errors";
+import { formatUnknownError, logger } from "../errors";
 import { ReleaseOptions } from "../options";
-import type { AuthorInfo, PackageRelease } from "../shared/types";
-import { logger } from "../shared/utils";
+import type { AuthorInfo, PackageRelease } from "../types";
 import { Context, Data, Effect, Layer } from "effect";
 import { Eta } from "eta";
 import farver from "farver";

@@ -4,7 +4,7 @@ import { NodeServices } from "@effect/platform-node";
 import { expect, it } from "@effect/vitest";
 import { Cause, Effect, Exit, Option } from "effect";
 
-import { CommandError, runCommandEffect } from "../../src/shared/utils";
+import { CommandError, runCommandEffect } from "../../src/errors";
 
 it.effect("runCommandEffect captures stdout with pipe stdio", () =>
   Effect.scoped(

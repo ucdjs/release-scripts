@@ -3,22 +3,128 @@ import { join } from "node:path";
 import { Effect, FileSystem } from "effect";
 import farver from "farver";
 import semver from "semver";
-import { ReleaseOptions } from "../options";
-import { ChangelogService } from "../services/changelog";
-import { type GitError, GitService } from "../services/git";
-import { type WorkspaceError, type WorkspacePackage, WorkspaceService } from "../services/workspace";
-import { type GitHubError } from "../services/github";
-import type { PackageRelease } from "../shared/types";
-import { exitWithError, formatUnknownError } from "../shared/errors";
-import { logger, ucdjsReleaseOverridesPath } from "../shared/utils";
+import { ReleaseOptions } from "./options";
+import { ChangelogService } from "./services/changelog";
+import { GitError, GitService } from "./services/git";
+import {
+  type WorkspaceError,
+  type WorkspacePackage,
+  WorkspaceService,
+} from "./services/workspace";
+import { type GitHubError, generatePullRequestBody, GitHubService } from "./services/github";
+import type { BumpKind, PackageRelease } from "./types";
+import { exitWithError, formatUnknownError, logger, runEffect, ucdjsReleaseOverridesPath } from "./errors";
 import {
   getGlobalCommitsPerPackage,
   getPackageCommitsSinceTag,
   getWorkspacePackageGroupedCommits,
-} from "../versioning/commits";
-import { prepareReleaseBranch, syncReleaseChanges } from "./branch";
-import { calculateUpdates, ensureHasPackages } from "./calculate";
-import { syncPullRequest } from "./pr";
+} from "./commits";
+import { calculateUpdates, ensureHasPackages } from "./packages";
+
+interface PrepareReleaseBranchOptions {
+  workspaceRoot: string;
+  releaseBranch: string;
+  defaultBranch: string;
+}
+
+export const prepareReleaseBranch = Effect.fn("prepareReleaseBranch")(function* (
+  options: PrepareReleaseBranchOptions,
+) {
+  const git = yield* GitService;
+  const { workspaceRoot, releaseBranch, defaultBranch } = options;
+  const currentBranch = yield* git.getCurrentBranch(workspaceRoot);
+
+  if (currentBranch !== defaultBranch) {
+    return yield* Effect.fail(new GitError({
+      operation: "validateBranch",
+      message: `Current branch is '${currentBranch}'. Please switch to '${defaultBranch}'.`,
+    }));
+  }
+
+  const branchExists = yield* git.doesBranchExist(releaseBranch, workspaceRoot);
+  if (!branchExists) {
+    yield* git.createBranch(releaseBranch, defaultBranch, workspaceRoot);
+  }
+
+  yield* git.checkoutBranch(releaseBranch, workspaceRoot);
+
+  if (branchExists) {
+    const remoteExists = yield* git.doesRemoteBranchExist(releaseBranch, workspaceRoot);
+    if (remoteExists) {
+      const pulled = yield* git.pullLatestChanges(releaseBranch, workspaceRoot);
+      if (!pulled) {
+        logger.warn("Failed to pull latest changes, continuing anyway.");
+      }
+    } else {
+      logger.info(`Remote branch "origin/${releaseBranch}" does not exist yet, skipping pull.`);
+    }
+  }
+
+  yield* git.rebaseBranch(defaultBranch, workspaceRoot);
+});
+
+interface SyncChangesOptions {
+  workspaceRoot: string;
+  releaseBranch: string;
+  commitMessage: string;
+  hasChanges: boolean;
+  additionalPaths?: string[];
+}
+
+const syncReleaseChanges = Effect.fn("syncReleaseChanges")(function* (options: SyncChangesOptions) {
+  const git = yield* GitService;
+  const { workspaceRoot, releaseBranch, commitMessage, hasChanges, additionalPaths } = options;
+
+  if (additionalPaths && additionalPaths.length > 0) {
+    try {
+      yield* runEffect("git", ["add", "--", ...additionalPaths], {
+        nodeOptions: { cwd: workspaceRoot, stdio: "pipe" },
+      });
+    } catch (error) {
+      logger.verbose(`Failed to stage additional paths: ${String(error)}`);
+    }
+  }
+
+  const committed = hasChanges ? yield* git.commitChanges(commitMessage, workspaceRoot) : false;
+  const isAhead = yield* git.isBranchAheadOfRemote(releaseBranch, workspaceRoot);
+
+  if (!committed && !isAhead) {
+    return false;
+  }
+
+  yield* git.pushBranch(releaseBranch, workspaceRoot, { forceWithLease: true });
+  return true;
+});
+
+interface SyncPullRequestOptions {
+  releaseBranch: string;
+  defaultBranch: string;
+  pullRequestTitle?: string;
+  pullRequestBody?: string;
+  updates: PackageRelease[];
+}
+
+export const syncPullRequest = Effect.fn("syncPullRequest")(function* (
+  options: SyncPullRequestOptions,
+) {
+  const github = yield* GitHubService;
+  const { releaseBranch, defaultBranch, pullRequestTitle, pullRequestBody, updates } = options;
+  const existing = yield* github.getExistingPullRequest(releaseBranch);
+  const title = existing?.title || pullRequestTitle || "chore: update package versions";
+  const body = generatePullRequestBody(updates, pullRequestBody);
+  const pullRequest = yield* github.upsertPullRequest({
+    pullNumber: existing?.number,
+    title,
+    body,
+    head: releaseBranch,
+    base: defaultBranch,
+  });
+
+  return {
+    pullRequest,
+    created: !existing,
+  };
+});
 
 export const prepareWorkflow = Effect.fn("prepareWorkflow")(function* () {
   const options = yield* ReleaseOptions;
@@ -85,7 +191,7 @@ export const prepareWorkflow = Effect.fn("prepareWorkflow")(function* () {
   const overridesPath = join(options.workspaceRoot, ucdjsReleaseOverridesPath);
   let existingOverrides: Record<
     string,
-    { version: string; type: import("#shared/types").BumpKind }
+    { version: string; type: BumpKind }
   > = {};
   try {
     const overridesContent = yield* fs.readFileString(overridesPath);

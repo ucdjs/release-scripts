@@ -1,11 +1,11 @@
-import { getNextVersion } from "#shared/semver";
-import type { PackageRelease } from "#shared/types";
+import { getNextVersion } from "../../src/versions";
+import type { PackageRelease } from "../../src/types";
 import {
   buildPackageDependencyGraph,
   createDependentUpdates,
   getAllAffectedPackages,
   getPackagePublishOrder,
-} from "#versioning/package";
+} from "../../src/packages";
 import { describe, expect, it } from "vitest";
 
 import { createWorkspacePackage } from "../_shared";

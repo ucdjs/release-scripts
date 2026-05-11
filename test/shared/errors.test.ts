@@ -5,7 +5,7 @@ import {
   formatUnknownError,
   printReleaseError,
   ReleaseError,
-} from "../../src/shared/errors";
+} from "../../src/errors";
 
 describe("formatUnknownError", () => {
   it("handles Error instances", () => {

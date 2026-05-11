@@ -1,8 +1,7 @@
 import process from "node:process";
 
 import type { NormalizedReleaseScriptsOptions } from "../options";
-import { formatUnknownError } from "../shared/errors";
-import { logger, runIfNotDryEffect } from "../shared/utils";
+import { formatUnknownError, logger, runIfNotDryEffect } from "../errors";
 import { Cause, Context, Data, Effect, Exit, Layer } from "effect";
 import semver from "semver";
 

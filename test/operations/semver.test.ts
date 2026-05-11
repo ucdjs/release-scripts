@@ -4,7 +4,7 @@ import {
   getNextVersion,
   getPrereleaseIdentifier,
   isValidSemver,
-} from "#shared/semver";
+} from "../../src/versions";
 import { describe, expect, it } from "vitest";
 
 describe("semver operations", () => {

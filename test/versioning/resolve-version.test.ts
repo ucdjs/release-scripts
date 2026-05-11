@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveAutoVersion } from "../../src/versioning/version";
+import { resolveAutoVersion } from "../../src/versions";
 import { createCommit, createWorkspacePackage } from "../_shared";
 
 describe("resolveAutoVersion", () => {

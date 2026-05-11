@@ -1,12 +1,12 @@
 import { join, relative } from "node:path";
 
-import { buildTemplateGroups } from "../shared/changelog-format";
 import type { NormalizedReleaseScriptsOptions } from "../options";
 import { DEFAULT_CHANGELOG_TEMPLATE } from "../options";
-import type { AuthorInfo, CommitTypeRule } from "../shared/types";
-import { logger } from "../shared/utils";
+import type { AuthorInfo, CommitTypeRule } from "../types";
+import { logger } from "../errors";
 import { Context, Effect, FileSystem, Layer } from "effect";
 import type { GitCommit } from "commit-parser";
+import { groupByType } from "commit-parser";
 import { Eta } from "eta";
 
 import { GitService } from "./git";
@@ -14,7 +14,79 @@ import { GitHubService } from "./github";
 import type { WorkspacePackage } from "./workspace";
 
 const CHANGELOG_VERSION_RE = /##\s+(?:<small>)?\[?([^\](\s<]+)/;
+const HASH_PREFIX_RE = /^#/;
 const excludeAuthors = [/\[bot\]/i, /dependabot/i, /\(bot\)/i];
+
+function formatCommitLine(options: {
+  commit: GitCommit;
+  owner: string;
+  repo: string;
+  authors: AuthorInfo[];
+}): string {
+  const { commit, owner, repo, authors } = options;
+  const commitUrl = `https://github.com/${owner}/${repo}/commit/${commit.hash}`;
+  let line = commit.description;
+  const references = commit.references ?? [];
+
+  for (const ref of references) {
+    if (!ref.value) continue;
+
+    const number = Number.parseInt(ref.value.replace(HASH_PREFIX_RE, ""), 10);
+    if (Number.isNaN(number)) continue;
+
+    if (ref.type === "issue") {
+      line += ` ([Issue ${ref.value}](https://github.com/${owner}/${repo}/issues/${number}))`;
+      continue;
+    }
+
+    line += ` ([PR ${ref.value}](https://github.com/${owner}/${repo}/pull/${number}))`;
+  }
+
+  line += ` ([${commit.shortHash}](${commitUrl}))`;
+
+  if (authors.length > 0) {
+    const authorList = authors
+      .map((author) =>
+        author.login ? `[@${author.login}](https://github.com/${author.login})` : author.name,
+      )
+      .join(", ");
+
+    line += ` (by ${authorList})`;
+  }
+
+  return line;
+}
+
+export function buildTemplateGroups(options: {
+  commits: GitCommit[];
+  owner: string;
+  repo: string;
+  types: Record<string, CommitTypeRule>;
+  commitAuthors: Map<string, AuthorInfo[]>;
+}): Array<{ name: string; title: string; commits: Array<{ line: string }> }> {
+  const { commits, owner, repo, types, commitAuthors } = options;
+  const mergeKeys = Object.fromEntries(
+    Object.entries(types).map(([key, value]) => [key, value.types ?? [key]]),
+  );
+
+  const grouped = groupByType(commits, {
+    includeNonConventional: false,
+    mergeKeys,
+  });
+
+  return Object.entries(types).map(([key, value]) => ({
+    name: key,
+    title: value.title,
+    commits: (grouped.get(key) ?? []).map((commit) => ({
+      line: formatCommitLine({
+        commit,
+        owner,
+        repo,
+        authors: commitAuthors.get(commit.hash) ?? [],
+      }),
+    })),
+  }));
+}
 
 export interface ChangelogServiceShape {
   readonly generateChangelogEntry: (options: {

@@ -1,7 +1,7 @@
 import { GitHubServiceLive } from "../../src/services/github";
 import { NodeServices } from "@effect/platform-node";
 import { ReleaseOptions } from "../../src/options";
-import { syncPullRequest } from "../../src/release/pr";
+import { syncPullRequest } from "../../src/prepare";
 import { expect, it, layer } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { HttpResponse } from "msw";

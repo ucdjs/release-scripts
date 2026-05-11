@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { afterEach, beforeEach, describe } from "vitest";
 import { expect, it } from "@effect/vitest";
 
-import { getIsCI } from "../../src/shared/utils";
+import { getIsCI } from "../../src/errors";
 
 describe("getIsCI", () => {
   let originalCI: string | undefined;

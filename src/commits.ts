@@ -1,6 +1,6 @@
-import { GitService } from "../services/git";
-import type { WorkspacePackage } from "../services/workspace";
-import { logger } from "../shared/utils";
+import { GitService } from "./services/git";
+import type { WorkspacePackage } from "./services/workspace";
+import { logger } from "./errors";
 import type { GitCommit } from "commit-parser";
 import { getCommits } from "commit-parser";
 import { Effect } from "effect";

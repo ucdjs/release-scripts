@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeDependencyRange } from "../../src/versioning/version";
+import { computeDependencyRange } from "../../src/versions";
 
 describe("computeDependencyRange", () => {
   it("returns null for workspace:* ranges", () => {

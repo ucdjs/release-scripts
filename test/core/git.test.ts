@@ -3,13 +3,13 @@ import {
   GitService,
   GitServiceLive,
 } from "../../src/services/git";
-import { runEffect, runIfNotDryEffect } from "#shared/utils";
+import { runEffect, runIfNotDryEffect } from "../../src/errors";
 import { expect, it, layer } from "@effect/vitest";
 import { Cause, Effect, Layer } from "effect";
 import { afterEach, assert, beforeEach, describe, vi } from "vitest";
 
-vi.mock("#shared/utils", async () => {
-  const actual = await vi.importActual<typeof import("#shared/utils")>("#shared/utils");
+vi.mock("../../src/errors", async () => {
+  const actual = await vi.importActual<typeof import("../../src/errors")>("../../src/errors");
   return {
     ...actual,
     runEffect: vi.fn(),

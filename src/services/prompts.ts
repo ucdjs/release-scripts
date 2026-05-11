@@ -4,8 +4,8 @@ import {
   getNextStableVersion,
   getPrereleaseIdentifier,
   isValidSemver,
-} from "../shared/semver";
-import type { BumpKind } from "../shared/types";
+} from "../versions";
+import type { BumpKind } from "../types";
 import { Context, Effect, Layer } from "effect";
 import farver from "farver";
 import prompts from "prompts";

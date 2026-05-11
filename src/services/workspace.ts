@@ -1,8 +1,8 @@
 import { join } from "node:path";
 
 import { PromptService } from "./prompts";
-import type { FindWorkspacePackagesOptions, PackageJson } from "../shared/types";
-import { getIsCI, logger, runEffect } from "../shared/utils";
+import type { FindWorkspacePackagesOptions, PackageJson } from "../types";
+import { getIsCI, logger, runEffect } from "../errors";
 import { Context, Data, Effect, FileSystem, Layer } from "effect";
 import farver from "farver";
 

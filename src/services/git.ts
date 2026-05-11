@@ -1,7 +1,6 @@
 import process from "node:process";
 
-import { formatUnknownError } from "../shared/errors";
-import { logger, runEffect, runIfNotDryEffect } from "../shared/utils";
+import { formatUnknownError, logger, runEffect, runIfNotDryEffect } from "../errors";
 import { Cause, Context, Data, Effect, Exit, Layer } from "effect";
 import farver from "farver";
 import semver from "semver";

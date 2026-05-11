@@ -1,13 +1,12 @@
 import { join, relative } from "node:path";
 
-import { GitHubService } from "../services/github";
-import { type GitError, GitService } from "../services/git";
-import { type WorkspaceError, WorkspaceService, type WorkspacePackage } from "../services/workspace";
-import type { PackageRelease } from "../shared/types";
-import { calculateUpdates, ensureHasPackages } from "./calculate";
-import { exitWithError, formatUnknownError } from "../shared/errors";
-import { ReleaseOptions } from "../options";
-import { logger, ucdjsReleaseOverridesPath } from "../shared/utils";
+import { GitHubService } from "./services/github";
+import { type GitError, GitService } from "./services/git";
+import { type WorkspaceError, WorkspaceService, type WorkspacePackage } from "./services/workspace";
+import type { BumpKind, PackageRelease } from "./types";
+import { calculateUpdates, ensureHasPackages } from "./packages";
+import { exitWithError, formatUnknownError, logger, ucdjsReleaseOverridesPath } from "./errors";
+import { ReleaseOptions } from "./options";
 import { Effect } from "effect";
 import { gt } from "semver";
 
@@ -71,7 +70,7 @@ export const verifyWorkflow = Effect.fn("verifyWorkflow")(function* () {
 
   let existingOverrides: Record<
     string,
-    { version: string; type: import("#shared/types").BumpKind }
+    { version: string; type: BumpKind }
   > = {};
   try {
     const overridesContent = yield* git.readFileFromGit(

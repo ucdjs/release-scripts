@@ -1,8 +1,8 @@
 import process from "node:process";
 
 import { Context } from "effect";
-import { ReleaseError } from "#shared/errors";
-import type { CommitTypeRule } from "#shared/types";
+import { ReleaseError } from "./errors";
+import type { CommitTypeRule } from "./types";
 import { dedent } from "@luxass/utils";
 
 type DeepRequired<T> = Required<{

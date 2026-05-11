@@ -1,4 +1,4 @@
-import { ReleaseError } from "#shared/errors";
+import { ReleaseError } from "../src/errors";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { DEFAULT_TYPES, normalizeReleaseScriptsOptions } from "../src/options";

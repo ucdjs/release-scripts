@@ -7,7 +7,7 @@ import { ChangelogService, ChangelogServiceLive, parseChangelog } from "../../sr
 import { GitHubService } from "../../src/services/github";
 import type { NormalizedReleaseScriptsOptions } from "../../src/options";
 import { expect, it } from "@effect/vitest";
-import { runEffect } from "#shared/utils";
+import { runEffect } from "../../src/errors";
 import { dedent } from "@luxass/utils";
 import { Effect, Layer } from "effect";
 import type { GitCommit } from "commit-parser";
@@ -16,11 +16,11 @@ import { testdir } from "vitest-testdirs";
 
 import { DEFAULT_TYPES } from "../../src/options";
 import { createChangelogTestContext, createCommit, createGitHubServiceStub } from "../_shared";
-import type { CommitTypeRule } from "../../src/shared/types";
+import type { CommitTypeRule } from "../../src/types";
 import type { WorkspacePackage } from "../../src/services/workspace";
 
-vi.mock("#shared/utils", async () => {
-  const actual = await vi.importActual<typeof import("#shared/utils")>("#shared/utils");
+vi.mock("../../src/errors", async () => {
+  const actual = await vi.importActual<typeof import("../../src/errors")>("../../src/errors");
   return {
     ...actual,
     runEffect: vi.fn(),

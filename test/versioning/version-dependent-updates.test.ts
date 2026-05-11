@@ -1,6 +1,6 @@
 import { PromptServiceLive } from "../../src/services/prompts";
-import type { PackageRelease } from "#shared/types";
-import { calculateAndPrepareVersionUpdates } from "#versioning/version";
+import type { PackageRelease } from "../../src/types";
+import { calculateAndPrepareVersionUpdates } from "../../src/versions";
 import { Effect } from "effect";
 import { expect, it } from "@effect/vitest";
 import { describe, vi } from "vitest";

@@ -1,11 +1,63 @@
-import type { WorkspacePackage } from "../services/workspace";
-import { createVersionUpdate } from "../shared/version";
-import type { PackageRelease, PackageUpdateOrder } from "../shared/types";
-import { logger } from "../shared/utils";
+import { Effect } from "effect";
+
+import { GitError } from "./services/git";
+import type { WorkspacePackage } from "./services/workspace";
+import { getGlobalCommitsPerPackage, getWorkspacePackageGroupedCommits } from "./commits";
+import { formatUnknownError, logger } from "./errors";
+import type { BumpKind, PackageRelease, PackageUpdateOrder } from "./types";
+import { calculateAndPrepareVersionUpdates, createVersionUpdate } from "./versions";
 
 interface PackageDependencyGraph {
   packages: Map<string, WorkspacePackage>;
   dependents: Map<string, Set<string>>;
+}
+
+interface CalculateUpdatesOptions {
+  workspacePackages: WorkspacePackage[];
+  workspaceRoot: string;
+  showPrompt: boolean;
+  overrides: Record<string, { version: string; type: BumpKind }>;
+  globalCommitMode: false | "dependencies" | "all";
+}
+
+export const calculateUpdates = Effect.fn("calculateUpdates")(function* (
+  options: CalculateUpdatesOptions,
+) {
+  const { workspacePackages, workspaceRoot, showPrompt, overrides, globalCommitMode } = options;
+
+  try {
+    const grouped = yield* getWorkspacePackageGroupedCommits(workspaceRoot, workspacePackages);
+    const global = yield* getGlobalCommitsPerPackage(
+      workspaceRoot,
+      grouped,
+      workspacePackages,
+      globalCommitMode,
+    );
+
+    return yield* calculateAndPrepareVersionUpdates({
+      workspacePackages,
+      packageCommits: grouped,
+      workspaceRoot,
+      showPrompt,
+      globalCommitsPerPackage: global,
+      overrides,
+    });
+  } catch (error) {
+    const formatted = formatUnknownError(error);
+    return yield* Effect.fail(new GitError({
+      operation: "calculateUpdates",
+      message: formatted.message,
+      stderr: formatted.stderr,
+    }));
+  }
+});
+
+export function ensureHasPackages(packages: WorkspacePackage[]): WorkspacePackage[] | null {
+  if (packages.length === 0) {
+    return null;
+  }
+
+  return packages;
 }
 
 /**

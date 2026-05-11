@@ -6,7 +6,7 @@ import {
   filterGlobalCommits,
   findCommitRange,
   isGlobalCommit,
-} from "../../src/versioning/commits";
+} from "../../src/commits";
 import { createCommit } from "../_shared";
 
 describe("fileMatchesPackageFolder", () => {

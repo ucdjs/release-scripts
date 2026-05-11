@@ -1,15 +1,174 @@
 import { join } from "node:path";
 
-import { PromptService } from "../services/prompts";
+import { PromptService } from "./services/prompts";
 import { Effect, FileSystem } from "effect";
-import type { WorkspacePackage } from "../services/workspace";
-import { calculateBumpType, getNextVersion } from "../shared/semver";
-import { determineHighestBump } from "../shared/version";
-import type { BumpKind, PackageJson, PackageRelease } from "../shared/types";
-import { getIsCI, logger } from "../shared/utils";
-import { buildPackageDependencyGraph, createDependentUpdates } from "./package";
+import type { WorkspacePackage } from "./services/workspace";
+import type { BumpKind, PackageJson, PackageRelease } from "./types";
+import { getIsCI, logger } from "./errors";
+import { buildPackageDependencyGraph, createDependentUpdates } from "./packages";
 import type { GitCommit } from "commit-parser";
 import farver from "farver";
+import semver from "semver";
+
+export function isValidSemver(version: string): boolean {
+  return semver.valid(version) != null;
+}
+
+export function getPrereleaseIdentifier(version: string): string | undefined {
+  const parsed = semver.parse(version);
+  if (!parsed || parsed.prerelease.length === 0) {
+    return undefined;
+  }
+
+  const identifier = parsed.prerelease[0];
+  return typeof identifier === "string" ? identifier : undefined;
+}
+
+export function getNextVersion(currentVersion: string, bump: BumpKind): string {
+  if (bump === "none") {
+    return currentVersion;
+  }
+
+  if (!isValidSemver(currentVersion)) {
+    throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
+  }
+
+  if (semver.prerelease(currentVersion)) {
+    const identifier = getPrereleaseIdentifier(currentVersion);
+    const next = identifier
+      ? semver.inc(currentVersion, "prerelease", identifier)
+      : semver.inc(currentVersion, "prerelease");
+    if (!next) {
+      throw new Error(`Failed to bump prerelease version ${currentVersion}`);
+    }
+    return next;
+  }
+
+  const next = semver.inc(currentVersion, bump);
+  if (!next) {
+    throw new Error(`Failed to bump version ${currentVersion} with bump ${bump}`);
+  }
+
+  return next;
+}
+
+export function getNextStableVersion(
+  currentVersion: string,
+  bump: Exclude<BumpKind, "none">,
+): string {
+  if (!isValidSemver(currentVersion)) {
+    throw new Error(`Cannot bump version for invalid semver: ${currentVersion}`);
+  }
+
+  const next = semver.inc(currentVersion, bump);
+  if (!next) {
+    throw new Error(`Failed to bump version ${currentVersion} with bump ${bump}`);
+  }
+
+  return next;
+}
+
+export function calculateBumpType(oldVersion: string, newVersion: string): BumpKind {
+  if (!isValidSemver(oldVersion) || !isValidSemver(newVersion)) {
+    throw new Error(
+      `Cannot calculate bump type for invalid semver: ${oldVersion} or ${newVersion}`,
+    );
+  }
+
+  const diff = semver.diff(oldVersion, newVersion);
+  if (!diff) {
+    return "none";
+  }
+
+  if (diff === "major" || diff === "premajor") return "major";
+  if (diff === "minor" || diff === "preminor") return "minor";
+  if (diff === "patch" || diff === "prepatch" || diff === "prerelease") return "patch";
+
+  if (semver.gt(newVersion, oldVersion)) {
+    return "patch";
+  }
+
+  return "none";
+}
+
+export function getNextPrereleaseVersion(
+  currentVersion: string,
+  mode: "next" | "prepatch" | "preminor" | "premajor",
+  identifier?: string,
+): string {
+  if (!isValidSemver(currentVersion)) {
+    throw new Error(`Cannot bump prerelease for invalid semver: ${currentVersion}`);
+  }
+
+  const releaseType = mode === "next" ? "prerelease" : mode;
+  const next = identifier
+    ? semver.inc(currentVersion, releaseType, identifier)
+    : semver.inc(currentVersion, releaseType);
+  if (!next) {
+    throw new Error(`Failed to compute prerelease version for ${currentVersion}`);
+  }
+
+  return next;
+}
+
+export function determineHighestBump(commits: GitCommit[]): BumpKind {
+  if (commits.length === 0) {
+    return "none";
+  }
+
+  let highestBump: BumpKind = "none";
+
+  for (const commit of commits) {
+    const bump = determineBumpType(commit);
+
+    if (bump === "major") {
+      return "major";
+    }
+
+    if (bump === "minor") {
+      highestBump = "minor";
+    } else if (bump === "patch" && highestBump === "none") {
+      highestBump = "patch";
+    }
+  }
+
+  return highestBump;
+}
+
+export function createVersionUpdate(
+  pkg: WorkspacePackage,
+  bump: BumpKind,
+  hasDirectChanges: boolean,
+): PackageRelease {
+  return {
+    package: pkg,
+    currentVersion: pkg.version,
+    newVersion: getNextVersion(pkg.version, bump),
+    bumpType: bump,
+    hasDirectChanges,
+    changeKind: "dependent",
+  };
+}
+
+function determineBumpType(commit: GitCommit): BumpKind {
+  if (!commit.isConventional) {
+    return "none";
+  }
+
+  if (commit.isBreaking) {
+    return "major";
+  }
+
+  if (commit.type === "feat") {
+    return "minor";
+  }
+
+  if (commit.type === "fix" || commit.type === "perf") {
+    return "patch";
+  }
+
+  return "none";
+}
 
 const messageColorMap: Record<string, (c: string) => string> = {
   feat: farver.green,

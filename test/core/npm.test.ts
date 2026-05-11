@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { NpmService, NpmServiceLive } from "../../src/services/npm";
-import { runIfNotDryEffect } from "#shared/utils";
+import { runIfNotDryEffect } from "../../src/errors";
 import { expect, it, layer } from "@effect/vitest";
 import { Cause, Effect, Layer } from "effect";
 import { HttpResponse } from "msw";
@@ -9,8 +9,8 @@ import { afterEach, assert, beforeEach, vi } from "vitest";
 import { mockFetch, NPM_REGISTRY } from "../_msw";
 import { createNormalizedReleaseOptions } from "../_shared";
 
-vi.mock("#shared/utils", async () => {
-  const actual = await vi.importActual<typeof import("#shared/utils")>("#shared/utils");
+vi.mock("../../src/errors", async () => {
+  const actual = await vi.importActual<typeof import("../../src/errors")>("../../src/errors");
   return {
     ...actual,
     runIfNotDryEffect: vi.fn(),

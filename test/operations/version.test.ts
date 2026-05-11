@@ -1,4 +1,4 @@
-import { determineHighestBump } from "#shared/version";
+import { determineHighestBump } from "../../src/versions";
 import { describe, expect, it } from "vitest";
 
 import { createCommit } from "../_shared";
