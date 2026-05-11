@@ -1,13 +1,19 @@
+import { PromptServiceLive } from "../../src/services/prompts";
 import type { PackageRelease } from "#shared/types";
 import { calculateAndPrepareVersionUpdates } from "#versioning/version";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { createWorkspacePackage } from "../_shared";
 
-vi.mock("#core/prompts", () => ({
-  confirmOverridePrompt: vi.fn(),
-  selectVersionPrompt: vi.fn(),
-}));
+vi.mock("../../src/services/prompts", async () => {
+  const actual = await vi.importActual<typeof import("../../src/services/prompts")>("../../src/services/prompts");
+  return {
+    ...actual,
+    confirmOverridePrompt: vi.fn(),
+    selectVersionPrompt: vi.fn(),
+  };
+});
 
 describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
   it("adds dependent patch bumps and preserves direct updates", async () => {
@@ -38,14 +44,16 @@ describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
     ]);
     const globalCommitsPerPackage = new Map();
 
-    const result = await calculateAndPrepareVersionUpdates({
-      workspacePackages,
-      packageCommits,
-      workspaceRoot: "/repo",
-      showPrompt: false,
-      globalCommitsPerPackage,
-      overrides: {},
-    });
+    const result = await Effect.runPromise(
+      calculateAndPrepareVersionUpdates({
+        workspacePackages,
+        packageCommits,
+        workspaceRoot: "/repo",
+        showPrompt: false,
+        globalCommitsPerPackage,
+        overrides: {},
+      }).pipe(Effect.provide(PromptServiceLive)),
+    );
 
     const byName = new Map(result.allUpdates.map((update) => [update.package.name, update]));
 
@@ -83,16 +91,18 @@ describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
     ]);
     const globalCommitsPerPackage = new Map();
 
-    const result = await calculateAndPrepareVersionUpdates({
-      workspacePackages,
-      packageCommits,
-      workspaceRoot: "/repo",
-      showPrompt: false,
-      globalCommitsPerPackage,
-      overrides: {
-        "pkg-a": { type: "none", version: "1.0.0" },
-      },
-    });
+    const result = await Effect.runPromise(
+      calculateAndPrepareVersionUpdates({
+        workspacePackages,
+        packageCommits,
+        workspaceRoot: "/repo",
+        showPrompt: false,
+        globalCommitsPerPackage,
+        overrides: {
+          "pkg-a": { type: "none", version: "1.0.0" },
+        },
+      }).pipe(Effect.provide(PromptServiceLive)),
+    );
 
     const updatedNames = result.allUpdates.map((update) => update.package.name).toSorted();
     expect(updatedNames).toEqual(["pkg-b"]);
@@ -105,14 +115,16 @@ describe("calculateAndPrepareVersionUpdates (dependent updates)", () => {
     });
     const workspacePackages = [pkgA];
 
-    const result = await calculateAndPrepareVersionUpdates({
-      workspacePackages,
-      packageCommits: new Map(),
-      workspaceRoot: "/repo",
-      showPrompt: false,
-      globalCommitsPerPackage: new Map(),
-      overrides: {},
-    });
+    const result = await Effect.runPromise(
+      calculateAndPrepareVersionUpdates({
+        workspacePackages,
+        packageCommits: new Map(),
+        workspaceRoot: "/repo",
+        showPrompt: false,
+        globalCommitsPerPackage: new Map(),
+        overrides: {},
+      }).pipe(Effect.provide(PromptServiceLive)),
+    );
 
     expect(result.allUpdates).toEqual([] as PackageRelease[]);
   });

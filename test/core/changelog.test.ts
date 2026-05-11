@@ -1,17 +1,46 @@
+import { NodeServices } from "@effect/platform-node";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { generateChangelogEntry, parseChangelog, updateChangelog } from "#core/changelog";
+import { GitServiceLive } from "../../src/services/git";
+import { ChangelogServiceLive } from "../../src/services/changelog";
+import { generateChangelogEntry, parseChangelog, updateChangelog } from "../../src/services/changelog";
+import { GitHubService } from "../../src/services/github";
+import { runEffect } from "#shared/utils";
 import { dedent } from "@luxass/utils";
-import * as tinyexec from "tinyexec";
+import { Effect, Layer } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testdir } from "vitest-testdirs";
 
 import { DEFAULT_TYPES } from "../../src/options";
-import { createChangelogTestContext, createCommit, createGitHubClientStub } from "../_shared";
+import { createChangelogTestContext, createCommit, createGitHubServiceStub } from "../_shared";
 
-vi.mock("tinyexec");
-const mockExec = vi.mocked(tinyexec.x);
+vi.mock("#shared/utils", async () => {
+  const actual = await vi.importActual<typeof import("#shared/utils")>("#shared/utils");
+  return {
+    ...actual,
+    runEffect: vi.fn(),
+  };
+});
+const mockRun = vi.mocked(runEffect);
+const runNode = <A, E, R>(effect: Effect.Effect<A, E, R>, githubService = createGitHubServiceStub()) =>
+  Effect.runPromise(
+    effect.pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          NodeServices.layer,
+          GitServiceLive,
+          ChangelogServiceLive,
+          Layer.succeed(GitHubService)(Object.assign({
+            getExistingPullRequest: vi.fn(),
+            upsertPullRequest: vi.fn(),
+            setCommitStatus: vi.fn(),
+            upsertReleaseByTag: vi.fn(),
+          }, githubService) as any),
+        ),
+      ),
+    ) as Effect.Effect<A, E, never>,
+  );
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -39,15 +68,14 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = await generateChangelogEntry({
+      const entry = await runNode(generateChangelogEntry({
       ...baseEntryOptions,
       version: "0.2.0",
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
       types: DEFAULT_TYPES,
-      githubClient: createGitHubClientStub(),
-    });
+      }), createGitHubServiceStub());
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.2.0](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.2.0) (2025-01-16)
@@ -68,15 +96,14 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = await generateChangelogEntry({
+      const entry = await runNode(generateChangelogEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
       types: DEFAULT_TYPES,
-      githubClient: createGitHubClientStub(),
-    });
+      }), createGitHubServiceStub());
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
@@ -110,15 +137,14 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = await generateChangelogEntry({
+      const entry = await runNode(generateChangelogEntry({
       ...baseEntryOptions,
       version: "0.3.0",
       previousVersion: "0.2.0",
       date: "2025-01-16",
       commits,
       types: DEFAULT_TYPES,
-      githubClient: createGitHubClientStub(),
-    });
+      }), createGitHubServiceStub());
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.3.0](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.2.0...@ucdjs/test@0.3.0) (2025-01-16)
@@ -142,14 +168,13 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = await generateChangelogEntry({
+      const entry = await runNode(generateChangelogEntry({
       ...baseEntryOptions,
       version: "0.1.0",
       date: "2025-01-16",
       commits,
       types: DEFAULT_TYPES,
-      githubClient: createGitHubClientStub(),
-    });
+      }), createGitHubServiceStub());
 
     expect(entry).toMatchInlineSnapshot(`
       "## 0.1.0 (2025-01-16)
@@ -170,15 +195,14 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = await generateChangelogEntry({
+      const entry = await runNode(generateChangelogEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
       types: DEFAULT_TYPES,
-      githubClient: createGitHubClientStub(),
-    });
+      }), createGitHubServiceStub());
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
@@ -199,15 +223,14 @@ describe("generateChangelogEntry", () => {
       }),
     ];
 
-    const entry = await generateChangelogEntry({
+      const entry = await runNode(generateChangelogEntry({
       ...baseEntryOptions,
       version: "0.1.1",
       previousVersion: "0.1.0",
       date: "2025-01-16",
       commits,
       types: DEFAULT_TYPES,
-      githubClient: createGitHubClientStub(),
-    });
+      }), createGitHubServiceStub());
 
     expect(entry).toMatchInlineSnapshot(`
       "## [0.1.1](https://github.com/ucdjs/test-repo/compare/@ucdjs/test@0.1.0...@ucdjs/test@0.1.1) (2025-01-16)
@@ -351,10 +374,10 @@ describe("parseChangelog", () => {
 describe("updateChangelog", () => {
   it("should create a new changelog file", async () => {
     const testdirPath = await testdir({});
-    const { normalizedOptions, workspacePackage, githubClient } =
+    const { normalizedOptions, workspacePackage, githubService } =
       createChangelogTestContext(testdirPath);
 
-    mockExec.mockRejectedValue(new Error("fatal: path 'CHANGELOG.md' does not exist"));
+    mockRun.mockReturnValue(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
     const commits = [
       createCommit({
@@ -365,14 +388,13 @@ describe("updateChangelog", () => {
       }),
     ];
 
-    await updateChangelog({
+    await runNode(updateChangelog({
       normalizedOptions,
       workspacePackage,
       version: "0.1.0",
       commits,
       date: "2025-01-16",
-      githubClient,
-    });
+    }), githubService);
 
     const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
 
@@ -401,9 +423,9 @@ describe("updateChangelog", () => {
       }),
     ];
 
-    mockExec.mockRejectedValueOnce(new Error("fatal: path 'CHANGELOG.md' does not exist"));
+    mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await updateChangelog({
+    await runNode(updateChangelog({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.1.0",
@@ -416,22 +438,20 @@ describe("updateChangelog", () => {
         }),
       ],
       date: "2025-01-15",
-      githubClient: context.githubClient,
-    });
+    }), context.githubService);
 
     const existingChangelog = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
 
-    mockExec.mockResolvedValueOnce({ stdout: existingChangelog, stderr: "", exitCode: 0 });
+    mockRun.mockReturnValueOnce(Effect.succeed({ stdout: existingChangelog, stderr: "", exitCode: 0 }) as any);
 
-    await updateChangelog({
+    await runNode(updateChangelog({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
       previousVersion: "0.1.0",
       commits,
       date: "2025-01-16",
-      githubClient: context.githubClient,
-    });
+    }), context.githubService);
 
     const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
 
@@ -458,9 +478,9 @@ describe("updateChangelog", () => {
     const testdirPath = await testdir({});
     const context = createChangelogTestContext(testdirPath);
 
-    mockExec.mockRejectedValueOnce(new Error("fatal: path 'CHANGELOG.md' does not exist"));
+    mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await updateChangelog({
+    await runNode(updateChangelog({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
@@ -473,12 +493,11 @@ describe("updateChangelog", () => {
         }),
       ],
       date: "2025-01-16",
-      githubClient: context.githubClient,
-    });
+    }), context.githubService);
 
-    mockExec.mockRejectedValueOnce(new Error("fatal: path 'CHANGELOG.md' does not exist"));
+    mockRun.mockReturnValueOnce(Effect.fail(new Error("fatal: path 'CHANGELOG.md' does not exist")) as any);
 
-    await updateChangelog({
+    await runNode(updateChangelog({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.2.0",
@@ -497,8 +516,7 @@ describe("updateChangelog", () => {
         }),
       ],
       date: "2025-01-16",
-      githubClient: context.githubClient,
-    });
+    }), context.githubService);
 
     const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
     const parsed = parseChangelog(content);
@@ -525,9 +543,9 @@ describe("updateChangelog", () => {
 
     await writeFile(join(testdirPath, "CHANGELOG.md"), `${existingChangelog}\n`, "utf-8");
 
-    mockExec.mockResolvedValueOnce({ stdout: existingChangelog, stderr: "", exitCode: 0 });
+    mockRun.mockReturnValueOnce(Effect.succeed({ stdout: existingChangelog, stderr: "", exitCode: 0 }) as any);
 
-    await updateChangelog({
+    await runNode(updateChangelog({
       normalizedOptions: context.normalizedOptions,
       workspacePackage: context.workspacePackage,
       version: "0.1.0",
@@ -541,8 +559,7 @@ describe("updateChangelog", () => {
         }),
       ],
       date: "2025-01-16",
-      githubClient: context.githubClient,
-    });
+    }), context.githubService);
 
     const content = await readFile(join(testdirPath, "CHANGELOG.md"), "utf-8");
 

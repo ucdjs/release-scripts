@@ -2,11 +2,109 @@ import process from "node:process";
 import readline from "node:readline";
 import { parseArgs } from "node:util";
 
+import { Effect, Stream } from "effect";
+import { ChildProcess } from "effect/unstable/process";
 import farver from "farver";
-import type { Options as TinyExecOptions, Result as TinyExecResult } from "tinyexec";
-import { exec } from "tinyexec";
 
 export const ucdjsReleaseOverridesPath = ".github/ucdjs-release.overrides.json";
+
+export interface CommandRunOptions {
+  throwOnError?: boolean;
+  nodeOptions?: {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    stdio?: "inherit" | "pipe";
+  };
+}
+
+export interface CommandRunResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+export class CommandError extends Error {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly exitCode?: number;
+  readonly shortMessage: string;
+
+  constructor(params: {
+    message: string;
+    stdout?: string;
+    stderr?: string;
+    exitCode?: number;
+    cause?: unknown;
+  }) {
+    super(params.message);
+    this.name = "CommandError";
+    this.stdout = params.stdout ?? "";
+    this.stderr = params.stderr ?? "";
+    this.exitCode = params.exitCode;
+    this.shortMessage = [this.stderr, this.stdout, params.message].find((value) => value.trim()) ?? params.message;
+    this.cause = params.cause;
+  }
+}
+
+export function runCommandEffect(
+  bin: string,
+  args: string[],
+  opts: CommandRunOptions = {},
+) {
+  const stdio = opts.nodeOptions?.stdio ?? "inherit";
+  const shouldPipeOutput = stdio === "pipe";
+  const command = ChildProcess.make(bin, args, {
+    cwd: opts.nodeOptions?.cwd,
+    env: opts.nodeOptions?.env,
+    stdin: "inherit",
+    stdout: shouldPipeOutput ? "pipe" : "inherit",
+    stderr: shouldPipeOutput ? "pipe" : "inherit",
+  });
+
+  const makeFailure = (message: string, cause?: unknown, result?: Partial<CommandRunResult>) =>
+    new CommandError({
+      message,
+      stdout: result?.stdout,
+      stderr: result?.stderr,
+      exitCode: result?.exitCode,
+      cause,
+    });
+
+  const executeCommand = Effect.fn("executeCommand")(function* () {
+    const handle = yield* command;
+    const [stdout, stderr, exitCode] = yield* Effect.all([
+      shouldPipeOutput
+        ? Stream.mkString(Stream.decodeText(handle.stdout))
+        : Effect.succeed(""),
+      shouldPipeOutput
+        ? Stream.mkString(Stream.decodeText(handle.stderr))
+        : Effect.succeed(""),
+      handle.exitCode,
+    ]);
+
+    const result: CommandRunResult = {
+      stdout,
+      stderr,
+      exitCode: Number(exitCode),
+    };
+
+    if (result.exitCode !== 0 && opts.throwOnError !== false) {
+      return yield* Effect.fail(
+        makeFailure(`Process exited with non-zero status ${result.exitCode}`, undefined, result),
+      );
+    }
+
+    return result;
+  });
+
+  return Effect.scoped(executeCommand()).pipe(
+    Effect.mapError((error) =>
+      error instanceof CommandError
+        ? error
+        : makeFailure(`Failed to run command: ${bin} ${args.join(" ")}`, error),
+    ),
+  );
+}
 
 function parseCLIFlags(): { dry: boolean; verbose: boolean; force: boolean } {
   const { values } = parseArgs({
@@ -112,29 +210,34 @@ export const logger = {
   },
 };
 
-export async function run(
+export const runEffect = Effect.fn("runEffect")(
+  (bin: string, args: string[], opts: CommandRunOptions = {}) =>
+    runCommandEffect(bin, args, {
+      throwOnError: true,
+      ...opts,
+      nodeOptions: {
+        stdio: "inherit",
+        ...opts.nodeOptions,
+      },
+    }),
+);
+
+const dryRunEffect = Effect.fn("dryRunEffect")(
+  (bin: string, args: string[], opts?: CommandRunOptions) =>
+    Effect.sync(() => {
+      logger.verbose(farver.blue(`[dryrun] ${bin} ${args.join(" ")}`), opts || "");
+    }),
+);
+
+export const runIfNotDryEffect = Effect.fn("runIfNotDryEffect")(function* (
   bin: string,
   args: string[],
-  opts: Partial<TinyExecOptions> = {},
-): Promise<TinyExecResult> {
-  return exec(bin, args, {
-    throwOnError: true,
-    ...opts,
-    nodeOptions: {
-      stdio: "inherit",
-      ...opts.nodeOptions,
-    },
-  });
-}
+  opts?: CommandRunOptions,
+) {
+  if (getIsDryRun()) {
+    yield* dryRunEffect(bin, args, opts);
+    return;
+  }
 
-async function dryRun(bin: string, args: string[], opts?: Partial<TinyExecOptions>): Promise<void> {
-  return logger.verbose(farver.blue(`[dryrun] ${bin} ${args.join(" ")}`), opts || "");
-}
-
-export async function runIfNotDry(
-  bin: string,
-  args: string[],
-  opts?: Partial<TinyExecOptions>,
-): Promise<TinyExecResult | void> {
-  return getIsDryRun() ? dryRun(bin, args, opts) : run(bin, args, opts);
-}
+  return yield* runEffect(bin, args, opts);
+});

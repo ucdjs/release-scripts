@@ -1,17 +1,32 @@
-import { createGitHubClient } from "#core/github";
-import { syncPullRequest } from "#operations/pr";
+import { GitHubServiceLive } from "../../src/services/github";
+import { NodeServices } from "@effect/platform-node";
+import { ReleaseOptions } from "../../src/options";
+import { syncPullRequest } from "../../src/release/pr";
+import { expect, it } from "@effect/vitest";
+import { Effect, Layer } from "effect";
 import { HttpResponse } from "msw";
-import { assert, describe, expect, it } from "vitest";
+import { describe } from "vitest";
 
 import { GITHUB_API_BASE, mockFetch } from "../_msw";
-import { createWorkspacePackage } from "../_shared";
+import { createNormalizedReleaseOptions, createWorkspacePackage } from "../_shared";
 
 const OWNER = "ucdjs";
 const REPO = "test-repo";
 
-function makeClient() {
-  return createGitHubClient({ owner: OWNER, repo: REPO, githubToken: "test-token" });
-}
+const runWithGitHub = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.runPromise(
+    effect.pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          NodeServices.layer,
+          Layer.provide(
+            GitHubServiceLive,
+            Layer.succeed(ReleaseOptions, createNormalizedReleaseOptions({ owner: OWNER, repo: REPO })),
+          ),
+        ),
+      ),
+    ) as Effect.Effect<A, E, never>,
+  );
 
 const NO_UPDATES = [
   {
@@ -43,17 +58,15 @@ describe("syncPullRequest", () => {
       ),
     );
 
-    const result = await syncPullRequest({
-      github: makeClient(),
+    const result = await runWithGitHub(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       pullRequestTitle: "chore: release",
       updates: NO_UPDATES,
-    });
+    }));
 
-    assert(result.ok);
-    expect(result.value.created).toBe(true);
-    expect(result.value.pullRequest?.number).toBe(10);
+    expect(result.created).toBe(true);
+    expect(result.pullRequest?.number).toBe(10);
   });
 
   it("updates an existing PR and returns created: false", async () => {
@@ -80,16 +93,14 @@ describe("syncPullRequest", () => {
       }),
     );
 
-    const result = await syncPullRequest({
-      github: makeClient(),
+    const result = await runWithGitHub(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       updates: NO_UPDATES,
-    });
+    }));
 
-    assert(result.ok);
-    expect(result.value.created).toBe(false);
-    expect(result.value.pullRequest?.number).toBe(5);
+    expect(result.created).toBe(false);
+    expect(result.pullRequest?.number).toBe(5);
   });
 
   it("preserves the existing PR title instead of overriding it", async () => {
@@ -120,13 +131,12 @@ describe("syncPullRequest", () => {
       });
     });
 
-    await syncPullRequest({
-      github: makeClient(),
+    await runWithGitHub(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       pullRequestTitle: "chore: caller title",
       updates: NO_UPDATES,
-    });
+    }));
 
     expect(capturedTitle).toBe("chore: preserved title");
   });
@@ -153,13 +163,12 @@ describe("syncPullRequest", () => {
       );
     });
 
-    await syncPullRequest({
-      github: makeClient(),
+    await runWithGitHub(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       pullRequestTitle: "chore: caller title",
       updates: NO_UPDATES,
-    });
+    }));
 
     expect(capturedTitle).toBe("chore: caller title");
   });
@@ -186,12 +195,11 @@ describe("syncPullRequest", () => {
       );
     });
 
-    await syncPullRequest({
-      github: makeClient(),
+    await runWithGitHub(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       updates: NO_UPDATES,
-    });
+    }));
 
     expect(capturedTitle).toBe("chore: update package versions");
   });
@@ -201,16 +209,11 @@ describe("syncPullRequest", () => {
       HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
     );
 
-    const result = await syncPullRequest({
-      github: makeClient(),
+    await expect(runWithGitHub(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       updates: NO_UPDATES,
-    });
-
-    assert(!result.ok);
-    expect(result.error.type).toBe("github");
-    expect(result.error.operation).toBe("getExistingPullRequest");
+    }))).rejects.toMatchObject({ _tag: "GitHubError", operation: "getExistingPullRequest" });
   });
 
   it("returns err when upsertPullRequest fails", async () => {
@@ -221,15 +224,10 @@ describe("syncPullRequest", () => {
       HttpResponse.json({ message: "Validation failed" }, { status: 422 }),
     );
 
-    const result = await syncPullRequest({
-      github: makeClient(),
+    await expect(runWithGitHub(syncPullRequest({
       releaseBranch: "release/next",
       defaultBranch: "main",
       updates: NO_UPDATES,
-    });
-
-    assert(!result.ok);
-    expect(result.error.type).toBe("github");
-    expect(result.error.operation).toBe("upsertPullRequest");
+    }))).rejects.toMatchObject({ _tag: "GitHubError", operation: "upsertPullRequest" });
   });
 });

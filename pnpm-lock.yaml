@@ -40,6 +40,9 @@ catalogs:
     '@effect/platform-node':
       specifier: 4.0.0-beta.60
       version: 4.0.0-beta.60
+    '@effect/vitest':
+      specifier: 4.0.0-beta.60
+      version: 4.0.0-beta.60
     effect:
       specifier: 4.0.0-beta.60
       version: 4.0.0-beta.60
@@ -102,6 +105,9 @@ importers:
       '@effect/platform-node':
         specifier: catalog:effect
         version: 4.0.0-beta.60(effect@4.0.0-beta.60)(ioredis@5.10.1)
+      '@effect/vitest':
+        specifier: catalog:effect
+        version: 4.0.0-beta.60(effect@4.0.0-beta.60)(vitest@4.1.2(@types/node@22.19.14)(msw@2.12.14(@types/node@22.19.14)(typescript@6.0.2))(vite@8.0.10(@types/node@22.19.14)(yaml@2.8.4)))
       '@luxass/msw-utils':
         specifier: catalog:dev
         version: 0.6.2(msw@2.12.14(@types/node@22.19.14)(typescript@6.0.2))
@@ -180,6 +186,12 @@ packages:
     peerDependencies:
       effect: ^4.0.0-beta.60
       ioredis: ^5.7.0
+
+  '@effect/vitest@4.0.0-beta.60':
+    resolution: {integrity: sha512-taPLD3X5IQnrWsCGOg/VAu3e2o1Ou8YQKAosR00y6vwcXadiqeDrQTyyGPdDByXggODEqB5ygx0gHuptW+hHVA==}
+    peerDependencies:
+      effect: ^4.0.0-beta.60
+      vitest: ^3.0.0 || ^4.0.0
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -1597,6 +1609,11 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@effect/vitest@4.0.0-beta.60(effect@4.0.0-beta.60)(vitest@4.1.2(@types/node@22.19.14)(msw@2.12.14(@types/node@22.19.14)(typescript@6.0.2))(vite@8.0.10(@types/node@22.19.14)(yaml@2.8.4)))':
+    dependencies:
+      effect: 4.0.0-beta.60
+      vitest: 4.1.2(@types/node@22.19.14)(msw@2.12.14(@types/node@22.19.14)(typescript@6.0.2))(vite@8.0.10(@types/node@22.19.14)(yaml@2.8.4))
 
   '@emnapi/core@1.10.0':
     dependencies:

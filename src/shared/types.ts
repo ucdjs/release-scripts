@@ -1,4 +1,4 @@
-import type { WorkspacePackage } from "#core/workspace";
+import type { WorkspacePackage } from "../services/workspace";
 
 export type BumpKind = "none" | "patch" | "minor" | "major";
 

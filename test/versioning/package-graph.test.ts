@@ -1,4 +1,4 @@
-import { getNextVersion } from "#operations/semver";
+import { getNextVersion } from "#shared/semver";
 import type { PackageRelease } from "#shared/types";
 import {
   buildPackageDependencyGraph,

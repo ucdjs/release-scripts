@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Effect } from "effect";
+import { afterEach, beforeEach, describe } from "vitest";
+import { expect, it } from "@effect/vitest";
 
 import { getIsCI } from "../../src/shared/utils";
 
@@ -17,33 +19,39 @@ describe("getIsCI", () => {
     }
   });
 
-  it("returns true when CI=true", () => {
-    process.env.CI = "true";
-    expect(getIsCI()).toBe(true);
-  });
+  it.effect("returns true when CI=true", () =>
+    Effect.sync(() => {
+      process.env.CI = "true";
+      expect(getIsCI()).toBe(true);
+    }));
 
-  it("returns true when CI is non-empty string", () => {
-    process.env.CI = "1";
-    expect(getIsCI()).toBe(true);
-  });
+  it.effect("returns true when CI is non-empty string", () =>
+    Effect.sync(() => {
+      process.env.CI = "1";
+      expect(getIsCI()).toBe(true);
+    }));
 
-  it("returns false when CI is unset", () => {
-    delete process.env.CI;
-    expect(getIsCI()).toBe(false);
-  });
+  it.effect("returns false when CI is unset", () =>
+    Effect.sync(() => {
+      delete process.env.CI;
+      expect(getIsCI()).toBe(false);
+    }));
 
-  it("returns false when CI=false", () => {
-    process.env.CI = "false";
-    expect(getIsCI()).toBe(false);
-  });
+  it.effect("returns false when CI=false", () =>
+    Effect.sync(() => {
+      process.env.CI = "false";
+      expect(getIsCI()).toBe(false);
+    }));
 
-  it("returns false when CI is empty string", () => {
-    process.env.CI = "";
-    expect(getIsCI()).toBe(false);
-  });
+  it.effect("returns false when CI is empty string", () =>
+    Effect.sync(() => {
+      process.env.CI = "";
+      expect(getIsCI()).toBe(false);
+    }));
 
-  it("returns false when CI=FALSE (case insensitive)", () => {
-    process.env.CI = "FALSE";
-    expect(getIsCI()).toBe(false);
-  });
+  it.effect("returns false when CI=FALSE (case insensitive)", () =>
+    Effect.sync(() => {
+      process.env.CI = "FALSE";
+      expect(getIsCI()).toBe(false);
+    }));
 });

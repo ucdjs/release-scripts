@@ -1,5 +1,5 @@
-import type { WorkspacePackage } from "#core/workspace";
-import type { BumpKind, PackageRelease } from "#shared/types";
+import type { WorkspacePackage } from "../services/workspace";
+import type { BumpKind, PackageRelease } from "./types";
 import type { GitCommit } from "commit-parser";
 
 import { getNextVersion } from "./semver";

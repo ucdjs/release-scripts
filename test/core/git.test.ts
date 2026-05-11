@@ -1,4 +1,6 @@
+import { NodeServices } from "@effect/platform-node";
 import {
+  GitServiceLive,
   createBranch,
   doesBranchExist,
   doesRemoteBranchExist,
@@ -7,12 +9,24 @@ import {
   getDefaultBranch,
   getMostRecentPackageTag,
   isWorkingDirectoryClean,
-} from "#core/git";
-import * as tinyexec from "tinyexec";
-import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
+} from "../../src/services/git";
+import { runEffect, runIfNotDryEffect } from "#shared/utils";
+import { expect, it, layer } from "@effect/vitest";
+import { Cause, Effect, Layer } from "effect";
+import { afterEach, assert, beforeEach, describe, vi } from "vitest";
 
-vi.mock("tinyexec");
-const mockExec = vi.mocked(tinyexec.exec);
+vi.mock("#shared/utils", async () => {
+  const actual = await vi.importActual<typeof import("#shared/utils")>("#shared/utils");
+  return {
+    ...actual,
+    runEffect: vi.fn(),
+    runIfNotDryEffect: vi.fn(),
+  };
+});
+
+const mockRunEffect = vi.mocked(runEffect);
+const mockRunIfNotDryEffect = vi.mocked(runIfNotDryEffect);
+const asTest = (effect: Effect.Effect<void, unknown, unknown>): any => effect;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -22,17 +36,18 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-describe("git utilities", () => {
+layer(Layer.mergeAll(NodeServices.layer, GitServiceLive))("git utilities", (it) => {
   describe("isWorkingDirectoryClean", () => {
-    it("should return true if working directory is clean", async () => {
-      mockExec.mockResolvedValue({
+    it.effect("should return true if working directory is clean", () =>
+      asTest(Effect.gen(function* () {
+      mockRunEffect.mockReturnValue(Effect.succeed({
         stdout: "",
         stderr: "",
         exitCode: 0,
-      });
+      }) as any);
 
-      const result = await isWorkingDirectoryClean("/workspace");
-      expect(mockExec).toHaveBeenCalledWith(
+      const result = yield* isWorkingDirectoryClean("/workspace");
+      expect(mockRunEffect).toHaveBeenCalledWith(
         "git",
         ["status", "--porcelain"],
         expect.objectContaining({
@@ -43,45 +58,47 @@ describe("git utilities", () => {
         }),
       );
 
-      assert(result.ok);
-      expect(result.value).toBe(true);
-    });
+      expect(result).toBe(true);
+    })));
 
-    it("should return false if working directory has uncommitted changes", async () => {
-      mockExec.mockResolvedValue({
+    it.effect("should return false if working directory has uncommitted changes", () =>
+      asTest(Effect.gen(function* () {
+      mockRunEffect.mockReturnValue(Effect.succeed({
         stdout: " M src/index.ts\n",
         stderr: "",
         exitCode: 0,
-      });
+      }) as any);
 
-      const result = await isWorkingDirectoryClean("/workspace");
-      assert(result.ok);
-      expect(result.value).toBe(false);
-    });
+      const result = yield* isWorkingDirectoryClean("/workspace");
+      expect(result).toBe(false);
+    })));
 
-    it("should return error when git command fails", async () => {
+    it.effect("should return error when git command fails", () =>
+      asTest(Effect.gen(function* () {
       const gitError = new Error("fatal: not a git repository");
-      mockExec.mockRejectedValue(gitError);
+      mockRunEffect.mockReturnValue(Effect.fail(gitError) as any);
 
-      const result = await isWorkingDirectoryClean("/workspace");
+      const exit = yield* Effect.exit(isWorkingDirectoryClean("/workspace"));
 
-      assert(!result.ok);
-      expect(result.error.type).toBe("git");
-      expect(result.error.operation).toBe("isWorkingDirectoryClean");
-    });
+      assert(exit._tag === "Failure");
+      const error = Cause.squash(exit.cause) as any;
+      expect(error._tag).toBe("GitError");
+      expect(error.operation).toBe("isWorkingDirectoryClean");
+    })));
   });
 
   describe("branch utilities", () => {
     describe("doesRemoteBranchExist", () => {
-      it("should return true when remote branch exists", async () => {
-        mockExec.mockResolvedValue({
+      it.effect("should return true when remote branch exists", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.succeed({
           stdout: "abc123\trefs/heads/main\n",
           stderr: "",
           exitCode: 0,
-        });
+        }) as any);
 
-        const result = await doesRemoteBranchExist("main", "/workspace");
-        expect(mockExec).toHaveBeenCalledWith(
+        const result = yield* doesRemoteBranchExist("main", "/workspace");
+        expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
           ["ls-remote", "--exit-code", "--heads", "origin", "main"],
           expect.objectContaining({
@@ -92,29 +109,29 @@ describe("git utilities", () => {
           }),
         );
 
-        assert(result.ok);
-        expect(result.value).toBe(true);
-      });
+        expect(result).toBe(true);
+      })));
 
-      it("should return false when remote branch does not exist", async () => {
-        mockExec.mockRejectedValue(new Error("exit code 2"));
+      it.effect("should return false when remote branch does not exist", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.fail(new Error("exit code 2")) as any);
 
-        const result = await doesRemoteBranchExist("release/next", "/workspace");
-        assert(result.ok);
-        expect(result.value).toBe(false);
-      });
+        const result = yield* doesRemoteBranchExist("release/next", "/workspace");
+        expect(result).toBe(false);
+      })));
     });
 
     describe("doesBranchExist", () => {
-      it("should return true if branch exists", async () => {
-        mockExec.mockResolvedValue({
+      it.effect("should return true if branch exists", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.succeed({
           stdout: "branch-sha-123456",
           stderr: "",
           exitCode: 0,
-        });
+        }) as any);
 
-        const result = await doesBranchExist("feature-branch", "/workspace");
-        expect(mockExec).toHaveBeenCalledWith(
+        const result = yield* doesBranchExist("feature-branch", "/workspace");
+        expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
           ["rev-parse", "--verify", "feature-branch"],
           expect.objectContaining({
@@ -125,30 +142,30 @@ describe("git utilities", () => {
           }),
         );
 
-        assert(result.ok);
-        expect(result.value).toBe(true);
-      });
+        expect(result).toBe(true);
+      })));
 
-      it("should return false if branch does not exist", async () => {
-        mockExec.mockRejectedValue(new Error("fatal: Needed a single revision"));
+      it.effect("should return false if branch does not exist", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.fail(new Error("fatal: Needed a single revision")) as any);
 
-        const result = await doesBranchExist("nonexistent-branch", "/workspace");
-        assert(result.ok);
-        expect(result.value).toBe(false);
-      });
+        const result = yield* doesBranchExist("nonexistent-branch", "/workspace");
+        expect(result).toBe(false);
+      })));
     });
 
     describe("getDefaultBranch", () => {
-      it("should return the default branch name", async () => {
-        mockExec.mockResolvedValue({
+      it.effect("should return the default branch name", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.succeed({
           stdout: "refs/remotes/origin/main\n",
           stderr: "",
           exitCode: 0,
-        });
+        }) as any);
 
-        const result = await getDefaultBranch("/workspace");
+        const result = yield* getDefaultBranch("/workspace");
 
-        expect(mockExec).toHaveBeenCalledWith(
+        expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
           ["symbolic-ref", "refs/remotes/origin/HEAD"],
           expect.objectContaining({
@@ -158,57 +175,57 @@ describe("git utilities", () => {
           }),
         );
 
-        assert(result.ok);
-        expect(result.value).toBe("main");
-      });
+        expect(result).toBe("main");
+      })));
 
-      it("should return different branch name", async () => {
-        mockExec.mockResolvedValue({
+      it.effect("should return different branch name", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.succeed({
           stdout: "refs/remotes/origin/develop\n",
           stderr: "",
           exitCode: 0,
-        });
+        }) as any);
 
-        const result = await getDefaultBranch("/workspace");
+        const result = yield* getDefaultBranch("/workspace");
 
-        assert(result.ok);
-        expect(result.value).toBe("develop");
-      });
+        expect(result).toBe("develop");
+      })));
 
-      it("should return 'main' if default branch cannot be determined", async () => {
-        mockExec.mockRejectedValue(new Error("Some git error"));
+      it.effect("should return 'main' if default branch cannot be determined", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.fail(new Error("Some git error")) as any);
 
-        const result = await getDefaultBranch("/workspace");
+        const result = yield* getDefaultBranch("/workspace");
 
-        assert(result.ok);
-        expect(result.value).toBe("main");
-      });
+        expect(result).toBe("main");
+      })));
 
-      it("should return 'main' if remote show output is unexpected", async () => {
-        mockExec.mockResolvedValue({
+      it.effect("should return 'main' if remote show output is unexpected", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.succeed({
           stdout: "Some unexpected output\n",
           stderr: "",
           exitCode: 0,
-        });
+        }) as any);
 
-        const result = await getDefaultBranch("/workspace");
+        const result = yield* getDefaultBranch("/workspace");
 
-        assert(result.ok);
-        expect(result.value).toBe("main");
-      });
+        expect(result).toBe("main");
+      })));
     });
 
     describe("getCurrentBranch", () => {
-      it("should return the current branch name", async () => {
-        mockExec.mockResolvedValue({
+      it.effect("should return the current branch name", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.succeed({
           stdout: "feature-branch\n",
           stderr: "",
           exitCode: 0,
-        });
+        }) as any);
 
-        const result = await getCurrentBranch("/workspace");
+        const result = yield* getCurrentBranch("/workspace");
 
-        expect(mockExec).toHaveBeenCalledWith(
+        expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
           ["rev-parse", "--abbrev-ref", "HEAD"],
           expect.objectContaining({
@@ -219,30 +236,31 @@ describe("git utilities", () => {
           }),
         );
 
-        assert(result.ok);
-        expect(result.value).toBe("feature-branch");
-      });
+        expect(result).toBe("feature-branch");
+      })));
 
-      it("should handle errors", async () => {
-        mockExec.mockRejectedValue(new Error("Some git error"));
+      it.effect("should handle errors", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.fail(new Error("Some git error")) as any);
 
-        const result = await getCurrentBranch("/workspace");
-        assert(!result.ok);
-        expect(result.error.operation).toBe("getCurrentBranch");
-      });
+        const exit = yield* Effect.exit(getCurrentBranch("/workspace"));
+        assert(exit._tag === "Failure");
+        expect((Cause.squash(exit.cause) as any).operation).toBe("getCurrentBranch");
+      })));
     });
 
     describe("getAvailableBranches", () => {
-      it("should return a list of available branches", async () => {
-        mockExec.mockResolvedValue({
+      it.effect("should return a list of available branches", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.succeed({
           stdout: "  main\n* feature-branch\ndevelop\n",
           stderr: "",
           exitCode: 0,
-        });
+        }) as any);
 
-        const result = await getAvailableBranches("/workspace");
+        const result = yield* getAvailableBranches("/workspace");
 
-        expect(mockExec).toHaveBeenCalledWith(
+        expect(mockRunEffect).toHaveBeenCalledWith(
           "git",
           ["branch", "--list"],
           expect.objectContaining({
@@ -253,30 +271,31 @@ describe("git utilities", () => {
           }),
         );
 
-        assert(result.ok);
-        expect(result.value).toEqual(["main", "feature-branch", "develop"]);
-      });
+        expect(result).toEqual(["main", "feature-branch", "develop"]);
+      })));
 
-      it("should handle errors", async () => {
-        mockExec.mockRejectedValue(new Error("Some git error"));
+      it.effect("should handle errors", () =>
+        asTest(Effect.gen(function* () {
+        mockRunEffect.mockReturnValue(Effect.fail(new Error("Some git error")) as any);
 
-        const result = await getAvailableBranches("/workspace");
-        assert(!result.ok);
-        expect(result.error.operation).toBe("getAvailableBranches");
-      });
+        const exit = yield* Effect.exit(getAvailableBranches("/workspace"));
+        assert(exit._tag === "Failure");
+        expect((Cause.squash(exit.cause) as any).operation).toBe("getAvailableBranches");
+      })));
     });
 
     describe("createBranch", () => {
-      it("should create a new branch from the specified base branch", async () => {
-        mockExec.mockResolvedValue({
+      it.effect("should create a new branch from the specified base branch", () =>
+        asTest(Effect.gen(function* () {
+        mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({
           stdout: "",
           stderr: "",
           exitCode: 0,
-        });
+        }) as any);
 
-        const result = await createBranch("new-feature", "main", "/workspace");
+        const result = yield* createBranch("new-feature", "main", "/workspace");
 
-        expect(mockExec).toHaveBeenCalledWith(
+        expect(mockRunIfNotDryEffect).toHaveBeenCalledWith(
           "git",
           ["branch", "new-feature", "main"],
           expect.objectContaining({
@@ -286,30 +305,32 @@ describe("git utilities", () => {
             }),
           }),
         );
-        expect(result.ok).toBe(true);
-      });
+        expect(result).toBeUndefined();
+      })));
 
-      it("should handle errors", async () => {
-        mockExec.mockRejectedValue(new Error("Some git error"));
+      it.effect("should handle errors", () =>
+        asTest(Effect.gen(function* () {
+        mockRunIfNotDryEffect.mockReturnValue(Effect.fail(new Error("Some git error")) as any);
 
-        const result = await createBranch("new-feature", "main", "/workspace");
-        assert(!result.ok);
-        expect(result.error.operation).toBe("createBranch");
-      });
+        const exit = yield* Effect.exit(createBranch("new-feature", "main", "/workspace"));
+        assert(exit._tag === "Failure");
+        expect((Cause.squash(exit.cause) as any).operation).toBe("createBranch");
+      })));
     });
   });
 
   describe("package tags", () => {
-    it("should return the highest semver tag for a package", async () => {
-      mockExec.mockResolvedValue({
+    it.effect("should return the highest semver tag for a package", () =>
+      asTest(Effect.gen(function* () {
+      mockRunEffect.mockReturnValue(Effect.succeed({
         stdout: "other-package@1.0.0\nmy-package@1.2.0\nmy-package@1.10.0\nmy-package@1.1.0\n",
         stderr: "",
         exitCode: 0,
-      } as any);
+      } as any) as any);
 
-      const result = await getMostRecentPackageTag("/workspace", "my-package");
+      const result = yield* getMostRecentPackageTag("/workspace", "my-package");
 
-      expect(mockExec).toHaveBeenCalledWith(
+      expect(mockRunEffect).toHaveBeenCalledWith(
         "git",
         ["tag", "--list", "my-package@*"],
         expect.objectContaining({
@@ -319,48 +340,46 @@ describe("git utilities", () => {
           }),
         }),
       );
-      assert(result.ok);
-      // Should be 1.10.0, not 1.2.0 (semver order, not alphabetical)
-      expect(result.value).toBe("my-package@1.10.0");
-    });
+      expect(result).toBe("my-package@1.10.0");
+    })));
 
-    it("should ignore non-semver tags like @latest", async () => {
-      mockExec.mockResolvedValue({
+    it.effect("should ignore non-semver tags like @latest", () =>
+      asTest(Effect.gen(function* () {
+      mockRunEffect.mockReturnValue(Effect.succeed({
         stdout: "my-package@latest\nmy-package@1.0.0\nmy-package@2.0.0\n",
         stderr: "",
         exitCode: 0,
-      } as any);
+      } as any) as any);
 
-      const result = await getMostRecentPackageTag("/workspace", "my-package");
+      const result = yield* getMostRecentPackageTag("/workspace", "my-package");
 
-      assert(result.ok);
-      expect(result.value).toBe("my-package@2.0.0");
-    });
+      expect(result).toBe("my-package@2.0.0");
+    })));
 
-    it("should return undefined if no tag exists for package", async () => {
-      mockExec.mockResolvedValue({
+    it.effect("should return undefined if no tag exists for package", () =>
+      asTest(Effect.gen(function* () {
+      mockRunEffect.mockReturnValue(Effect.succeed({
         stdout: "",
         stderr: "",
         exitCode: 0,
-      } as any);
+      } as any) as any);
 
-      const result = await getMostRecentPackageTag("/workspace", "my-package");
+      const result = yield* getMostRecentPackageTag("/workspace", "my-package");
 
-      assert(result.ok);
-      expect(result.value).toBeUndefined();
-    });
+      expect(result).toBeUndefined();
+    })));
 
-    it("should return undefined if no tags exist", async () => {
-      mockExec.mockResolvedValue({
+    it.effect("should return undefined if no tags exist", () =>
+      asTest(Effect.gen(function* () {
+      mockRunEffect.mockReturnValue(Effect.succeed({
         stdout: "",
         stderr: "",
         exitCode: 0,
-      } as any);
+      } as any) as any);
 
-      const result = await getMostRecentPackageTag("/workspace", "my-package");
+      const result = yield* getMostRecentPackageTag("/workspace", "my-package");
 
-      assert(result.ok);
-      expect(result.value).toBeUndefined();
-    });
+      expect(result).toBeUndefined();
+    })));
   });
 });

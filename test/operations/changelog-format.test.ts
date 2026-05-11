@@ -1,4 +1,4 @@
-import { buildTemplateGroups } from "#operations/changelog-format";
+import { buildTemplateGroups } from "#shared/changelog-format";
 import type { AuthorInfo, CommitTypeRule } from "#shared/types";
 import type { GitCommit } from "commit-parser";
 import { describe, expect, it } from "vitest";

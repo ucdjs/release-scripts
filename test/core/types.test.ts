@@ -1,40 +1,37 @@
 import { describe, expect, it } from "vitest";
 
-import type { GitError } from "../../src/core/git";
-import type { GitHubError } from "../../src/core/github";
-import type { WorkspaceError } from "../../src/core/workspace";
+import { GitError } from "../../src/services/git";
+import { GitHubError } from "../../src/services/github";
+import { WorkspaceError } from "../../src/services/workspace";
 
 describe("core types", () => {
   it("matches git error shape", () => {
-    const err: GitError = {
-      type: "git",
+    const err = new GitError({
       operation: "push",
       message: "failed",
-    };
+    });
 
-    expect(err.type).toBe("git");
+    expect(err._tag).toBe("GitError");
     expect(err.operation).toBe("push");
   });
 
   it("matches github error shape", () => {
-    const err: GitHubError = {
-      type: "github",
+    const err = new GitHubError({
       operation: "request",
       message: "failed",
-    };
+    });
 
-    expect(err.type).toBe("github");
+    expect(err._tag).toBe("GitHubError");
     expect(err.operation).toBe("request");
   });
 
   it("matches workspace error shape", () => {
-    const err: WorkspaceError = {
-      type: "workspace",
+    const err = new WorkspaceError({
       operation: "discover",
       message: "failed",
-    };
+    });
 
-    expect(err.type).toBe("workspace");
+    expect(err._tag).toBe("WorkspaceError");
     expect(err.operation).toBe("discover");
   });
 });

@@ -1,7 +1,7 @@
-import type { WorkspacePackage } from "#core/workspace";
-import { createVersionUpdate } from "#operations/version";
-import type { PackageRelease, PackageUpdateOrder } from "#shared/types";
-import { logger } from "#shared/utils";
+import type { WorkspacePackage } from "../services/workspace";
+import { createVersionUpdate } from "../shared/version";
+import type { PackageRelease, PackageUpdateOrder } from "../shared/types";
+import { logger } from "../shared/utils";
 
 interface PackageDependencyGraph {
   packages: Map<string, WorkspacePackage>;

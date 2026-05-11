@@ -1,14 +1,25 @@
-import { checkVersionExists, publishPackage } from "#core/npm";
+import { NodeServices } from "@effect/platform-node";
+import { NpmServiceLive } from "../../src/services/npm";
+import { checkVersionExists, publishPackage } from "../../src/services/npm";
+import { runIfNotDryEffect } from "#shared/utils";
+import { expect, it, layer } from "@effect/vitest";
+import { Cause, Effect, Layer } from "effect";
 import { HttpResponse } from "msw";
-import * as tinyexec from "tinyexec";
-import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, vi } from "vitest";
 
 import { mockFetch, NPM_REGISTRY } from "../_msw";
 import { createNormalizedReleaseOptions } from "../_shared";
 
-vi.mock("tinyexec");
+vi.mock("#shared/utils", async () => {
+  const actual = await vi.importActual<typeof import("#shared/utils")>("#shared/utils");
+  return {
+    ...actual,
+    runIfNotDryEffect: vi.fn(),
+  };
+});
 
-const mockExec = vi.mocked(tinyexec.exec);
+const mockRunIfNotDryEffect = vi.mocked(runIfNotDryEffect);
+const asTest = (effect: Effect.Effect<void, unknown, unknown>): any => effect;
 
 let previousNpmRegistry: string | undefined;
 
@@ -26,18 +37,19 @@ afterEach(() => {
   }
 });
 
-describe("checkVersionExists", () => {
-  it("returns false when the package does not exist on the registry (404)", async () => {
+layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("checkVersionExists", (it) => {
+  it.effect("returns false when the package does not exist on the registry (404)", () =>
+    asTest(Effect.gen(function* () {
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, () => {
       return HttpResponse.json({ error: "Not found" }, { status: 404 });
     });
 
-    const result = await checkVersionExists("my-package", "1.0.0");
-    assert(result.ok);
-    expect(result.value).toBe(false);
-  });
+    const result = yield* checkVersionExists("my-package", "1.0.0");
+    expect(result).toBe(false);
+  })));
 
-  it("returns true when the requested version exists", async () => {
+  it.effect("returns true when the requested version exists", () =>
+    asTest(Effect.gen(function* () {
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, () => {
       return HttpResponse.json({
         name: "my-package",
@@ -46,12 +58,12 @@ describe("checkVersionExists", () => {
       });
     });
 
-    const result = await checkVersionExists("my-package", "1.0.0");
-    assert(result.ok);
-    expect(result.value).toBe(true);
-  });
+    const result = yield* checkVersionExists("my-package", "1.0.0");
+    expect(result).toBe(true);
+  })));
 
-  it("returns false when the package exists but the requested version does not", async () => {
+  it.effect("returns false when the package exists but the requested version does not", () =>
+    asTest(Effect.gen(function* () {
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, () => {
       return HttpResponse.json({
         name: "my-package",
@@ -60,22 +72,23 @@ describe("checkVersionExists", () => {
       });
     });
 
-    const result = await checkVersionExists("my-package", "2.0.0");
-    assert(result.ok);
-    expect(result.value).toBe(false);
-  });
+    const result = yield* checkVersionExists("my-package", "2.0.0");
+    expect(result).toBe(false);
+  })));
 
-  it("returns err on a non-404 registry error", async () => {
+  it.effect("returns err on a non-404 registry error", () =>
+    asTest(Effect.gen(function* () {
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, () => {
       return HttpResponse.json({ error: "Service Unavailable" }, { status: 503 });
     });
 
-    const result = await checkVersionExists("my-package", "1.0.0");
-    assert(!result.ok);
-    expect(result.error.type).toBe("npm");
-  });
+    const exit = yield* Effect.exit(checkVersionExists("my-package", "1.0.0"));
+    assert(exit._tag === "Failure");
+    expect((Cause.squash(exit.cause) as any)._tag).toBe("NPMError");
+  })));
 
-  it("url-encodes scoped package names correctly", async () => {
+  it.effect("url-encodes scoped package names correctly", () =>
+    asTest(Effect.gen(function* () {
     let capturedUrl = "";
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, ({ request }) => {
       capturedUrl = request.url;
@@ -86,12 +99,13 @@ describe("checkVersionExists", () => {
       });
     });
 
-    await checkVersionExists("@scope/pkg", "0.1.0");
+    yield* checkVersionExists("@scope/pkg", "0.1.0");
     // @scope/pkg is encoded as @scope%2Fpkg (single path segment)
     expect(capturedUrl).toContain("@scope%2Fpkg");
-  });
+  })));
 
-  it("respects NPM_CONFIG_REGISTRY env var", async () => {
+  it.effect("respects NPM_CONFIG_REGISTRY env var", () =>
+    asTest(Effect.gen(function* () {
     process.env.NPM_CONFIG_REGISTRY = "https://my-registry.example.com";
 
     mockFetch("GET", "https://my-registry.example.com/:pkg", () => {
@@ -102,96 +116,102 @@ describe("checkVersionExists", () => {
       });
     });
 
-    const result = await checkVersionExists("my-package", "3.0.0");
-    assert(result.ok);
-    expect(result.value).toBe(true);
-  });
+    const result = yield* checkVersionExists("my-package", "3.0.0");
+    expect(result).toBe(true);
+  })));
 
-  it("returns err with ENETWORK code on network failure", async () => {
+  it.effect("returns err with ENETWORK code on network failure", () =>
+    asTest(Effect.gen(function* () {
     mockFetch("GET", `${NPM_REGISTRY}/:pkg`, () => {
       return HttpResponse.error();
     });
 
-    const result = await checkVersionExists("my-package", "1.0.0");
-    assert(!result.ok);
-    expect(result.error.type).toBe("npm");
-    expect(result.error.code).toBe("ENETWORK");
-  });
+    const exit = yield* Effect.exit(checkVersionExists("my-package", "1.0.0"));
+    assert(exit._tag === "Failure");
+    const error = Cause.squash(exit.cause) as any;
+    expect(error._tag).toBe("NPMError");
+    expect(error.code).toBe("ENETWORK");
+  })));
 });
 
-describe("publishPackage", () => {
-  it("passes --tag beta for a beta prerelease version", async () => {
-    mockExec.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as any);
+layer(Layer.mergeAll(NodeServices.layer, NpmServiceLive))("publishPackage", (it) => {
+  it.effect("passes --tag beta for a beta prerelease version", () =>
+    asTest(Effect.gen(function* () {
+    mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    await publishPackage(
+    yield* publishPackage(
       "@scope/pkg",
       "1.0.0-beta.1",
       "/workspace",
       createNormalizedReleaseOptions({ dryRun: false }),
     );
 
-    expect(mockExec).toHaveBeenCalledWith(
+    expect(mockRunIfNotDryEffect).toHaveBeenCalledWith(
       "pnpm",
       expect.arrayContaining(["--tag", "beta"]),
       expect.anything(),
     );
-  });
+  })));
 
-  it("passes --tag alpha for an alpha prerelease version", async () => {
-    mockExec.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as any);
+  it.effect("passes --tag alpha for an alpha prerelease version", () =>
+    asTest(Effect.gen(function* () {
+    mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    await publishPackage(
+    yield* publishPackage(
       "@scope/pkg",
       "1.0.0-alpha.1",
       "/workspace",
       createNormalizedReleaseOptions({ dryRun: false }),
     );
 
-    expect(mockExec).toHaveBeenCalledWith(
+    expect(mockRunIfNotDryEffect).toHaveBeenCalledWith(
       "pnpm",
       expect.arrayContaining(["--tag", "alpha"]),
       expect.anything(),
     );
-  });
+  })));
 
-  it("passes --tag next for an unrecognised prerelease identifier", async () => {
-    mockExec.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as any);
+  it.effect("passes --tag next for an unrecognised prerelease identifier", () =>
+    asTest(Effect.gen(function* () {
+    mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    await publishPackage(
+    yield* publishPackage(
       "@scope/pkg",
       "1.0.0-rc.1",
       "/workspace",
       createNormalizedReleaseOptions({ dryRun: false }),
     );
 
-    expect(mockExec).toHaveBeenCalledWith(
+    expect(mockRunIfNotDryEffect).toHaveBeenCalledWith(
       "pnpm",
       expect.arrayContaining(["--tag", "next"]),
       expect.anything(),
     );
-  });
+  })));
 
-  it("does not pass --tag for a stable release", async () => {
-    mockExec.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as any);
+  it.effect("does not pass --tag for a stable release", () =>
+    asTest(Effect.gen(function* () {
+    mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    await publishPackage(
+    yield* publishPackage(
       "@scope/pkg",
       "1.0.0",
       "/workspace",
       createNormalizedReleaseOptions({ dryRun: false }),
     );
 
-    expect(mockExec).toHaveBeenCalledWith(
+    expect(mockRunIfNotDryEffect).toHaveBeenCalledWith(
       "pnpm",
       expect.not.arrayContaining(["--tag"]),
       expect.anything(),
     );
-  });
+  })));
 
-  it("passes --otp when npm.otp is set in options", async () => {
-    mockExec.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as any);
+  it.effect("passes --otp when npm.otp is set in options", () =>
+    asTest(Effect.gen(function* () {
+    mockRunIfNotDryEffect.mockReturnValue(Effect.succeed({ stdout: "", stderr: "", exitCode: 0 } as any) as any);
 
-    await publishPackage(
+    yield* publishPackage(
       "@scope/pkg",
       "1.0.0",
       "/workspace",
@@ -201,10 +221,10 @@ describe("publishPackage", () => {
       }),
     );
 
-    expect(mockExec).toHaveBeenCalledWith(
+    expect(mockRunIfNotDryEffect).toHaveBeenCalledWith(
       "pnpm",
       expect.arrayContaining(["--otp", "123456"]),
       expect.anything(),
     );
-  });
+  })));
 });

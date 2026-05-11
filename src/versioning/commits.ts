@@ -1,8 +1,9 @@
-import { getGroupedFilesByCommitSha, getMostRecentPackageTag } from "#core/git";
-import type { WorkspacePackage } from "#core/workspace";
-import { logger } from "#shared/utils";
+import { getGroupedFilesByCommitSha, getMostRecentPackageTag } from "../services/git";
+import type { WorkspacePackage } from "../services/workspace";
+import { logger } from "../shared/utils";
 import type { GitCommit } from "commit-parser";
 import { getCommits } from "commit-parser";
+import { Effect } from "effect";
 import farver from "farver";
 
 /**
@@ -13,65 +14,75 @@ import farver from "farver";
  * @param {WorkspacePackage[]} packages - Array of workspace packages to analyze
  * @returns {Promise<Map<string, GitCommit[]>>} A map of package names to their commits since their last release
  */
-export async function getWorkspacePackageGroupedCommits(
-  workspaceRoot: string,
-  packages: WorkspacePackage[],
-): Promise<Map<string, GitCommit[]>> {
-  const changedPackages = new Map<string, GitCommit[]>();
+export const getWorkspacePackageGroupedCommits = Effect.fn(
+  "getWorkspacePackageGroupedCommits",
+)(function* (workspaceRoot: string, packages: WorkspacePackage[]) {
+    const changedPackages = new Map<string, GitCommit[]>();
 
-  const promises = packages.map(async (pkg) => {
-    // Get the latest tag that corresponds to the workspace package
-    // This will ensure that we only get commits, since the last release of this package.
-    const lastTagResult = await getMostRecentPackageTag(workspaceRoot, pkg.name);
-    const lastTag = lastTagResult.ok ? lastTagResult.value : undefined;
+    const loadPackageCommits = Effect.fn("loadPackageCommits")(function* (
+      pkg: WorkspacePackage,
+      fromTag?: string,
+    ) {
+      const allCommits = yield* Effect.tryPromise(() =>
+        getCommits({
+          from: fromTag,
+          to: "HEAD",
+          cwd: workspaceRoot,
+          folder: pkg.path,
+        }),
+      );
 
-    // Get all commits since the last tag, that affect this package
-    const allCommits = await getCommits({
-      from: lastTag,
-      to: "HEAD",
-      cwd: workspaceRoot,
-      folder: pkg.path,
+      logger.verbose(
+        `Found ${farver.cyan(allCommits.length)} commits for package ${farver.bold(pkg.name)} since ${farver.cyan(fromTag ?? "start")}`,
+      );
+
+      return allCommits;
     });
 
-    logger.verbose(
-      `Found ${farver.cyan(allCommits.length)} commits for package ${farver.bold(
-        pkg.name,
-      )} since tag ${farver.cyan(lastTag ?? "N/A")}`,
+    const results = yield* Effect.all(
+      packages.map((pkg) =>
+        Effect.fn("getPackageCommitGroup")(function* () {
+          const lastTagExit = yield* Effect.exit(getMostRecentPackageTag(workspaceRoot, pkg.name));
+          const lastTag = lastTagExit._tag === "Success" ? lastTagExit.value : undefined;
+          const allCommits = yield* loadPackageCommits(pkg, lastTag);
+
+          return {
+            pkgName: pkg.name,
+            commits: allCommits,
+          };
+        })(),
+      ),
     );
 
-    return {
-      pkgName: pkg.name,
-      commits: allCommits,
-    };
-  });
+    for (const { pkgName, commits } of results) {
+      changedPackages.set(pkgName, commits);
+    }
 
-  const results = await Promise.all(promises);
+    return changedPackages;
+});
 
-  for (const { pkgName, commits } of results) {
-    changedPackages.set(pkgName, commits);
-  }
 
-  return changedPackages;
-}
-
-export async function getPackageCommitsSinceTag(
+export const getPackageCommitsSinceTag = Effect.fn("getPackageCommitsSinceTag")(function* (
   workspaceRoot: string,
   pkg: WorkspacePackage,
   fromTag?: string,
-): Promise<GitCommit[]> {
-  const allCommits = await getCommits({
-    from: fromTag,
-    to: "HEAD",
-    cwd: workspaceRoot,
-    folder: pkg.path,
-  });
+) {
+    const allCommits = yield* Effect.tryPromise(() =>
+      getCommits({
+        from: fromTag,
+        to: "HEAD",
+        cwd: workspaceRoot,
+        folder: pkg.path,
+      }),
+    );
 
-  logger.verbose(
-    `Found ${farver.cyan(allCommits.length)} commits for package ${farver.bold(pkg.name)} since ${farver.cyan(fromTag ?? "start")}`,
-  );
+    logger.verbose(
+      `Found ${farver.cyan(allCommits.length)} commits for package ${farver.bold(pkg.name)} since ${farver.cyan(fromTag ?? "start")}`,
+    );
 
-  return allCommits;
-}
+    return allCommits;
+});
+
 
 /**
  * Check if a file path touches any package folder.
@@ -208,12 +219,12 @@ export function filterGlobalCommits(
  * @param mode - Filter mode: false (disabled), "all" (all global commits), or "dependencies" (only dependency-related)
  * @returns Map of package name to their global commits
  */
-export async function getGlobalCommitsPerPackage(
+export const getGlobalCommitsPerPackage = Effect.fn("getGlobalCommitsPerPackage")(function* (
   workspaceRoot: string,
   packageCommits: Map<string, GitCommit[]>,
   allPackages: WorkspacePackage[],
   mode?: false | "dependencies" | "all",
-): Promise<Map<string, GitCommit[]>> {
+) {
   const result = new Map<string, GitCommit[]>();
 
   if (!mode) {
@@ -234,19 +245,21 @@ export async function getGlobalCommitsPerPackage(
     `${farver.cyan(commitRange.oldest)}..${farver.cyan(commitRange.newest)}`,
   );
 
-  const commitFilesMap = await getGroupedFilesByCommitSha(
+  const commitFilesMap = yield* getGroupedFilesByCommitSha(
     workspaceRoot,
     commitRange.oldest,
     commitRange.newest,
-  );
-  if (!commitFilesMap.ok) {
-    logger.warn("Failed to get commit file list, returning empty global commits");
+  ).pipe(Effect.catch(() => {
+      logger.warn("Failed to get commit file list, returning empty global commits");
+      return Effect.succeed(null);
+    }));
+  if (commitFilesMap === null) {
     return result;
   }
 
   logger.verbose(
     "Got file lists for commits",
-    `${farver.cyan(commitFilesMap.value.size)} commits in ONE git call`,
+    `${farver.cyan(commitFilesMap.size)} commits in ONE git call`,
   );
 
   const packagePaths = new Set(allPackages.map((p) => p.path));
@@ -259,7 +272,7 @@ export async function getGlobalCommitsPerPackage(
 
     const filtered = filterGlobalCommits(
       commits,
-      commitFilesMap.value,
+      commitFilesMap,
       packagePaths,
       workspaceRoot,
       mode,
@@ -273,4 +286,4 @@ export async function getGlobalCommitsPerPackage(
   }
 
   return result;
-}
+});

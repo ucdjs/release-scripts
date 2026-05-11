@@ -1,13 +1,13 @@
-import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { confirmOverridePrompt, selectVersionPrompt } from "#core/prompts";
-import type { WorkspacePackage } from "#core/workspace";
-import { calculateBumpType, getNextVersion } from "#operations/semver";
-import { determineHighestBump } from "#operations/version";
-import type { BumpKind, PackageJson, PackageRelease } from "#shared/types";
-import { getIsCI, logger } from "#shared/utils";
-import { buildPackageDependencyGraph, createDependentUpdates } from "#versioning/package";
+import { PromptService } from "../services/prompts";
+import { Effect, FileSystem } from "effect";
+import type { WorkspacePackage } from "../services/workspace";
+import { calculateBumpType, getNextVersion } from "../shared/semver";
+import { determineHighestBump } from "../shared/version";
+import type { BumpKind, PackageJson, PackageRelease } from "../shared/types";
+import { getIsCI, logger } from "../shared/utils";
+import { buildPackageDependencyGraph, createDependentUpdates } from "./package";
 import type { GitCommit } from "commit-parser";
 import farver from "farver";
 
@@ -86,12 +86,12 @@ function formatCommitsForDisplay(commits: GitCommit[]): string {
   return formattedCommits;
 }
 
-interface VersionOverride {
+export interface VersionOverride {
   type: BumpKind;
   version: string;
 }
 
-type VersionOverrides = Record<string, VersionOverride>;
+export type VersionOverrides = Record<string, VersionOverride>;
 
 /**
  * Pure function that resolves version bump from commits and overrides.
@@ -147,18 +147,15 @@ interface CalculateVersionUpdatesOptions {
   overrides?: VersionOverrides;
 }
 
-async function calculateVersionUpdates({
+const calculateVersionUpdatesEffect = Effect.fn("calculateVersionUpdatesEffect")(function* ({
   workspacePackages,
   packageCommits,
   workspaceRoot,
   showPrompt,
   globalCommitsPerPackage,
   overrides: initialOverrides = {},
-}: CalculateVersionUpdatesOptions): Promise<{
-  updates: PackageRelease[];
-  overrides: VersionOverrides;
-  excludedPackages: Set<string>;
-}> {
+}: CalculateVersionUpdatesOptions) {
+  const prompts = yield* PromptService;
   const versionUpdates: PackageRelease[] = [];
   const processedPackages = new Set<string>();
   const newOverrides: VersionOverrides = { ...initialOverrides };
@@ -205,7 +202,7 @@ async function calculateVersionUpdates({
       logger.emptyLine();
 
       if (override) {
-        const overrideChoice = await confirmOverridePrompt(pkg, override.version);
+        const overrideChoice = yield* prompts.confirmOverridePrompt(pkg, override.version);
         if (overrideChoice === null) continue;
         if (overrideChoice === "use") {
           newOverrides[pkgName] = { type: override.type, version: override.version };
@@ -230,18 +227,12 @@ async function calculateVersionUpdates({
         // rather than falling back to the auto-detected version.
       }
 
-      const selectedVersion = await selectVersionPrompt(
-        workspaceRoot,
-        pkg,
-        pkg.version,
-        newVersion,
-        {
+      const selectedVersion = yield* prompts.selectVersionPrompt(workspaceRoot, pkg, pkg.version, newVersion, {
           defaultChoice: "suggested",
           suggestedHint: override
             ? `override: ${override.version}, auto: ${determinedBump} → ${autoVersion}`
             : `auto: ${determinedBump} → ${autoVersion}`,
-        },
-      );
+        });
 
       if (selectedVersion === null) continue;
 
@@ -295,10 +286,10 @@ async function calculateVersionUpdates({
       logger.item("No direct commits found");
       logger.item(farver.dim(`Auto bump: none → ${pkg.version}`));
 
-      const newVersion = await selectVersionPrompt(workspaceRoot, pkg, pkg.version, pkg.version, {
-        defaultChoice: "auto",
-        suggestedHint: `auto: none → ${pkg.version}`,
-      });
+      const newVersion = yield* prompts.selectVersionPrompt(workspaceRoot, pkg, pkg.version, pkg.version, {
+          defaultChoice: "auto",
+          suggestedHint: `auto: none → ${pkg.version}`,
+        });
       if (newVersion === null) break;
 
       if (newVersion === pkg.version) {
@@ -324,30 +315,27 @@ async function calculateVersionUpdates({
   }
 
   return { updates: versionUpdates, overrides: newOverrides, excludedPackages };
-}
+});
 
 /**
  * Calculate version updates and prepare dependent updates
  * Returns both the updates and a function to apply them
  */
-export async function calculateAndPrepareVersionUpdates({
+export const calculateAndPrepareVersionUpdates = Effect.fn(
+  "calculateAndPrepareVersionUpdates",
+)(function* ({
   workspacePackages,
   packageCommits,
   workspaceRoot,
   showPrompt,
   globalCommitsPerPackage,
   overrides,
-}: CalculateVersionUpdatesOptions): Promise<{
-  allUpdates: PackageRelease[];
-  applyUpdates: () => Promise<void>;
-  overrides: VersionOverrides;
-}> {
-  // Calculate direct version updates
+}: CalculateVersionUpdatesOptions) {
   const {
     updates: directUpdates,
     overrides: newOverrides,
     excludedPackages: promptExcludedPackages,
-  } = await calculateVersionUpdates({
+  } = yield* calculateVersionUpdatesEffect({
     workspacePackages,
     packageCommits,
     workspaceRoot,
@@ -356,7 +344,6 @@ export async function calculateAndPrepareVersionUpdates({
     overrides,
   });
 
-  // Build dependency graph and calculate dependent updates
   const graph = buildPackageDependencyGraph(workspacePackages);
   const overrideExcludedPackages = new Set(
     Object.entries(newOverrides)
@@ -375,32 +362,34 @@ export async function calculateAndPrepareVersionUpdates({
     excludedPackages,
   );
 
-  // Create apply function that updates all package.json files
-  const applyUpdates = async () => {
-    await Promise.all(
-      allUpdates.map(async (update: PackageRelease) => {
+  const applyUpdates = Effect.fn("applyUpdates")(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    yield* Effect.all(
+      allUpdates.map((update: PackageRelease) => {
         const depUpdates = getDependencyUpdates(update.package, allUpdates);
-        await updatePackageJson(update.package, update.newVersion, depUpdates);
+        return updatePackageJson(fs, update.package, update.newVersion, depUpdates);
       }),
     );
-  };
+  });
 
   return {
     allUpdates,
     applyUpdates,
     overrides: newOverrides,
   };
-}
+});
 
-async function updatePackageJson(
+
+const updatePackageJson = Effect.fn("updatePackageJson")(
+  function* (
+  fs: FileSystem.FileSystem,
   pkg: WorkspacePackage,
   newVersion: string,
   dependencyUpdates: Map<string, string>,
-): Promise<void> {
+) {
   const packageJsonPath = join(pkg.path, "package.json");
 
-  // Read current package.json
-  const content = await readFile(packageJsonPath, "utf-8");
+  const content = yield* fs.readFileString(packageJsonPath);
   const packageJson: PackageJson = JSON.parse(content);
 
   // Update version
@@ -434,11 +423,10 @@ async function updatePackageJson(
     updateDependency(packageJson.peerDependencies, depName, depVersion, true);
   }
 
-  // Write back with formatting
   const updated = `${JSON.stringify(packageJson, null, 2)}\n`;
-  await writeFile(packageJsonPath, updated, "utf-8");
+  yield* fs.writeFileString(packageJsonPath, updated);
   logger.verbose(`  - Successfully wrote updated package.json`);
-}
+});
 
 /**
  * Get all dependency updates needed for a package

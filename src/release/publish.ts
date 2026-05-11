@@ -1,0 +1,377 @@
+import { join } from "node:path";
+
+import { parseChangelog } from "../services/changelog";
+import { GitHubService } from "../services/github";
+import { type GitError, GitService } from "../services/git";
+import { type NPMError, NpmService } from "../services/npm";
+import type { PublishStatus } from "../services/npm";
+import { type WorkspaceError, type WorkspacePackage, WorkspaceService } from "../services/workspace";
+import { exitWithError } from "../shared/errors";
+import { formatUnknownError } from "../shared/errors";
+import { ReleaseOptions } from "../options";
+import { logger, ucdjsReleaseOverridesPath } from "../shared/utils";
+import { buildPackageDependencyGraph, getPackagePublishOrder } from "../versioning/package";
+import { Effect, FileSystem } from "effect";
+import farver from "farver";
+import semver from "semver";
+import type { NormalizedReleaseScriptsOptions } from "../options";
+import type { BumpKind } from "#shared/types";
+
+const getReleaseBodyFromChangelog = Effect.fn("getReleaseBodyFromChangelogEffect")(function* (
+  _workspaceRoot: string,
+  packageName: string,
+  packagePath: string,
+  version: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const changelogPath = join(packagePath, "CHANGELOG.md");
+  const changelogContent = yield* fs.readFileString(changelogPath).pipe(Effect.catch((err) => {
+    logger.verbose(`Could not read changelog entry for ${version} at ${changelogPath}: ${err.message}`);
+    return Effect.succeed([
+      `## ${packageName}@${version}`,
+      "",
+      "⚠️ Could not read package changelog while creating this release.",
+      "",
+      `Expected changelog file: ${changelogPath}`,
+    ].join("\n"));
+  }));
+
+  const parsed = parseChangelog(changelogContent);
+  const entry = parsed.versions.find((v) => v.version === version);
+
+  if (!entry) {
+    return [
+      `## ${packageName}@${version}`,
+      "",
+      "⚠️ Could not find a matching changelog entry for this version.",
+      "",
+      `Expected version ${version} in ${changelogPath}.`,
+    ].join("\n");
+  }
+
+  const lines = entry.content.trim().split("\n");
+  if (lines[0]?.trim().startsWith("## ")) {
+    return lines.slice(1).join("\n").trim();
+  }
+
+  return entry.content.trim();
+});
+
+const cleanupPublishedOverrides = Effect.fn("cleanupPublishedOverridesEffect")(function* (
+  options: NormalizedReleaseScriptsOptions,
+  workspacePackages: { name: string; version: string }[],
+  publishedPackageNames: string[],
+) {
+  const fs = yield* FileSystem.FileSystem;
+
+  if (publishedPackageNames.length === 0) {
+    return false;
+  }
+
+  if (options.dryRun) {
+    logger.verbose("Dry-run: skipping override cleanup");
+    return false;
+  }
+
+  const overridesPath = join(options.workspaceRoot, ucdjsReleaseOverridesPath);
+  const overrides = yield* fs.readFileString(overridesPath).pipe(
+    Effect.flatMap((content) => Effect.try({
+      try: () => JSON.parse(content) as Record<string, {
+        version: string;
+        type: BumpKind;
+      }>,
+      catch: () => null,
+    })),
+    Effect.catch(() => Effect.succeed(null)),
+  );
+
+  if (!overrides) {
+    return false;
+  }
+
+  const versionsByPackage = new Map(workspacePackages.map((pkg) => [pkg.name, pkg.version]));
+  const publishedSet = new Set(publishedPackageNames);
+  const removed: string[] = [];
+
+  for (const [pkgName, override] of Object.entries(overrides)) {
+    if (!publishedSet.has(pkgName)) {
+      continue;
+    }
+
+    const currentVersion = versionsByPackage.get(pkgName);
+    const current = currentVersion ? semver.valid(currentVersion) : null;
+    const target = semver.valid(override.version);
+
+    if (current && target && semver.gte(current, target)) {
+      delete overrides[pkgName];
+      removed.push(pkgName);
+    }
+  }
+
+  if (removed.length === 0) {
+    return false;
+  }
+
+  logger.step(`Cleaning up satisfied overrides (${removed.length})...`);
+
+  if (Object.keys(overrides).length === 0) {
+    yield* fs.remove(overridesPath, { force: true });
+    logger.success("Removed release override file (all entries satisfied)");
+    return true;
+  }
+
+  yield* fs.writeFileString(overridesPath, JSON.stringify(overrides, null, 2));
+  logger.success(`Removed satisfied overrides: ${removed.join(", ")}`);
+  return true;
+});
+
+export const publishWorkflow = Effect.fn("publishWorkflow")(function* () {
+  const options = yield* ReleaseOptions;
+  const github = yield* GitHubService;
+  const git = yield* GitService;
+  const npm = yield* NpmService;
+  const workspace = yield* WorkspaceService;
+  const fs = yield* FileSystem.FileSystem;
+  logger.section("📦 Publishing Packages");
+
+  // Warn if not on the expected default branch — publishing from a feature/release branch is unusual
+  const currentBranch = yield* Effect.catchTag(
+    git.getCurrentBranch(options.workspaceRoot) as Effect.Effect<string, GitError, unknown>,
+    "GitError",
+    () => Effect.succeed(undefined),
+  );
+  if (currentBranch && currentBranch !== options.branch.default) {
+    logger.warn(
+      `Publishing from branch "${currentBranch}" instead of the default branch "${options.branch.default}". ` +
+      `Pass --force if this is intentional.`,
+    );
+  }
+
+  // Discover workspace packages
+  const workspacePackages = yield* Effect.catchTag(workspace.discoverWorkspacePackages(
+    options.workspaceRoot,
+    options,
+  ) as Effect.Effect<WorkspacePackage[], WorkspaceError, unknown>, "WorkspaceError", (error) =>
+      Effect.sync(() => exitWithError("Failed to discover packages.", undefined, error)),
+    );
+  logger.item(`Found ${workspacePackages.length} packages in workspace`);
+
+  // Build dependency graph for publish ordering
+  const graph = buildPackageDependencyGraph(workspacePackages);
+
+  // Filter out private packages
+  const publicPackages = workspacePackages.filter((pkg) => !pkg.packageJson.private);
+  logger.item(`Publishing ${publicPackages.length} public packages (private packages excluded)`);
+
+  if (publicPackages.length === 0) {
+    logger.warn("No public packages to publish");
+    return;
+  }
+
+  // Get topological publish order
+  const packagesToPublish = new Set(publicPackages.map((p) => p.name));
+  const publishOrder = getPackagePublishOrder(graph, packagesToPublish);
+
+  // Filter to only packages that actually need publishing (have updates)
+  // We'll check each package's current version vs registry
+  const status: PublishStatus = {
+    published: [],
+    skipped: [],
+    failed: [],
+  };
+
+  for (const order of publishOrder) {
+    const pkg = order.package;
+    const version = pkg.version;
+    const packageName = pkg.name;
+
+    logger.section(`📦 ${farver.cyan(packageName)} ${farver.gray(`(level ${order.level})`)}`);
+
+    // Check if version already exists on NPM
+    logger.step(`Checking if ${farver.cyan(`${packageName}@${version}`)} exists on NPM...`);
+    const npmExists = yield* Effect.catchTag(
+      npm.checkVersionExists(packageName, version) as Effect.Effect<boolean, NPMError, unknown>,
+      "NPMError",
+      (error) =>
+        Effect.sync(() => {
+          logger.error(`Failed to check version: ${formatUnknownError(error).message}`);
+          status.failed.push(packageName);
+          exitWithError(
+            `Publishing failed for ${packageName}.`,
+            "Check your network connection and NPM registry access",
+            error,
+          );
+        }),
+    );
+
+    // Check if a changelog entry exists for this version
+    let changelogEntryExists = false;
+    const changelogPath = join(pkg.path, "CHANGELOG.md");
+    try {
+      const changelogContent = yield* fs.readFileString(changelogPath);
+      const parsed = parseChangelog(changelogContent);
+      changelogEntryExists = parsed.versions.some((v) => v.version === version);
+    } catch {
+      // If changelog can't be read, treat entry as missing
+    }
+
+    if (npmExists && changelogEntryExists) {
+      logger.info(
+        `Version ${farver.cyan(version)} already exists on NPM and in changelog, skipping`,
+      );
+      status.skipped.push(packageName);
+      continue;
+    }
+
+    if (!npmExists) {
+      // Publish to NPM
+      logger.step(`Publishing ${farver.cyan(`${packageName}@${version}`)} to NPM...`);
+      yield* Effect.catchTag(npm.publishPackage(
+        packageName,
+        version,
+        options.workspaceRoot,
+        options,
+      ) as Effect.Effect<void, NPMError, unknown>, "NPMError", (error) =>
+          Effect.sync(() => {
+            const formatted = formatUnknownError(error);
+            logger.error(`Failed to publish: ${formatted.message}`);
+            status.failed.push(packageName);
+
+            let hint: string | undefined;
+            if (formatted.code === "E403") {
+              hint = "Authentication failed. Ensure your NPM token or OIDC configuration is correct";
+            } else if (formatted.code === "EPUBLISHCONFLICT") {
+              hint = "Version conflict. The version may have been published recently";
+            } else if (formatted.code === "EOTP") {
+              hint = "2FA/OTP required. Provide the otp option or use OIDC authentication";
+            }
+
+            exitWithError(`Publishing failed for ${packageName}`, hint, error);
+          }),
+      );
+
+      logger.success(`Published ${farver.cyan(`${packageName}@${version}`)}`);
+      status.published.push(packageName);
+    }
+
+    // Create and push git tag
+    logger.step(`Creating git tag ${farver.cyan(`${packageName}@${version}`)}...`);
+    yield* Effect.catchTag(
+      git.createAndPushPackageTag(packageName, version, options.workspaceRoot) as Effect.Effect<void, GitError, unknown>,
+      "GitError",
+      (error) =>
+        Effect.sync(() => {
+          logger.error(`Failed to create/push tag: ${formatUnknownError(error).message}`);
+          status.failed.push(packageName);
+          exitWithError(
+            `Publishing failed for ${packageName}: could not create git tag`,
+            "Ensure the workflow token can push tags (contents: write) and git credentials are configured",
+            error,
+          );
+        }),
+    );
+    const tagName = `${packageName}@${version}`;
+
+    logger.success(`Created and pushed tag ${farver.cyan(tagName)}`);
+
+    logger.step(`Creating GitHub release for ${farver.cyan(tagName)}...`);
+    try {
+      const releaseBody = yield* getReleaseBodyFromChangelog(
+        options.workspaceRoot,
+        packageName,
+        pkg.path,
+        version,
+      );
+
+      const releaseResult = yield* github.upsertReleaseByTag({
+        tagName,
+        name: tagName,
+        body: releaseBody,
+        prerelease: Boolean(semver.prerelease(version)),
+      });
+
+      if (releaseResult.release.htmlUrl) {
+        logger.success(
+          `${releaseResult.created ? "Created" : "Updated"} GitHub release: ${releaseResult.release.htmlUrl}`,
+        );
+      } else {
+        logger.success(
+          `${releaseResult.created ? "Created" : "Updated"} GitHub release for ${farver.cyan(tagName)}`,
+        );
+      }
+    } catch (error) {
+      status.failed.push(packageName);
+      exitWithError(
+        `Publishing failed for ${packageName}: could not create GitHub release`,
+        "Ensure the workflow token can write repository contents and releases",
+        error,
+      );
+    }
+  }
+
+  // Print summary
+  logger.section("📊 Publishing Summary");
+  logger.item(`${farver.green("✓")} Published: ${status.published.length} package(s)`);
+  if (status.published.length > 0) {
+    for (const pkg of status.published) {
+      logger.item(`  ${farver.green("•")} ${pkg}`);
+    }
+  }
+
+  if (status.skipped.length > 0) {
+    logger.item(
+      `${farver.yellow("⚠")} Skipped (already exists): ${status.skipped.length} package(s)`,
+    );
+    for (const pkg of status.skipped) {
+      logger.item(`  ${farver.yellow("•")} ${pkg}`);
+    }
+  }
+
+  if (status.failed.length > 0) {
+    logger.item(`${farver.red("✖")} Failed: ${status.failed.length} package(s)`);
+    for (const pkg of status.failed) {
+      logger.item(`  ${farver.red("•")} ${pkg}`);
+    }
+  }
+
+  if (status.failed.length > 0) {
+    exitWithError(`Publishing completed with ${status.failed.length} failure(s)`);
+  }
+
+  const didCleanupOverrides = yield* cleanupPublishedOverrides(
+    options,
+    workspacePackages,
+    status.published,
+  );
+
+    if (didCleanupOverrides && !options.dryRun) {
+    logger.step("Committing override cleanup...");
+    const commitResult = yield* git.commitPaths(
+      [ucdjsReleaseOverridesPath],
+      "chore: cleanup release overrides",
+      options.workspaceRoot,
+    );
+
+    if (commitResult) {
+      const currentBranch = yield* Effect.catchTag(
+        git.getCurrentBranch(options.workspaceRoot) as Effect.Effect<string, GitError, unknown>,
+        "GitError",
+        (error) =>
+          Effect.sync(() =>
+            exitWithError("Failed to detect current branch for override cleanup push.", undefined, error)
+          ),
+      );
+
+      yield* Effect.catchTag(
+        git.pushBranch(currentBranch, options.workspaceRoot) as Effect.Effect<boolean, GitError, unknown>,
+        "GitError",
+        (error) =>
+          Effect.sync(() => exitWithError("Failed to push override cleanup commit.", undefined, error)),
+      );
+
+      logger.success(`Pushed override cleanup commit to ${farver.cyan(currentBranch)}`);
+    }
+  }
+
+  logger.success("All packages published successfully!");
+});
