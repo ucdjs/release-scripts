@@ -6,8 +6,85 @@ import {
   filterGlobalCommits,
   findCommitRange,
   isGlobalCommit,
-} from "../../src/commits";
-import { createCommit } from "../_shared";
+} from "../src/commits";
+import { determineHighestBump } from "../src/versions";
+import { createCommit } from "./_shared";
+
+describe("determineHighestBump", () => {
+  it("should return 'none' for empty commit list", () => {
+    const result = determineHighestBump([]);
+    expect(result).toBe("none");
+  });
+
+  it("should return 'patch' if only patch commits are present", () => {
+    const result = determineHighestBump([
+      createCommit({
+        message: "fix: bug fix",
+        type: "fix",
+        isConventional: true,
+      }),
+      createCommit({
+        message: "chore: update dependencies",
+        type: "fix",
+        isConventional: true,
+      }),
+    ]);
+
+    expect(result).toBe("patch");
+  });
+
+  it("should return 'minor' if minor and patch commits are present", () => {
+    const result = determineHighestBump([
+      createCommit({
+        message: "feat: new feature",
+        type: "feat",
+        isConventional: true,
+      }),
+      createCommit({
+        message: "fix: bug fix",
+        type: "fix",
+        isConventional: true,
+      }),
+    ]);
+
+    expect(result).toBe("minor");
+  });
+
+  it("should return 'major' if a breaking change commit is present", () => {
+    const result = determineHighestBump([
+      createCommit({
+        message: "feat: new feature\n\nBREAKING CHANGE: changes API",
+        type: "feat",
+        isConventional: true,
+        isBreaking: true,
+      }),
+      createCommit({
+        message: "fix: bug fix",
+        type: "fix",
+        isConventional: true,
+      }),
+    ]);
+
+    expect(result).toBe("major");
+  });
+
+  it("should ignore non-conventional commits", () => {
+    const result = determineHighestBump([
+      createCommit({
+        message: "Some random commit message",
+        isConventional: false,
+        type: "",
+      }),
+      createCommit({
+        message: "fix: bug fix",
+        type: "fix",
+        isConventional: true,
+      }),
+    ]);
+
+    expect(result).toBe("patch");
+  });
+});
 
 describe("fileMatchesPackageFolder", () => {
   it("matches files inside package folder", () => {
@@ -93,9 +170,9 @@ describe("filterGlobalCommits", () => {
       createCommit({ shortHash: "c3" }),
     ];
     const filesMap = new Map([
-      ["c1", ["package.json"]], // global
-      ["c2", ["packages/a/src/index.ts"]], // touches package
-      ["c3", ["tsconfig.json"]], // global
+      ["c1", ["package.json"]],
+      ["c2", ["packages/a/src/index.ts"]],
+      ["c3", ["tsconfig.json"]],
     ]);
 
     const result = filterGlobalCommits(commits, filesMap, packagePaths, "/repo", "all");
@@ -110,9 +187,9 @@ describe("filterGlobalCommits", () => {
       createCommit({ shortHash: "c3" }),
     ];
     const filesMap = new Map([
-      ["c1", ["package.json"]], // global + dependency file
-      ["c2", ["packages/a/src/index.ts"]], // touches package
-      ["c3", ["tsconfig.json"]], // global but NOT a dependency file
+      ["c1", ["package.json"]],
+      ["c2", ["packages/a/src/index.ts"]],
+      ["c3", ["tsconfig.json"]],
     ]);
 
     const result = filterGlobalCommits(commits, filesMap, packagePaths, "/repo", "dependencies");

@@ -1,11 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import process from "node:process";
+
+import { NodeServices } from "@effect/platform-node";
+import { expect as effectExpect, it as effectIt } from "@effect/vitest";
+import { Cause, Effect, Exit, Option } from "effect";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CommandError,
   exitWithError,
   formatUnknownError,
+  getIsCI,
   printReleaseError,
   ReleaseError,
-} from "../../src/errors";
+  runCommandEffect,
+} from "../src/errors";
 
 describe("formatUnknownError", () => {
   it("handles Error instances", () => {
@@ -117,4 +125,97 @@ describe("printReleaseError", () => {
     expect(output).toContain("underlying issue");
     spy.mockRestore();
   });
+});
+
+effectIt.effect("runCommandEffect captures stdout with pipe stdio", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const result = yield* runCommandEffect(
+        process.execPath,
+        ["-e", "process.stdout.write('ok')"],
+        {
+          nodeOptions: {
+            stdio: "pipe",
+          },
+        },
+      ).pipe(Effect.provide(NodeServices.layer));
+
+      effectExpect(result.stdout).toBe("ok");
+      effectExpect(result.stderr).toBe("");
+      effectExpect(result.exitCode).toBe(0);
+    }),
+  ));
+
+effectIt.effect("runCommandEffect fails with CommandError on non-zero exit", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const exit = yield* Effect.exit(
+        runCommandEffect(process.execPath, ["-e", "process.stderr.write('boom'); process.exit(2)"], {
+          nodeOptions: {
+            stdio: "pipe",
+          },
+        }).pipe(Effect.provide(NodeServices.layer)),
+      );
+
+      effectExpect(Exit.isFailure(exit)).toBe(true);
+
+      if (Exit.isFailure(exit)) {
+        const error = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
+        effectExpect(error).toBeInstanceOf(CommandError);
+        effectExpect(error?.stderr).toContain("boom");
+        effectExpect(error?.exitCode).toBe(2);
+      }
+    }),
+  ));
+
+describe("getIsCI", () => {
+  let originalCI: string | undefined;
+
+  beforeEach(() => {
+    originalCI = process.env.CI;
+  });
+
+  afterEach(() => {
+    if (originalCI === undefined) {
+      delete process.env.CI;
+    } else {
+      process.env.CI = originalCI;
+    }
+  });
+
+  effectIt.effect("returns true when CI=true", () =>
+    Effect.sync(() => {
+      process.env.CI = "true";
+      effectExpect(getIsCI()).toBe(true);
+    }));
+
+  effectIt.effect("returns true when CI is non-empty string", () =>
+    Effect.sync(() => {
+      process.env.CI = "1";
+      effectExpect(getIsCI()).toBe(true);
+    }));
+
+  effectIt.effect("returns false when CI is unset", () =>
+    Effect.sync(() => {
+      delete process.env.CI;
+      effectExpect(getIsCI()).toBe(false);
+    }));
+
+  effectIt.effect("returns false when CI=false", () =>
+    Effect.sync(() => {
+      process.env.CI = "false";
+      effectExpect(getIsCI()).toBe(false);
+    }));
+
+  effectIt.effect("returns false when CI is empty string", () =>
+    Effect.sync(() => {
+      process.env.CI = "";
+      effectExpect(getIsCI()).toBe(false);
+    }));
+
+  effectIt.effect("returns false when CI=FALSE (case insensitive)", () =>
+    Effect.sync(() => {
+      process.env.CI = "FALSE";
+      effectExpect(getIsCI()).toBe(false);
+    }));
 });
